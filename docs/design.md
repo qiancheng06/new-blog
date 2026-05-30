@@ -113,6 +113,10 @@ index.html / detail.html / calendar.html（EMBEDDED_PROJECTS + TODO_DATA）
 ### 项目进度
 ```
 projects/*.md (frontmatter + ## 阶段 + - [x] 任务)
+    → import.meta.glob → ProgressDashboard.vue（VitePress 端）
+        → 卡片点击展开详情
+        → 状态/优先级下拉编辑 + 任务勾选/添加/删除
+        → localStorage 持久化
     → sync-projects.js → EMBEDDED_PROJECTS / ALL_PROJECTS
     → index.html（看板卡片） / detail.html（详情+编辑）
     → localStorage（编辑时持久化）

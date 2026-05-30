@@ -51,11 +51,10 @@
 
 | 优先级 | 任务 | 说明 |
 |--------|------|------|
-| P4 | VitePress 页面美化 | 统一 `.vitepress/dist/` 下 34 个页面与独立 HTML 的暗色科技风 → P5.enhance-css |
 | P5 | 待办解析器（CalendarTodo.vue 接入真实数据） | 目前 calendar.html 已有数据，但 VitePress 的 CalendarTodo 组件还是空壳 |
-| P5 | 内容填充 | 写博客文章 + 整理 inbox 笔记 |
+| P5 | 内容填充 | 写博客文章 + 整理 inbox 笔记 + 知识库结构调整 |
 | P5 | 手机端快捷备忘 | 见 roadmap.md #? |
-| P6 | 上线部署 | 方案已定：Cloudflare Tunnel + Access，见 `deploy.md` 和 `design.md §9` |
+| P6 | 上线实施 | Cloudflare Tunnel + Access 配置，见 `deploy.md` |
 
 ### P6.online-deploy 🚀
 
@@ -72,23 +71,44 @@
 - `design.md §9` — 更新为当前方案
 - 待实施：配置 Tunnel + Access + 去除 filePath 泄露
 
-### P5.enhance-css 🎨
+### P5.enhance-css 🎨 ✅
 
-**目标**: 大幅增强 `.vitepress/theme/custom.css`，使 `.vitepress/dist/` 下所有 VitePress 页面具有与 index.html / calendar.html / detail.html 一致的暗色科技风视觉体验。
+### P5.fix-base-path 🛠️ ✅
 
-**关键任务**:
-- [x] 统一 CSS 变量体系（与 index.html 的 `:root` 对齐）
-- [x] 添加毛玻璃导航栏（backdrop-filter + 半透明背景）
-- [x] 完善侧边栏样式（hover / active 状态 + 圆角）
-- [x] 内容页卡片化（.vp-doc 内表格/代码块/引用块统一风格）
-- [x] 首页 hero 区域增强（渐变标题 + 按钮动效）
-- [x] 进度条动画 + 项目卡片悬停效果
-- [x] 自定义块（tip/warning/danger）美化
-- [x] 滚动条统一风格
-- [x] 分页导航（prev/next）美化
-- [x] 移动端自适应
+### P5.tailwind-remove ⚡ ✅
 
-### P5.fix-base-path 🛠️
+**问题**: 3 个独立 HTML 页面加载 Tailwind Play CDN（`cdn.tailwindcss.com`），每次页面加载扫描全页生成 3MB+ CSS，首屏卡顿 1-3s。
+
+**解决**: 移除所有 HTML 页面的 CDN 引用。三个页面全部使用内联 CSS，无一外部依赖，打开即渲染。
+
+### P5.nav-path-fix 🧭 ✅
+
+**问题**: `base: './'` 导致 VitePress 导航链接变为相对路径（`./knowledge/`），从子目录（如 `/projects/`）点击时路径叠加为 `/projects/knowledge/`。
+
+**解决**: 移除 `base: './'`（默认 `/`），VitePress 页面必须通过 HTTP 访问。独立 HTML 页面链接改为动态检测 dev server。
+
+### P5.progress-expand 📋 ✅
+
+**改进 ProgressDashboard.vue**:
+- [x] 卡片点击展开/收起详情面板（带动画）
+- [x] 详情内可编辑：状态/优先级下拉选择
+- [x] 详情内可编辑：勾选/添加/删除任务
+- [x] localStorage 持久化编辑数据
+- [x] 进度条颜色跟随状态变化
+
+### P5.hero-btn 🔘 ✅
+
+在 VitePress 首页 Hero 按钮区添加"🚀 项目进度"按钮，指向 `/projects/`。
+
+### P5.start-batch 🚀 ✅
+
+**问题**: startup 脚本先开浏览器再起 dev server，导致连接失败；关闭窗口后后台进程残留。
+
+**解决**: 
+- 后台进程最小化启动
+- 轮询检测 `localhost:5173` 就绪后再开浏览器
+- 仅打开一个浏览器标签页
+- 按任意键后自动 `taskkill` 清理后台进程
 
 **问题**: 从 `index.html` (file:// 协议) 点击链接打开 `.vitepress/dist/` 下的 VitePress 页面时，CSS/JS 加载失败，页面无样式。
 

@@ -34,6 +34,13 @@
 | 19 | 2026-05-31 | 知识数据自动同步到仪表盘 | sync-projects.js 扫描 vault/knowledge/ → KNOWLEDGE_DATA；watch.js 监听 knowledge/ | ✅ |
 | 20 | 2026-05-31 | 博客导航页面 + Tailwind CDN | 清理 vault/blog/ 脏文件，博客首页改为 hero 布局；三 HTML 页引入 Tailwind CDN | ✅ |
 | 21 | 2026-05-31 | CSS 修复 + 项目整理 + README | custom.css 变量从 :root 改为 html.dark；整理目录结构去重；新增 README.md | ✅ |
+| 22 | 2026-05-31 | VitePress 页面暗色科技风美化 | 玻璃导航、侧边栏圆角、表格/代码块/引用块美颜、响应式适配 | ✅ |
+| 23 | 2026-05-31 | 移除 Tailwind CDN 提升性能 | 删掉 `cdn.tailwindcss.com`，三个 HTML 页面全部内联 CSS，消除 1-3s 首屏卡顿 | ✅ |
+| 24 | 2026-05-31 | 修复导航路径叠加 bug | 移除 `base: './'`，恢复绝对路径导航 | ✅ |
+| 25 | 2026-05-31 | 项目看板卡片可展开编辑 | 点击卡片展开详情，状态/优先级下拉选择，任务勾选/添加/删除，localStorage 持久化 | ✅ |
+| 26 | 2026-05-31 | 首页 Hero 加项目进度按钮 | 首页 Hero 按钮区新增"🚀 项目进度"，指向 `/projects/` | ✅ |
+| 27 | 2026-05-31 | 上线方案文档 | `deploy.md`（Cloudflare Tunnel + Access 完整方案）| ✅ |
+| 28 | 2026-05-31 | 启动脚本优化 | 等待服务器就绪再开浏览器，闭环杀后台进程 | ✅ |
 
 ---
 
