@@ -4,11 +4,16 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "vitepress dev .",
-    "build": "vitepress build .",
+    "sync": "node scripts/sync-projects.js",
+    "watch": "node scripts/watch.js",
+    "dev": "node scripts/sync-projects.js && vitepress dev .",
+    "build": "node scripts/sync-projects.js && vitepress build .",
     "preview": "vitepress preview ."
   },
   "devDependencies": {
     "vitepress": "^1.6.0"
+  },
+  "dependencies": {
+    "vue": "^3.5.35"
   }
 }

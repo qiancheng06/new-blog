@@ -1,0 +1,918 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>项目详情</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d0e1a; --card: #1a1b2e; --card-hover: #222340;
+  --text: rgba(255,255,255,0.85); --text2: rgba(255,255,255,0.55); --text3: rgba(255,255,255,0.3);
+  --border: rgba(255,255,255,0.06); --accent: #4a9eff; --accent2: #7c3aed;
+  --green: #00b894; --yellow: #fdcb6e;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6; padding: 2rem;
+}
+.container { max-width: 900px; margin: 0 auto; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: .3rem;
+  color: var(--text2); text-decoration: none; font-size: .85rem;
+  margin-bottom: 1.5rem; transition: color .2s;
+}
+.back-link:hover { color: var(--accent); }
+
+.hero {
+  background: var(--card); border: 1px solid var(--border); border-radius: 16px;
+  padding: 2rem; margin-bottom: 1.5rem; position: relative; overflow: hidden;
+}
+.hero::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); }
+.hero-top { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: .5rem; margin-bottom: .6rem; }
+.hero-name { font-size: 1.5rem; font-weight: 700; color: #fff; }
+.hero-actions { display: flex; gap: .4rem; flex-wrap: wrap; }
+.status-badge { font-size: .72rem; font-weight: 600; padding: .15rem .6rem; border-radius: 4px; color: #fff; letter-spacing: .3px; }
+.priority-badge { font-size: .72rem; color: var(--text3); padding: .15rem .45rem; border: 1px solid var(--border); border-radius: 4px; }
+
+.edit-btn {
+  padding: .3rem .7rem; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--text2); cursor: pointer; font-size: .78rem; transition: all .2s;
+}
+.edit-btn:hover { color: var(--accent); border-color: rgba(74,158,255,0.3); background: rgba(74,158,255,0.08); }
+.edit-btn.active { background: rgba(74,158,255,0.1); color: var(--accent); }
+
+.meta-row { display: flex; align-items: center; gap: .6rem; flex-wrap: wrap; margin-bottom: .8rem; }
+.tags { display: flex; gap: .35rem; flex-wrap: wrap; }
+.tag { font-size: .72rem; padding: .1rem .5rem; border-radius: 4px; background: rgba(74,158,255,0.1); color: rgba(74,158,255,0.8); border: 1px solid rgba(74,158,255,0.15); }
+.repo-link { font-size: .78rem; color: var(--text3); text-decoration: none; }
+.repo-link:hover { color: var(--accent); }
+
+.progress-overall { margin-top: .5rem; }
+.progress-overall .bar { display: flex; align-items: center; gap: .6rem; }
+.progress-overall .track { flex: 1; height: 8px; border-radius: 4px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.progress-overall .fill { height: 100%; border-radius: 4px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .6s ease; }
+.progress-overall .label { font-size: .85rem; color: var(--text2); white-space: nowrap; }
+
+.section-card {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  padding: 1.25rem; margin-bottom: .85rem; transition: border-color .2s;
+}
+.section-card:hover { border-color: rgba(74,158,255,0.12); }
+
+.section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .5rem; }
+.section-title { font-size: .9rem; font-weight: 600; color: var(--text); }
+.section-count { font-size: .78rem; color: var(--text3); }
+.section-progress { margin-bottom: .75rem; }
+.section-progress .bar { display: flex; align-items: center; gap: .5rem; }
+.section-progress .track { flex: 1; height: 5px; border-radius: 3px; background: rgba(255,255,255,0.06); overflow: hidden; }
+.section-progress .fill { height: 100%; border-radius: 3px; background: linear-gradient(90deg, var(--accent), var(--accent2)); transition: width .6s ease; }
+.section-progress .fill.full { background: linear-gradient(90deg, var(--green), #00cec9); }
+.section-progress .label { font-size: .75rem; color: var(--text3); white-space: nowrap; }
+
+.task-item {
+  display: flex; align-items: center; gap: .4rem; padding: .2rem 0;
+  font-size: .85rem; color: var(--text2);
+}
+.task-item.done { color: var(--text3); text-decoration: line-through; }
+.task-check { flex-shrink: 0; width: 1rem; text-align: center; font-size: .75rem; cursor: default; }
+.task-item.done .task-check { color: var(--green); }
+.task-text { flex: 1; }
+
+.editing .task-check { cursor: pointer; }
+.editing .task-check:hover { color: var(--accent); }
+.editing .task-item.done .task-check:hover { color: var(--yellow); }
+.editing .task-item { border-radius: 4px; padding: .2rem .3rem; margin: 0 -.3rem; }
+.editing .task-item:hover { background: rgba(255,255,255,0.03); }
+
+.task-del {
+  opacity: 0; flex-shrink: 0; width: 1.2rem; height: 1.2rem;
+  display: flex; align-items: center; justify-content: center;
+  border: none; background: rgba(255,255,255,0.06); color: var(--text3);
+  border-radius: 4px; cursor: pointer; font-size: .7rem; transition: all .2s;
+}
+.task-item:hover .task-del { opacity: .6; }
+.task-del:hover { opacity: 1 !important; color: #e17055; background: rgba(225,112,85,0.15); }
+
+.add-task-form {
+  display: flex; gap: .4rem; margin-top: .5rem; padding-top: .5rem;
+  border-top: 1px solid var(--border);
+}
+.add-task-form input {
+  flex: 1; background: rgba(255,255,255,0.04); border: 1px solid var(--border);
+  border-radius: 6px; padding: .35rem .6rem; color: var(--text); font-size: .82rem; outline: none;
+}
+.add-task-form input:focus { border-color: rgba(74,158,255,0.3); }
+.add-task-form button {
+  padding: .35rem .7rem; border-radius: 6px; border: 1px solid var(--border);
+  background: transparent; color: var(--text2); cursor: pointer; font-size: .78rem; transition: all .2s;
+}
+.add-task-form button:hover { background: rgba(74,158,255,0.1); color: var(--accent); }
+
+.editing .status-badge { appearance: none; border: 1px solid var(--border); border-radius: 4px; padding: .1rem .35rem; background: transparent; color: var(--text); font-size: .72rem; cursor: pointer; }
+.editing .priority-badge { appearance: none; border: 1px solid var(--border); border-radius: 4px; padding: .1rem .35rem; background: transparent; color: var(--text); font-size: .72rem; cursor: pointer; }
+
+.save-bar {
+  display: none; position: sticky; bottom: 1rem; justify-content: center; gap: .5rem;
+  margin-top: 1.5rem; padding: .75rem; background: var(--card); border: 1px solid var(--accent);
+  border-radius: 12px; z-index: 100; flex-wrap: wrap;
+}
+.editing .save-bar { display: flex; }
+.save-btn {
+  padding: .5rem 1rem; border-radius: 8px; font-size: .82rem; font-weight: 500;
+  border: none; cursor: pointer; transition: all .2s;
+}
+.save-btn.primary { background: linear-gradient(135deg, var(--accent), var(--accent2)); color: #fff; }
+.save-btn.primary:hover { box-shadow: 0 4px 16px rgba(74,158,255,0.35); }
+.save-btn.secondary { background: transparent; color: var(--text2); border: 1px solid var(--border); }
+.save-btn.secondary:hover { color: var(--text); border-color: rgba(255,255,255,0.15); }
+.save-btn.danger { background: transparent; color: #e17055; border: 1px solid rgba(225,112,85,0.3); }
+.save-btn.danger:hover { border-color: #e17055; }
+
+.toast {
+  position: fixed; top: 1.5rem; right: 1.5rem;
+  padding: .6rem 1rem; border-radius: 8px; font-size: .82rem;
+  background: var(--card); border: 1px solid var(--border); color: var(--text2);
+  opacity: 0; transform: translateY(-.5rem); transition: all .3s;
+  pointer-events: none; z-index: 200;
+}
+.toast.show { opacity: 1; transform: translateY(0); }
+.toast.success { border-color: rgba(0,184,148,0.3); color: var(--green); }
+
+.storage-badge {
+  display: inline-flex; align-items: center; gap: .3rem;
+  font-size: .72rem; color: var(--text3); padding: .1rem .5rem;
+  border: 1px solid var(--border); border-radius: 4px;
+}
+.storage-badge.local { color: var(--green); border-color: rgba(0,184,148,0.2); background: rgba(0,184,148,0.05); }
+
+.empty { text-align: center; color: var(--text3); padding: 3rem; font-size: .9rem; }
+
+@media (max-width: 600px) {
+  body { padding: 1rem; }
+  .hero { padding: 1.25rem; }
+  .hero-name { font-size: 1.2rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back-link" href="index.html">← 返回看板</a>
+  <div id="app"></div>
+</div>
+<div id="toast" class="toast"></div>
+
+<script>
+const STORAGE_KEY = 'workspace_projects_data';
+const STATUS_COLORS = { 'in-progress': '#4a9eff', planning: '#fdcb6e', paused: '#636e72', done: '#00b894' };
+const STATUS_LABELS = { 'in-progress': '进行中', planning: '规划中', paused: '暂停', done: '已完成' };
+const PRIORITY_LABELS = { high: '高优先', medium: '中优先', low: '低优先' };
+
+
+
+// SYNC:KNOWLEDGE_DATA
+const KNOWLEDGE_DATA = [
+  {
+    "category": "resource-library",
+    "label": "资源库",
+    "icon": "📦",
+    "sub": "resource-library",
+    "pages": [
+      {
+        "name": "数据集索引",
+        "link": ".vitepress/dist/knowledge/resource-library/datasets.html",
+        "icon": "🗃️",
+        "count": 6
+      },
+      {
+        "name": "书单",
+        "link": ".vitepress/dist/knowledge/resource-library/reading-list.html",
+        "icon": "📖",
+        "count": 11
+      },
+      {
+        "name": "ROS 学习资源",
+        "link": ".vitepress/dist/knowledge/resource-library/ros-resources.html",
+        "icon": "🤖",
+        "count": 5
+      },
+      {
+        "name": "工具推荐",
+        "link": ".vitepress/dist/knowledge/resource-library/tools.html",
+        "icon": "🔧",
+        "count": 3
+      }
+    ]
+  },
+  {
+    "category": "tech-manual",
+    "label": "技术手册",
+    "icon": "📋",
+    "sub": "tech-manual",
+    "pages": [
+      {
+        "name": "5G 基础",
+        "link": ".vitepress/dist/knowledge/tech-manual/5g.html",
+        "icon": "📶",
+        "count": 10
+      },
+      {
+        "name": "C51 单片机速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/c51.html",
+        "icon": "🔌"
+      },
+      {
+        "name": "Docker 命令速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/docker-commands.html",
+        "icon": "🐳"
+      },
+      {
+        "name": "ESP32 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/esp32.html",
+        "icon": "📡",
+        "count": 4
+      },
+      {
+        "name": "Git 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/git-cheatsheet.html",
+        "icon": "📋"
+      },
+      {
+        "name": "MATLAB 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/matlab.html",
+        "icon": "📊"
+      },
+      {
+        "name": "OpenCV 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/opencv.html",
+        "icon": "👁️"
+      },
+      {
+        "name": "Pure Pursuit 算法",
+        "link": ".vitepress/dist/knowledge/tech-manual/pure-pursuit.html",
+        "icon": "🎯",
+        "count": 7
+      },
+      {
+        "name": "ROS 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/ros.html",
+        "icon": "🤖",
+        "count": 4
+      },
+      {
+        "name": "排错日志",
+        "link": ".vitepress/dist/knowledge/tech-manual/troubleshooting.html",
+        "icon": "🐛",
+        "count": 20
+      },
+      {
+        "name": "YOLOv8 速查",
+        "link": ".vitepress/dist/knowledge/tech-manual/yolo.html",
+        "icon": "🎯"
+      }
+    ]
+  },
+  {
+    "category": "skill-tree",
+    "label": "技能树",
+    "icon": "🌳",
+    "sub": "skill-tree",
+    "pages": [
+      {
+        "name": "计算机视觉技能树",
+        "link": ".vitepress/dist/knowledge/skill-tree/computer-vision.html",
+        "icon": "👁️",
+        "count": 13
+      },
+      {
+        "name": "嵌入式技能树",
+        "link": ".vitepress/dist/knowledge/skill-tree/embedded.html",
+        "icon": "🔌",
+        "count": 10
+      },
+      {
+        "name": "ROS 技能树",
+        "link": ".vitepress/dist/knowledge/skill-tree/ros.html",
+        "icon": "🤖",
+        "count": 12
+      },
+      {
+        "name": "Web 开发技能树",
+        "link": ".vitepress/dist/knowledge/skill-tree/web-dev.html",
+        "icon": "🌐",
+        "count": 12
+      }
+    ]
+  },
+  {
+    "category": "inbox",
+    "label": "收件箱",
+    "icon": "📥",
+    "pages": [
+      {
+        "name": "7 篇待整理",
+        "link": "",
+        "icon": "📄",
+        "count": 7
+      }
+    ]
+  }
+];
+// /SYNC:KNOWLEDGE_DATA
+// SYNC:TODO_DATA
+const TODO_DATA = [
+  {
+    "text": "规划博客项目",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "创建项目目录结构",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写设计文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写任务文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写说明文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "初始化 VitePress 项目",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "配置导航和侧边栏",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "创建 CalendarTodo 组件",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "实现项目进度看板",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "深色科技风主题",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "独立详情页 + 内联编辑",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "整理 inbox 笔记到对应分类",
+    "done": false,
+    "date": "2026-06-05",
+    "source": "2026-06"
+  },
+  {
+    "text": "写第一篇博客",
+    "done": false,
+    "date": "2026-06-10",
+    "source": "2026-06"
+  },
+  {
+    "text": "配置 Obsidian 手机端同步",
+    "done": false,
+    "date": "2026-06-15",
+    "source": "2026-06"
+  }
+];
+// /SYNC:TODO_DATA
+// SYNC:ALL_PROJECTS
+const ALL_PROJECTS = [
+{
+    id: "blog",
+    name: "个人博客",
+    status: "in-progress",
+    priority: "high",
+    tags: [
+      "VitePress",
+      "Vue",
+      "Obsidian"
+    ],
+    repo: "https://github.com/qiancheng06/new-blog",
+    filePath: "C:\\\\Users\\\\33831\\\\Desktop\\\\code\\\\projects\\\\blog\\\\projects\\\\blog.md",
+    sections: [
+      {
+        name: "P0 框架搭建 ✅",
+        tasks: [
+          {
+            text: "VitePress 初始化（config / theme / 组件注册）",
+            done: true
+          },
+          {
+            text: "Obsidian vault 连接（srcDir 相对路径）",
+            done: true
+          },
+          {
+            text: "知识库目录结构（knowledge/ 三层分类 + 模板页）",
+            done: true
+          },
+          {
+            text: "待办日历组件 CalendarTodo.vue（月视图渲染）",
+            done: true
+          },
+          {
+            text: "知识卡片组件 KnowledgeCard.vue",
+            done: true
+          },
+          {
+            text: "仪表盘 index.html（file:// 可打开）",
+            done: true
+          },
+          {
+            text: "start-blog.bat 一键启动",
+            done: true
+          }
+        ]
+      },
+      {
+        name: "P1 站点基建 ✅",
+        tasks: [
+          {
+            text: "深色科技风主题（custom.css 重构）",
+            done: true
+          },
+          {
+            text: "Git 初始化 + GitHub 推送",
+            done: true
+          },
+          {
+            text: "docs 三份文档（design / task / instructions）",
+            done: true
+          },
+          {
+            text: "code 目录重组（learn / projects / tools / archive）",
+            done: true
+          },
+          {
+            text: "根 .gitignore 清理 + 删除根 .git",
+            done: true
+          }
+        ]
+      },
+      {
+        name: "P2 项目进度看板 🏗️",
+        tasks: [
+          {
+            text: "ProgressDashboard.vue 组件（import.meta.glob 解析 .md）",
+            done: true
+          },
+          {
+            text: "三个项目进度文件（blog / smart-car / computer-vision）",
+            done: true
+          },
+          {
+            text: "vault/projects/index.md 嵌入看板",
+            done: true
+          },
+          {
+            text: "index.html 内联进度展示（vanilla JS 内嵌数据）",
+            done: true
+          },
+          {
+            text: "状态筛选 Tab（全部 / 进行中 / 暂停 / 已完成）",
+            done: true
+          },
+          {
+            text: "按优先级排序（高 > 中 > 低）",
+            done: true
+          },
+          {
+            text: "阶段分组展示（## 标题分段）",
+            done: true
+          },
+          {
+            text: "独立详情页 detail.html（hash 切换项目）",
+            done: true
+          },
+          {
+            text: "卡片摘要视图（主页仅显示概要，点击进详情）",
+            done: true
+          },
+          {
+            text: "详情页内联编辑（localStorage 自动保存）",
+            done: true
+          },
+          {
+            text: "导出 .md + 重置 + 同步工作流",
+            done: true
+          }
+        ]
+      },
+      {
+        name: "P3 待办系统",
+        tasks: [
+          {
+            text: "待办解析器（CalendarTodo 接入 todo/*.md 真实数据）",
+            done: false
+          },
+          {
+            text: "待办增删改入口（至少快速添加）",
+            done: false
+          },
+          {
+            text: "月度待办文件自动生成",
+            done: false
+          }
+        ]
+      },
+      {
+        name: "P4 内容填充",
+        tasks: [
+          {
+            text: "迁移 inbox 笔记到对应分类",
+            done: false
+          },
+          {
+            text: "写 2-3 篇博客文章",
+            done: false
+          },
+          {
+            text: "知识库内容持续补充",
+            done: false
+          }
+        ]
+      },
+      {
+        name: "P5 生活集成",
+        tasks: [
+          {
+            text: "手机端快捷备忘方案",
+            done: false
+          },
+          {
+            text: "Obsidian Web Clipper 配置",
+            done: false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: "computer-vision",
+    name: "数字码头视觉系统",
+    status: "paused",
+    priority: "medium",
+    tags: [
+      "YOLOv8",
+      "目标检测",
+      "Python"
+    ],
+    repo: "",
+    filePath: "C:\\\\Users\\\\33831\\\\Desktop\\\\code\\\\projects\\\\blog\\\\projects\\\\computer-vision.md",
+    sections: [
+      {
+        name: "已完成",
+        tasks: [
+          {
+            text: "YOLOv8 两阶段检测框架搭建",
+            done: true
+          },
+          {
+            text: "安全帽/反光背心/军装识别",
+            done: true
+          },
+          {
+            text: "明火与烟雾检测",
+            done: true
+          }
+        ]
+      },
+      {
+        name: "待完成",
+        tasks: [
+          {
+            text: "数据集标注与增广",
+            done: false
+          },
+          {
+            text: "模型部署优化",
+            done: false
+          },
+          {
+            text: "实时视频流处理",
+            done: false
+          }
+        ]
+      }
+    ]
+  },
+  {
+    id: "smart-car",
+    name: "智能车竞赛",
+    status: "in-progress",
+    priority: "high",
+    tags: [
+      "ROS",
+      "嵌入式",
+      "计算机视觉"
+    ],
+    repo: "https://github.com/qiancheng06/smartcar",
+    filePath: "C:\\\\Users\\\\33831\\\\Desktop\\\\code\\\\projects\\\\blog\\\\projects\\\\smart-car.md",
+    sections: [
+      {
+        name: "已完成",
+        tasks: [
+          {
+            text: "ROS 框架搭建（Ubuntu 20.04 + ROS Noetic）",
+            done: true
+          },
+          {
+            text: "Pure Pursuit 锥桶跟踪算法",
+            done: true
+          },
+          {
+            text: "5G A/B 停车区识别（图像处理）",
+            done: true
+          }
+        ]
+      },
+      {
+        name: "待完成",
+        tasks: [
+          {
+            text: "避障模块（DWA + 超声波融合）",
+            done: false
+          },
+          {
+            text: "实车联调与参数整定",
+            done: false
+          },
+          {
+            text: "比赛文档撰写",
+            done: false
+          }
+        ]
+      }
+    ]
+  }
+];
+// /SYNC:ALL_PROJECTS
+
+// localStorage storage key
+const SAVED_KEY = 'workspace_projects_data';
+
+let allProjects = [];   // all projects loaded from storage
+let currentProject = null;
+let isEditing = false;
+
+function clone(o) { return JSON.parse(JSON.stringify(o)); }
+
+// Load projects: localStorage first, fallback to embedded
+function loadProjects() {
+  const saved = localStorage.getItem(SAVED_KEY);
+  if (saved) {
+    try {
+      const data = JSON.parse(saved);
+      if (Array.isArray(data) && data.length > 0) return data;
+    } catch(e) {}
+  }
+  return clone(ALL_PROJECTS);
+}
+
+// Save all projects to localStorage
+function persistProjects() {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(allProjects));
+}
+
+function getProject() {
+  const id = location.hash.slice(1) || 'blog';
+  return allProjects.find(p => p.id === id);
+}
+
+function calcProgress(section) {
+  const total = section.tasks.length;
+  const done = section.tasks.filter(t => t.done).length;
+  return { total, done, pct: total > 0 ? Math.round((done / total) * 100) : 0 };
+}
+
+function render() {
+  allProjects = loadProjects();
+  currentProject = getProject();
+  if (!currentProject) {
+    document.getElementById('app').innerHTML = '<div class="empty">项目未找到</div>';
+    return;
+  }
+  document.title = '项目详情 · ' + currentProject.name;
+  isEditing = false;
+  renderView();
+}
+
+function renderView() {
+  const p = currentProject;
+  document.body.classList.toggle('editing', isEditing);
+  const hasSaved = localStorage.getItem(SAVED_KEY) !== null;
+
+  const overall = p.sections.reduce((acc, s) => {
+    const t = calcProgress(s); return { total: acc.total + t.total, done: acc.done + t.done };
+  }, { total: 0, done: 0 });
+  const overallPct = overall.total > 0 ? Math.round((overall.done / overall.total) * 100) : 0;
+
+  const editBtn = `<button class="edit-btn${isEditing ? ' active' : ''}" onclick="toggleEdit()">${isEditing ? '编辑中' : '编辑'}</button>`;
+
+  const sectionCards = p.sections.map((s, si) => {
+    const t = calcProgress(s);
+    const tasksHTML = s.tasks.map((task, ti) => `
+      <div class="task-item${task.done ? ' done' : ''}">
+        <span class="task-check" onclick="${isEditing ? `editToggleTask(${si},${ti})` : ''}">${task.done ? '✓' : '○'}</span>
+        <span class="task-text">${escHtml(task.text)}</span>
+        ${isEditing ? `<button class="task-del" onclick="editDeleteTask(${si},${ti})">×</button>` : ''}
+      </div>
+    `).join('');
+    const addForm = isEditing ? `
+      <div class="add-task-form">
+        <input id="newTaskInput_${si}" placeholder="新任务，回车添加" onkeydown="if(event.key==='Enter')editAddTask(${si})">
+        <button onclick="editAddTask(${si})">+ 添加</button>
+      </div>` : '';
+    return `
+    <div class="section-card">
+      <div class="section-header">
+        <span class="section-title">${escHtml(s.name)}</span>
+        <span class="section-count">${t.done}/${t.total}</span>
+      </div>
+      <div class="section-progress">
+        <div class="bar"><div class="track"><div class="fill${t.pct === 100 ? ' full' : ''}" style="width:${t.pct}%"></div></div><span class="label">${t.pct}%</span></div>
+      </div>
+      ${tasksHTML}
+      ${addForm}
+    </div>`;
+  }).join('');
+
+  const statusOpts = Object.keys(STATUS_LABELS).map(k =>
+    `<option value="${k}"${p.status===k?' selected':''}>${STATUS_LABELS[k]}</option>`
+  ).join('');
+  const priorityOpts = Object.keys(PRIORITY_LABELS).map(k =>
+    `<option value="${k}"${p.priority===k?' selected':''}>${PRIORITY_LABELS[k]}</option>`
+  ).join('');
+
+  const app = document.getElementById('app');
+  app.innerHTML = `
+  <div class="hero">
+    <div class="hero-top">
+      <div class="hero-name">${escHtml(p.name)}</div>
+      <div class="hero-actions">
+        ${isEditing
+          ? `<select class="status-badge" style="background:${STATUS_COLORS[p.status]}" onchange="editChangeStatus(this.value)">${statusOpts}</select>
+             <select class="priority-badge" onchange="editChangePriority(this.value)">${priorityOpts}</select>`
+          : `<span class="status-badge" style="background:${STATUS_COLORS[p.status]}">${STATUS_LABELS[p.status]}</span>
+             <span class="priority-badge">${PRIORITY_LABELS[p.priority]}</span>`}
+        ${editBtn}
+        <span class="storage-badge${hasSaved ? ' local' : ''}">${hasSaved ? '💾 本地已保存' : '📄 初始数据'}</span>
+      </div>
+    </div>
+    <div class="meta-row">
+      <div class="tags">${p.tags.map(t => `<span class="tag">${escHtml(t)}</span>`).join('')}</div>
+      ${p.repo ? `<a class="repo-link" href="${p.repo}" target="_blank">${p.repo.replace('https://github.com/', '')}</a>` : ''}
+    </div>
+    <div class="progress-overall">
+      <div class="bar"><div class="track"><div class="fill" style="width:${overallPct}%"></div></div><span class="label">${overall.done}/${overall.total} · ${overallPct}%</span></div>
+    </div>
+  </div>
+  ${sectionCards}
+  <div class="save-bar">
+    <button class="save-btn primary" onclick="showToast('✅ 已自动保存到浏览器')">💾 保存到本地</button>
+    <button class="save-btn secondary" onclick="exportMd()">📥 导出为 .md</button>
+    <button class="save-btn danger" onclick="resetData()">↻ 重置</button>
+    <button class="save-btn secondary" onclick="editCancel()">取消</button>
+  </div>`;
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+// ── Edit actions: mutate → persist → re-render ──
+
+function toggleEdit() {
+  isEditing = !isEditing;
+  if (!isEditing) editCancel();
+  renderView();
+}
+
+function editToggleTask(si, ti) {
+  currentProject.sections[si].tasks[ti].done = !currentProject.sections[si].tasks[ti].done;
+  persistCurrent();
+  renderView();
+}
+
+function editAddTask(si) {
+  const input = document.getElementById('newTaskInput_' + si);
+  if (!input || !input.value.trim()) return;
+  currentProject.sections[si].tasks.push({ text: input.value.trim(), done: false });
+  persistCurrent();
+  renderView();
+}
+
+function editDeleteTask(si, ti) {
+  currentProject.sections[si].tasks.splice(ti, 1);
+  persistCurrent();
+  renderView();
+}
+
+function editChangeStatus(v) { currentProject.status = v; persistCurrent(); renderView(); }
+function editChangePriority(v) { currentProject.priority = v; persistCurrent(); renderView(); }
+
+function editCancel() {
+  isEditing = false;
+  allProjects = loadProjects(); // reload from storage (discard unsaved)
+  currentProject = getProject();
+  renderView();
+}
+
+function persistCurrent() {
+  // Update the project in allProjects
+  const idx = allProjects.findIndex(p => p.id === currentProject.id);
+  if (idx !== -1) allProjects[idx] = currentProject;
+  persistProjects();
+}
+
+// ── Export .md for git sync ──
+
+function exportMd() {
+  const p = currentProject;
+  const lines = ['---'];
+  lines.push('name: ' + p.name);
+  lines.push('status: ' + p.status);
+  lines.push('priority: ' + p.priority);
+  lines.push('tags: [' + p.tags.join(', ') + ']');
+  if (p.repo) lines.push('repo: ' + p.repo);
+  lines.push('---');
+  lines.push('');
+  p.sections.forEach(s => {
+    lines.push('## ' + s.name);
+    s.tasks.forEach(t => lines.push('- [' + (t.done ? 'x' : ' ') + '] ' + t.text));
+    lines.push('');
+  });
+
+  const blob = new Blob([lines.join('\n').replace(/\n{3,}/g, '\n\n')], { type: 'text/markdown;charset=utf-8' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = p.id + '.md';
+  a.click();
+  URL.revokeObjectURL(url);
+  showToast('📥 ' + p.id + '.md 已下载，覆盖到 projects/ 目录', 'success');
+}
+
+// ── Reset ──
+
+function resetData() {
+  if (!confirm('重置将清除所有本地修改，恢复到初始数据。确认？')) return;
+  localStorage.removeItem(SAVED_KEY);
+  showToast('↻ 已重置，数据恢复到初始状态', 'success');
+  render();
+}
+
+// ── Persistence ──
+
+function persistProjects() {
+  localStorage.setItem(SAVED_KEY, JSON.stringify(allProjects));
+}
+
+function showToast(msg, type) {
+  const el = document.getElementById('toast');
+  el.textContent = msg;
+  el.className = 'toast ' + (type || '');
+  requestAnimationFrame(() => el.classList.add('show'));
+  setTimeout(() => el.classList.remove('show'), 3500);
+}
+
+window.addEventListener('hashchange', render);
+render();
+</script>
+</body>
+</html>

@@ -1,0 +1,371 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>日历 · 待办</title>
+<script src="https://cdn.tailwindcss.com"></script>
+<style>
+* { margin: 0; padding: 0; box-sizing: border-box; }
+:root {
+  --bg: #0d0e1a; --card: #1a1b2e; --card-hover: #222340;
+  --text: rgba(255,255,255,0.85); --text2: rgba(255,255,255,0.55); --text3: rgba(255,255,255,0.3);
+  --border: rgba(255,255,255,0.06); --accent: #4a9eff; --accent2: #7c3aed;
+  --green: #00b894; --red: #e17055; --yellow: #fdcb6e;
+}
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+  background: var(--bg); color: var(--text); line-height: 1.6;
+  min-height: 100vh; display: flex; justify-content: center;
+}
+.container { width: 100%; max-width: 800px; padding: 1.5rem; }
+
+.back-link {
+  display: inline-flex; align-items: center; gap: .3rem;
+  color: var(--text2); text-decoration: none; font-size: .85rem;
+  margin-bottom: 1rem; transition: color .2s;
+}
+.back-link:hover { color: var(--accent); }
+
+/* Calendar header */
+.cal-header {
+  display: flex; align-items: center; justify-content: center; gap: 1rem;
+  margin-bottom: 1.25rem;
+}
+.cal-header h2 { font-size: 1.2rem; font-weight: 700; color: #fff; }
+.cal-nav {
+  background: transparent; border: 1px solid var(--border);
+  color: var(--text2); width: 2rem; height: 2rem; border-radius: 6px;
+  cursor: pointer; font-size: 1rem; transition: all .2s;
+  display: flex; align-items: center; justify-content: center;
+}
+.cal-nav:hover { color: var(--accent); border-color: rgba(74,158,255,0.3); background: rgba(74,158,255,0.06); }
+.cal-nav:disabled { opacity: .2; cursor: default; }
+
+/* Calendar grid */
+.cal-grid { width: 100%; border-collapse: collapse; background: var(--card); border-radius: 12px; overflow: hidden; border: 1px solid var(--border); }
+.cal-grid th {
+  padding: .5rem; text-align: center; font-size: .78rem; font-weight: 600;
+  color: var(--text3); background: rgba(255,255,255,0.02);
+  border-bottom: 1px solid var(--border);
+}
+.cal-grid td {
+  padding: .35rem; text-align: center; vertical-align: top;
+  border: 1px solid var(--border); width: 14.28%; height: 70px;
+  cursor: pointer; transition: background .15s; position: relative;
+}
+.cal-grid td:hover { background: rgba(74,158,255,0.04); }
+.cal-grid td.other-month { opacity: .2; pointer-events: none; }
+.cal-grid td.today .day-num { background: var(--accent); color: #fff; border-radius: 50%; width: 26px; height: 26px; display: inline-flex; align-items: center; justify-content: center; }
+.cal-grid td.selected { background: rgba(74,158,255,0.08); outline: 2px solid var(--accent); outline-offset: -2px; }
+.day-num { font-size: .88rem; font-weight: 500; color: var(--text); display: inline-block; line-height: 26px; }
+.cal-grid td.weekend .day-num { color: var(--text3); }
+
+/* Task dots */
+.task-dots { display: flex; justify-content: center; gap: 3px; margin-top: 2px; flex-wrap: wrap; }
+.task-dot { width: 5px; height: 5px; border-radius: 50%; }
+.task-dot.done { background: var(--green); }
+.task-dot.pending { background: var(--accent); }
+.task-dot.overdue { background: var(--red); }
+.task-count { font-size: .65rem; color: var(--text3); margin-top: 1px; }
+
+/* Task detail panel */
+.task-panel {
+  background: var(--card); border: 1px solid var(--border); border-radius: 12px;
+  margin-top: 1rem; padding: 1.25rem; display: none;
+}
+.task-panel.visible { display: block; }
+.task-panel-title { font-size: .9rem; font-weight: 600; color: #fff; margin-bottom: .6rem; }
+.task-panel-list { list-style: none; padding: 0; margin: 0; }
+.task-panel-item {
+  display: flex; align-items: center; gap: .45rem; padding: .25rem 0;
+  font-size: .85rem; color: var(--text2);
+}
+.task-panel-item.done { color: var(--text3); text-decoration: line-through; }
+.task-panel-check { flex-shrink: 0; width: 1rem; text-align: center; }
+.task-panel-item.done .task-panel-check { color: var(--green); }
+.task-panel-item.overdue-task { color: var(--red); }
+.task-panel-empty { color: var(--text3); font-size: .82rem; padding: .5rem 0; }
+
+/* Stats bar */
+.stats-bar {
+  display: flex; gap: 1rem; justify-content: center; flex-wrap: wrap;
+  margin: 1rem 0; font-size: .8rem; color: var(--text2);
+}
+.stats-bar .stat { display: flex; align-items: center; gap: .3rem; }
+.stats-bar .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+.stats-bar .dot.green { background: var(--green); }
+.stats-bar .dot.blue { background: var(--accent); }
+.stats-bar .dot.red { background: var(--red); }
+
+@media (max-width: 600px) {
+  .container { padding: .75rem; }
+  .cal-grid td { height: 55px; padding: .2rem; }
+  .day-num { font-size: .8rem; line-height: 22px; }
+  .cal-grid td.today .day-num { width: 22px; height: 22px; line-height: 22px; }
+  .cal-header h2 { font-size: 1rem; }
+}
+</style>
+</head>
+<body>
+<div class="container">
+  <a class="back-link" href="index.html">← 返回看板</a>
+
+  <div class="cal-header">
+    <button class="cal-nav" id="prevMonth">‹</button>
+    <h2 id="monthTitle"></h2>
+    <button class="cal-nav" id="nextMonth">›</button>
+  </div>
+
+  <div class="stats-bar" id="statsBar"></div>
+
+  <table class="cal-grid">
+    <thead><tr>
+      <th>一</th><th>二</th><th>三</th><th>四</th><th>五</th><th>六</th><th>日</th>
+    </tr></thead>
+    <tbody id="calBody"></tbody>
+  </table>
+
+  <div class="task-panel" id="taskPanel">
+    <div class="task-panel-title" id="taskPanelTitle"></div>
+    <div id="taskPanelBody"></div>
+  </div>
+</div>
+
+<script>
+const MONTHS = ['一月','二月','三月','四月','五月','六月','七月','八月','九月','十月','十一月','十二月'];
+const WEEKDAYS = ['日','一','二','三','四','五','六'];
+
+// SYNC:TODO_DATA
+const TODO_DATA = [
+  {
+    "text": "规划博客项目",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "创建项目目录结构",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写设计文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写任务文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "编写说明文档",
+    "done": true,
+    "date": "2026-05-30",
+    "source": "2026-05"
+  },
+  {
+    "text": "初始化 VitePress 项目",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "配置导航和侧边栏",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "创建 CalendarTodo 组件",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "实现项目进度看板",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "深色科技风主题",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "独立详情页 + 内联编辑",
+    "done": true,
+    "date": "2026-05-31",
+    "source": "2026-05"
+  },
+  {
+    "text": "整理 inbox 笔记到对应分类",
+    "done": false,
+    "date": "2026-06-05",
+    "source": "2026-06"
+  },
+  {
+    "text": "写第一篇博客",
+    "done": false,
+    "date": "2026-06-10",
+    "source": "2026-06"
+  },
+  {
+    "text": "配置 Obsidian 手机端同步",
+    "done": false,
+    "date": "2026-06-15",
+    "source": "2026-06"
+  }
+];
+// /SYNC:TODO_DATA
+
+let currentYear, currentMonth;
+
+function init() {
+  const now = new Date();
+  currentYear = now.getFullYear();
+  currentMonth = now.getMonth();
+  render();
+
+  document.getElementById('prevMonth').onclick = () => { currentMonth--; if (currentMonth < 0) { currentMonth = 11; currentYear--; } render(); };
+  document.getElementById('nextMonth').onclick = () => { currentMonth++; if (currentMonth > 11) { currentMonth = 0; currentYear++; } render(); };
+}
+
+function render() {
+  const today = new Date();
+  const todayStr = today.toISOString().slice(0,10);
+
+  // Title
+  document.getElementById('monthTitle').textContent = currentYear + '年 ' + MONTHS[currentMonth];
+
+  // Stats
+  const monthStr = currentYear + '-' + String(currentMonth + 1).padStart(2, '0');
+  const monthTasks = TODO_DATA.filter(t => t.date && t.date.startsWith(monthStr));
+  const done = monthTasks.filter(t => t.done).length;
+  const pending = monthTasks.filter(t => !t.done).length;
+  const overdue = monthTasks.filter(t => !t.done && t.date < todayStr);
+  document.getElementById('statsBar').innerHTML = `
+    <span class="stat"><span class="dot green"></span> 已完成 ${done}</span>
+    <span class="stat"><span class="dot blue"></span> 待办 ${pending}</span>
+    ${overdue.length ? `<span class="stat"><span class="dot red"></span> 逾期 ${overdue.length}</span>` : ''}
+  `;
+
+  // Build calendar grid
+  const firstDay = new Date(currentYear, currentMonth, 1).getDay(); // 0=Sun
+  const daysInMonth = new Date(currentYear, currentMonth + 1, 0).getDate();
+  const daysInPrev = new Date(currentYear, currentMonth, 0).getDate();
+  const startOffset = firstDay === 0 ? 6 : firstDay - 1; // Monday first
+
+  let html = '';
+  let cell = 0;
+  const totalCells = Math.ceil((startOffset + daysInMonth) / 7) * 7;
+
+  for (let row = 0; row < totalCells / 7; row++) {
+    html += '<tr>';
+    for (let col = 0; col < 7; col++) {
+      const idx = cell++;
+      let day, dateStr, isCurrent = false, isOther = false;
+      if (idx < startOffset) {
+        day = daysInPrev - startOffset + idx + 1;
+        dateStr = (currentYear - (currentMonth === 0 ? 1 : 0)) + '-' + String(currentMonth === 0 ? 12 : currentMonth).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        isOther = true;
+      } else if (idx >= startOffset + daysInMonth) {
+        day = idx - startOffset - daysInMonth + 1;
+        dateStr = (currentYear + (currentMonth === 11 ? 1 : 0)) + '-' + String(currentMonth === 11 ? 1 : currentMonth + 2).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        isOther = true;
+      } else {
+        day = idx - startOffset + 1;
+        dateStr = currentYear + '-' + String(currentMonth + 1).padStart(2, '0') + '-' + String(day).padStart(2, '0');
+        isCurrent = true;
+      }
+
+      const dayTasks = TODO_DATA.filter(t => t.date === dateStr);
+      const doneDots = dayTasks.filter(t => t.done).length;
+      const pendingDots = dayTasks.filter(t => !t.done && t.date >= todayStr).length;
+      const overdueDots = dayTasks.filter(t => !t.done && t.date < todayStr && t.date !== '').length;
+
+      let cls = '';
+      if (isOther) cls += ' other-month';
+      if (dateStr === todayStr) cls += ' today';
+      if (col >= 5) cls += ' weekend';
+
+      let dots = '';
+      if (dayTasks.length > 0) {
+        dots += '<div class="task-dots">';
+        if (overdueDots) for (let i = 0; i < overdueDots; i++) dots += '<span class="task-dot overdue"></span>';
+        if (pendingDots) for (let i = 0; i < pendingDots; i++) dots += '<span class="task-dot pending"></span>';
+        if (doneDots) for (let i = 0; i < doneDots; i++) dots += '<span class="task-dot done"></span>';
+        dots += '</div>';
+        dots += '<div class="task-count">' + dayTasks.length + '项</div>';
+      }
+
+      html += '<td class="' + cls + '" data-date="' + dateStr + '" onclick="selectDate(\'' + dateStr + '\')">';
+      html += '<span class="day-num">' + day + '</span>';
+      html += dots;
+      html += '</td>';
+    }
+    html += '</tr>';
+  }
+  document.getElementById('calBody').innerHTML = html;
+
+  // Auto-select today if in view
+  if (todayStr.slice(0,7) === monthStr) {
+    selectDate(todayStr);
+  } else {
+    hidePanel();
+  }
+}
+
+function selectDate(dateStr) {
+  // Highlight
+  document.querySelectorAll('#calBody td.selected').forEach(td => td.classList.remove('selected'));
+  const td = document.querySelector('#calBody td[data-date="' + dateStr + '"]');
+  if (td) td.classList.add('selected');
+
+  // Show tasks
+  const panel = document.getElementById('taskPanel');
+  const title = document.getElementById('taskPanelTitle');
+  const body = document.getElementById('taskPanelBody');
+
+  const d = new Date(dateStr);
+  const weekday = WEEKDAYS[d.getDay()];
+  title.textContent = dateStr + ' 周' + weekday;
+
+  const tasks = TODO_DATA.filter(t => t.date === dateStr);
+
+  if (tasks.length === 0) {
+    body.innerHTML = '<div class="task-panel-empty">当日无待办 ✨</div>';
+  } else {
+    const today = new Date().toISOString().slice(0,10);
+    body.innerHTML = '<ul class="task-panel-list">' + tasks.map(t => {
+      const overdue = !t.done && t.date < today;
+      return '<li class="task-panel-item' + (t.done ? ' done' : '') + (overdue ? ' overdue-task' : '') + '">' +
+        '<span class="task-panel-check">' + (t.done ? '✓' : '○') + '</span>' +
+        '<span>' + escHtml(t.text) + '</span>' +
+        '</li>';
+    }).join('') + '</ul>';
+  }
+
+  panel.classList.add('visible');
+}
+
+function hidePanel() {
+  document.getElementById('taskPanel').classList.remove('visible');
+}
+
+function escHtml(s) {
+  const d = document.createElement('div');
+  d.textContent = s;
+  return d.innerHTML;
+}
+
+init();
+</script>
+</body>
+</html>

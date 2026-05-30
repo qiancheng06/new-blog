@@ -2,6 +2,7 @@ node_modules/
 .vitepress/dist/
 .vitepress/cache/
 .obsidian/
+projects/
 *.local
 .DS_Store
 Thumbs.db

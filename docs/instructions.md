@@ -6,23 +6,57 @@
 
 ## 1. 快速命令
 
-所有命令在 `code/blog/` 下执行：
+所有命令在 `code/projects/blog/` 下执行：
 
 ```bash
-npm run dev        # 启动开发服务器 → http://localhost:5173
-npm run build      # 构建静态站点 → .vitepress/dist/
+npm run dev        # 先同步 → 启动 VitePress dev server → http://localhost:5173
+npm run build      # 先同步 → 构建静态站点 → .vitepress/dist/
+npm run watch      # 后台监听文件变更，自动同步内嵌数据
+npm run sync       # 手动同步一次（解析 projects/.md + vault/todo/.md + vault/knowledge/.md）
 npm run preview    # 预览构建结果
 ```
 
-双击 `index.html` 打开工作区仪表盘（不依赖服务器，但不支持 VitePress 页面）。
-双击 `start-blog.bat` 一键启动（打开仪表盘 + dev server + 浏览器）。
+双击 `index.html` 打开仪表盘（file:// 兼容，不依赖服务器）。
+双击 `start-blog.bat` 一键启动（dev server + 文件监听 + 仪表盘）。
 
 ---
 
-## 2. Git 管理
+## 2. 页面清单
+
+| 页面 | 路径 | 如何打开 |
+|------|------|----------|
+| 主仪表盘 | `index.html` | 双击 / `start-blog.bat` |
+| 项目详情 + 编辑 | `detail.html#项目ID` | 点击看板卡片 / 直接打开 |
+| 日历月视图 | `calendar.html` | 点击仪表盘"📅 今日待办"标题 |
+| 项目详情完整版 | VitePress `/projects/` | `npm run dev` → 打开浏览器 |
+| VitePress 站点 | `localhost:5173` | `npm run dev` |
+| 构建产物 | `.vitepress/dist/` | `npm run build` 后双击各 .html |
+
+---
+
+## 3. 项目结构
+
+```
+code/projects/blog/
+├── .vitepress/            VitePress 配置 + 暗色主题 + Vue 组件
+│   ├── config.ts
+│   ├── theme/custom.css
+│   └── theme/components/  CalendarTodo / KnowledgeCard / ProgressDashboard
+├── docs/                  项目文档（详见各自文件头说明）
+├── projects/              项目进度 .md 文件
+├── scripts/               sync-projects.js + watch.js
+├── index.html             主仪表盘
+├── detail.html            项目详情 + 编辑
+├── calendar.html          待办日历
+├── README.md              项目介绍
+└── package.json
+```
+
+---
+
+## 4. Git 管理
 
 ```bash
-# 仓库在 code/blog/
 git status                    # 查看变更
 git diff                      # 查看具体改动
 git add .                     # 暂存所有
@@ -31,54 +65,26 @@ git push origin main          # 推送到远程
 ```
 
 ### 不上传的内容
-- `node_modules/` — 依赖
-- `.vitepress/dist/` — 构建产物
-- `.vitepress/cache/` — 缓存
-- vault（内容本体在 OneDrive，不入 git）
-
-### 公开前检查清单
-- [ ] `index.html` 和 `config.ts` 无本地路径/用户名
-- [ ] `socialLinks` 是真实的仓库地址
-- [ ] 根目录 `.gitignore` 已添加 `blog/`
+- `node_modules/`
+- `.vitepress/dist/` + `.vitepress/cache/`
+- vault（内容本体在 OneDrive）
 
 ---
 
-## 3. 内容在哪
+## 4. 数据编辑方式
 
-所有内容在 `C:\Users\33831\OneDrive\obsidian\obsidian\`（即 Obsidian vault）。
+| 想改什么 | 方式 |
+|----------|------|
+| **项目进度**（浏览器内） | `detail.html#ID` → 点"编辑" → 勾选/添加/删除 → 自动保存到浏览器 |
+| **项目进度**（源文件） | 改 `projects/*.md` → 自动监听触发同步 |
+| **待办事项** | 改 `vault/todo/*.md` → 自动监听触发同步 |
+| **知识库内容** | 改 `vault/knowledge/*.md`（Obsidian 编辑） |
+| **仪表盘布局** | 改 `index.html` |
+| **同步到源代码** | 编辑完成后点"导出为 .md" → 覆盖 `projects/*.md` |
 
-| 目录 | 用途 | 编辑方式 |
-|---|---|---|
-| `knowledge/` | 知识库（资源库/技术手册/技能树） | Obsidian 或 VS Code |
-| `todo/` | 待办事项（CalendarTodo 组件读取展示） | Obsidian，格式见下方 |
-| `blog/` | 博客文章 | Obsidian |
-| `raw/` | 原始资料（可选，给 AI ingest 用） | Web Clipper 或手动拖入 |
-| `wiki/` | AI 精炼知识（可选） | AI 通过 CLAUDE.md 驱动 |
+### 重置
 
----
-
-## 3. 待办格式
-
-```markdown
-## 2026-06-01
-
-- [ ] 学习 Vue 3 组合式 API @2026-06-01
-- [x] 已完成任务 @2026-05-30
-```
-
-按月分文件：`todo/2026-05.md`、`todo/2026-06.md`
-
----
-
-## 4. 链接格式
-
-```markdown
-# ✅ 兼容 Obsidian + VitePress
-[描述](path.md)
-
-# ❌ 仅 Obsidian 支持
-[[wikilink]]
-```
+详情页点"重置"清除 localStorage，恢复到内嵌数据。
 
 ---
 
@@ -87,41 +93,21 @@ git push origin main          # 推送到远程
 ### AI 工作流程
 
 每次会话开始，按顺序读：
-1. `docs/design.md` —— 理解项目架构
-2. `docs/task.md` —— 了解进度和遗留问题
-3. `docs/instructions.md` —— 了解约定
-4. （如涉及 wiki）`vault/CLAUDE.md` → `vault/wiki/index.md` → `vault/wiki/log.md`
+1. `docs/roadmap.md` —— 了解需求历史和当前状态
+2. `docs/design.md` —— 理解项目架构
+3. `docs/task.md` —— 了解进度和遗留问题
+4. `docs/instructions.md` —— 了解约定
 
-规划 → 写入 task.md 方案 → 用户确认 → 执行 → 更新 task.md
+每轮非 debug 对话必须在 **roadmap.md 末尾追加新需求记录**。
 
 ### AI 禁止事项
 
 - 引入未在本项目使用的框架/库
-- 提交代码到 Git（除非用户明确要求）
 - 修改 `.obsidian/` 配置（除非用户要求）
+- 删除或修改 roadmap.md 已有内容（只增不改）
 
 ### AI 注意事项
 
 - 每次修改代码前重新读 design.md
 - 修改代码后如有必要更新 design.md
-- 遇到模糊需求在 design.md 的"开放问题"区提问等待用户回复
-
----
-
-## 6. 文件引用关系
-
-```
-index.html (仪表盘)
-  → 按钮链接到 .vitepress/dist/ 下的构建产物
-  → dev server 检测：自动监测 localhost:5173
-
-CalendarTodo.vue
-  → 挂载在 todo/index.md 中
-  → 数据源：todo/*.md（当前暂未接入真实解析器）
-
-.vitepress/config.ts
-  → srcDir 指向 vault（内容源）
-  → nav/sidebar 定义导航结构
-  → search: local（全文搜索）
-  → srcExclude: knowledge/inbox/**（草稿不参与构建）
-```
+- 遇到模糊需求在 roadmap.md 追加条目等待用户回复

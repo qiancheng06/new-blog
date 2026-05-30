@@ -1,0 +1,428 @@
+:root, html.dark {
+  --vp-c-brand-1: #4a9eff;
+  --vp-c-brand-2: #7c3aed;
+  --vp-c-brand-3: #1a5cc8;
+
+  --vp-c-bg: #0d0e1a;
+  --vp-c-bg-soft: #1a1b2e;
+  --vp-c-bg-mute: #222340;
+  --vp-c-divider: rgba(255,255,255,0.06);
+  --vp-c-divider-light: rgba(255,255,255,0.04);
+
+  --vp-c-text-1: rgba(255,255,255,0.85);
+  --vp-c-text-2: rgba(255,255,255,0.55);
+  --vp-c-text-3: rgba(255,255,255,0.3);
+
+  --vp-c-gray-1: #1a1b2e;
+  --vp-c-gray-2: #222340;
+  --vp-c-gray-3: #2a2b40;
+
+  --vp-c-border: rgba(255,255,255,0.06);
+  --vp-button-brand-bg: linear-gradient(135deg, #4a9eff, #7c3aed);
+}
+
+/* ── Scrollbar ── */
+::-webkit-scrollbar { width: 8px; }
+::-webkit-scrollbar-track { background: var(--vp-c-bg); }
+::-webkit-scrollbar-thumb { background: var(--vp-c-bg-mute); border-radius: 4px; }
+::-webkit-scrollbar-thumb:hover { background: var(--vp-c-gray-3); }
+
+/* ── Layout containers ── */
+.VPContent { background: var(--vp-c-bg); }
+.VPDoc { padding-top: 0; }
+
+/* ── Nav bar (glassmorphism) ── */
+.VPNavBar {
+  background: rgba(13, 14, 26, 0.82) !important;
+  backdrop-filter: blur(14px);
+  -webkit-backdrop-filter: blur(14px);
+  border-bottom: 1px solid var(--vp-c-divider);
+  transition: background .3s;
+}
+.VPNavBar:not(.has-sidebar) .container { max-width: 1200px; }
+.VPNavBarTitle .title { font-weight: 700; }
+.VPNavBarMenuLink { transition: color .2s; border-radius: 6px; padding: 0 12px; }
+.VPNavBarMenuLink:hover { color: var(--vp-c-brand-1) !important; background: rgba(74,158,255,0.06); }
+.VPNavBarMenuLink.active { color: var(--vp-c-brand-1) !important; }
+
+/* ── Search ── */
+.DocSearch-Button {
+  background: var(--vp-c-bg-soft) !important;
+  border: 1px solid var(--vp-c-divider) !important;
+  border-radius: 8px !important;
+  transition: border-color .2s, box-shadow .2s;
+  height: 34px;
+}
+.DocSearch-Button:hover {
+  border-color: rgba(74,158,255,0.3) !important;
+  box-shadow: 0 0 0 1px rgba(74,158,255,0.15) !important;
+}
+.DocSearch-Button-Placeholder { font-size: .85rem; }
+
+/* ── Sidebar ── */
+.VPSidebar {
+  background: var(--vp-c-bg) !important;
+  padding-top: .5rem !important;
+}
+.VPSidebarItem .item {
+  border-radius: 6px;
+  transition: background .15s;
+}
+.VPSidebarItem .item:hover { background: rgba(74,158,255,0.06); }
+.VPSidebarItem.is-active .item { background: rgba(74,158,255,0.1); }
+.VPSidebarItem .link { font-size: .88rem; }
+.VPSidebarItem .text { color: var(--vp-c-text-2); transition: color .2s; }
+.VPSidebarItem .item:hover .text { color: var(--vp-c-text-1); }
+.VPSidebarItem.is-active .text { color: var(--vp-c-brand-1); font-weight: 600; }
+.VPSidebarItem .caret { transition: transform .2s; }
+.VPSidebarItem.is-active .caret { transform: rotate(90deg); }
+
+/* ── Home hero ── */
+.VPHero .name {
+  background: linear-gradient(135deg, #4a9eff 0%, #7c3aed 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+  font-weight: 800;
+  letter-spacing: -.02em;
+}
+.VPHero .tagline { color: var(--vp-c-text-2); font-size: 1.15rem; }
+.VPHero .actions .brand {
+  background: linear-gradient(135deg, #4a9eff, #7c3aed) !important;
+  border: none !important;
+  border-radius: 8px !important;
+  font-weight: 600;
+  transition: all .3s ease;
+}
+.VPHero .actions .brand:hover {
+  box-shadow: 0 4px 20px rgba(74,158,255,0.4);
+  transform: translateY(-1px);
+}
+.VPHero .actions .alt {
+  border-color: rgba(255,255,255,0.15) !important;
+  color: var(--vp-c-text-1) !important;
+  border-radius: 8px !important;
+  transition: all .3s ease;
+}
+.VPHero .actions .alt:hover {
+  border-color: rgba(74,158,255,0.4) !important;
+  background: rgba(74,158,255,0.08);
+}
+.VPHero .clip { -webkit-text-fill-color: transparent; }
+
+/* ── Home features ── */
+.VPFeatures .container .item {
+  background: var(--vp-c-bg-soft);
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 12px;
+  padding: 1.5rem;
+  transition: all .3s ease;
+  position: relative;
+  overflow: hidden;
+}
+.VPFeatures .container .item:hover {
+  border-color: rgba(74,158,255,0.2);
+  transform: translateY(-2px);
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3);
+}
+.VPFeatures .container .item .title { color: var(--vp-c-text-1); font-weight: 600; }
+.VPFeatures .container .item .details { color: var(--vp-c-text-2); }
+.VPFeatures .container .item .icon { margin-bottom: .5rem; }
+
+/* ── Content page typography ── */
+.vp-doc h1 {
+  font-size: 2.2rem;
+  color: var(--vp-c-text-1);
+  letter-spacing: -.02em;
+}
+.vp-doc h2 {
+  color: var(--vp-c-text-1);
+  border-top: 1px solid var(--vp-c-divider);
+  padding-top: 1.5rem;
+  margin-top: 2rem;
+  letter-spacing: -.01em;
+}
+.vp-doc h3 { color: var(--vp-c-text-1); }
+.vp-doc h4 { color: var(--vp-c-text-1); }
+.vp-doc p { color: var(--vp-c-text-2); line-height: 1.7; }
+.vp-doc a { color: var(--vp-c-brand-1); transition: color .2s; }
+.vp-doc a:hover { color: var(--vp-c-brand-2); }
+.vp-doc strong { color: var(--vp-c-text-1); }
+
+/* ── Lists ── */
+.vp-doc ul, .vp-doc ol { color: var(--vp-c-text-2); }
+.vp-doc li { margin: .25rem 0; }
+
+/* ── Tables ── */
+.vp-doc table {
+  display: table;
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  border-radius: 8px;
+  overflow: hidden;
+}
+.vp-doc th, .vp-doc td {
+  border: 1px solid var(--vp-c-divider);
+  padding: .5em .8em;
+}
+.vp-doc th {
+  background: var(--vp-c-bg-mute);
+  font-weight: 600;
+  color: var(--vp-c-text-1);
+  font-size: .85rem;
+  text-transform: uppercase;
+  letter-spacing: .3px;
+}
+.vp-doc td { color: var(--vp-c-text-2); }
+.vp-doc tr:nth-child(even) td { background: rgba(255,255,255,0.015); }
+.vp-doc tr:hover td { background: rgba(74,158,255,0.03); }
+
+/* ── Code blocks ── */
+.vp-doc div[class*='language-'] {
+  border-radius: 10px;
+  border: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg-soft) !important;
+  margin: 1.25rem 0;
+  transition: border-color .2s;
+}
+.vp-doc div[class*='language-']:hover {
+  border-color: rgba(74,158,255,0.12);
+}
+.vp-doc div[class*='language-'] .lang {
+  font-size: .7rem;
+  color: var(--vp-c-text-3);
+  text-transform: uppercase;
+  letter-spacing: .5px;
+}
+.vp-doc code {
+  font-size: .85em;
+  color: var(--vp-c-text-1);
+}
+.vp-doc :not(pre) > code {
+  background: rgba(74,158,255,0.08);
+  border: 1px solid rgba(74,158,255,0.1);
+  padding: .15em .45em;
+  border-radius: 4px;
+  color: var(--vp-c-brand-1);
+  font-weight: 500;
+}
+.vp-doc pre {
+  color: var(--vp-c-text-1);
+}
+.vp-doc .line-numbers-wrapper {
+  border-right: 1px solid var(--vp-c-divider);
+}
+
+/* ── Blockquotes ── */
+.vp-doc blockquote {
+  border-left: 3px solid var(--vp-c-brand-1);
+  color: var(--vp-c-text-2);
+  background: rgba(74,158,255,0.04);
+  padding: .6rem 1rem;
+  border-radius: 0 8px 8px 0;
+  margin: 1rem 0;
+  transition: background .2s;
+}
+.vp-doc blockquote:hover {
+  background: rgba(74,158,255,0.06);
+}
+
+/* ── Custom blocks (tip/warning/danger) ── */
+.vp-doc .custom-block {
+  border-radius: 10px;
+  padding: 1rem 1.25rem;
+  border: 1px solid;
+  transition: box-shadow .2s;
+}
+.vp-doc .custom-block:hover {
+  box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+}
+.vp-doc .custom-block.tip {
+  background: rgba(74,158,255,0.06);
+  border-color: rgba(74,158,255,0.2);
+}
+.vp-doc .custom-block.tip .custom-block-title { color: var(--vp-c-brand-1); }
+.vp-doc .custom-block.warning {
+  background: rgba(253,203,110,0.06);
+  border-color: rgba(253,203,110,0.2);
+}
+.vp-doc .custom-block.warning .custom-block-title { color: var(--vp-c-yellow); }
+.vp-doc .custom-block.danger {
+  background: rgba(225,112,85,0.06);
+  border-color: rgba(225,112,85,0.2);
+}
+.vp-doc .custom-block.danger .custom-block-title { color: var(--vp-c-red); }
+
+/* ── Horizontal rule ── */
+.vp-doc hr {
+  border-color: var(--vp-c-divider);
+  margin: 2rem 0;
+}
+
+/* ── Images ── */
+.vp-doc img {
+  border-radius: 8px;
+  border: 1px solid var(--vp-c-divider);
+}
+
+/* ── Table of contents ── */
+.VPDocAsideOutline .outline-title {
+  font-size: .78rem;
+  text-transform: uppercase;
+  letter-spacing: .5px;
+  color: var(--vp-c-text-3);
+}
+.VPDocAsideOutline .root .outline-link {
+  color: var(--vp-c-text-2);
+  font-size: .85rem;
+  transition: color .15s;
+  border-left: 2px solid transparent;
+  padding-left: .75rem;
+}
+.VPDocAsideOutline .root .outline-link:hover {
+  color: var(--vp-c-text-1);
+}
+.VPDocAsideOutline .root .outline-link.active {
+  color: var(--vp-c-brand-1);
+  border-left-color: var(--vp-c-brand-1);
+}
+
+/* ── Doc footer (prev/next nav) ── */
+.VPDocFooter .prev, .VPDocFooter .next {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  padding: .6rem 1rem;
+  transition: all .2s;
+  background: var(--vp-c-bg-soft);
+}
+.VPDocFooter .prev:hover, .VPDocFooter .next:hover {
+  border-color: rgba(74,158,255,0.2);
+  background: rgba(74,158,255,0.04);
+  transform: translateY(-1px);
+}
+.VPDocFooter .prev:hover .link { color: var(--vp-c-brand-1); }
+.VPDocFooter .next:hover .link { color: var(--vp-c-brand-1); }
+.VPDocFooter .link {
+  font-weight: 500;
+  transition: color .2s;
+}
+.VPDocFooter .desc {
+  color: var(--vp-c-text-3);
+  font-size: .78rem;
+}
+
+/* ── Edit link ── */
+.VPFooter .edit-link { display: none; }
+
+/* ── Footer ── */
+.VPFooter {
+  border-top: 1px solid var(--vp-c-divider);
+  background: var(--vp-c-bg);
+}
+.VPFooter .message, .VPFooter .copyright {
+  color: var(--vp-c-text-3);
+  font-size: .82rem;
+}
+
+/* ── Knowledge card grid (used by KnowledgeCard.vue) ── */
+.knowledge-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  gap: 1rem;
+  margin: 1.5rem 0;
+}
+.vp-doc .knowledge-grid .knowledge-card h3 { margin-top: 0; }
+.vp-doc .knowledge-grid p { margin: 0; }
+.knowledge-card {
+  background: var(--vp-c-bg-soft) !important;
+  border-color: var(--vp-c-divider) !important;
+}
+.knowledge-card:hover {
+  border-color: rgba(74,158,255,0.2) !important;
+  box-shadow: 0 8px 24px rgba(0,0,0,0.3) !important;
+}
+
+/* ── Progress dashboard (used by ProgressDashboard.vue) ── */
+.progress-dashboard .tab {
+  border: 1px solid var(--vp-c-divider);
+  background: transparent;
+  color: var(--vp-c-text-2);
+}
+.progress-dashboard .tab:hover {
+  background: var(--vp-c-bg-soft);
+  color: var(--vp-c-text-1);
+}
+.progress-dashboard .tab.active {
+  background: rgba(74,158,255,0.1);
+  border-color: rgba(74,158,255,0.3);
+  color: var(--vp-c-brand-1);
+}
+
+/* ── Todo calendar wrapper (used by CalendarTodo.vue) ── */
+.todo-calendar-wrapper {
+  margin: 1rem 0;
+  padding: 1rem;
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 10px;
+  background: var(--vp-c-bg-soft);
+}
+
+/* ── Page title ── */
+.VPDoc .container .content .content-container .title {
+  color: var(--vp-c-text-1);
+  letter-spacing: -.02em;
+}
+
+/* ── Breadcrumb ── */
+.VPDocBreadcrumb .link {
+  color: var(--vp-c-text-2);
+  transition: color .2s;
+}
+.VPDocBreadcrumb .link:hover { color: var(--vp-c-brand-1); }
+
+/* ── Copy button ── */
+.vp-doc .copy {
+  border: 1px solid var(--vp-c-divider);
+  border-radius: 6px;
+  opacity: .5;
+  transition: opacity .2s;
+}
+.vp-doc div[class*='language-']:hover .copy { opacity: 1; }
+
+/* ── 404 page ── */
+.VPNotFound .code {
+  color: var(--vp-c-brand-1);
+  font-weight: 800;
+}
+.VPNotFound .message { color: var(--vp-c-text-2); }
+
+/* ── Badge ── */
+.vp-doc .badge {
+  border-radius: 4px;
+  font-size: .72rem;
+  padding: .1em .45em;
+  font-weight: 600;
+}
+
+/* ── Transitions for all interactive elements ── */
+.VPNavBarMenuLink, .VPSidebarItem .item, .vp-doc a, .vp-doc .custom-block,
+.vp-doc div[class*='language-'], .VPFeatures .container .item {
+  transition: all .2s ease;
+}
+
+/* ── Responsive tweaks ── */
+@media (max-width: 960px) {
+  .VPNavBar { backdrop-filter: blur(10px); }
+  .VPDoc .content-container { padding: 0 1rem; }
+  .vp-doc h1 { font-size: 1.6rem; }
+  .vp-doc h2 { font-size: 1.3rem; }
+  .knowledge-grid { grid-template-columns: 1fr; }
+}
+@media (max-width: 640px) {
+  .VPNavBar { backdrop-filter: blur(8px); }
+  .VPHero .name { font-size: 2rem !important; }
+  .VPHero .tagline { font-size: 1rem !important; }
+  .VPFeatures .container .item { padding: 1rem; }
+  .vp-doc table { font-size: .82rem; }
+}
