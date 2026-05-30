@@ -426,24 +426,3 @@
   .VPFeatures .container .item { padding: 1rem; }
   .vp-doc table { font-size: .82rem; }
 }
-
-.quick-links {
-  text-align: center;
-  margin: 1rem 0 2rem;
-  font-size: .95rem;
-}
-.quick-links a {
-  display: inline-block;
-  margin: 0 .15rem;
-  padding: .35rem .85rem;
-  border: 1px solid var(--vp-c-divider);
-  border-radius: 8px;
-  color: var(--vp-c-text-2);
-  text-decoration: none;
-  transition: all .2s;
-}
-.quick-links a:hover {
-  color: var(--vp-c-brand-1);
-  border-color: rgba(74,158,255,0.3);
-  background: rgba(74,158,255,0.06);
-}
