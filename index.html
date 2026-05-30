@@ -4,7 +4,6 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>Workspace · Dashboard</title>
-<script src="https://cdn.tailwindcss.com"></script>
 <style>
 * { margin: 0; padding: 0; box-sizing: border-box; }
 :root {
@@ -951,22 +950,20 @@ allProjects = buildProjects(loadProjectData());
 renderFilters();
 renderProjects();
 
-// Initial render with dist paths (works when built site is served via any HTTP server)
 const DIST_BASE = '.vitepress/dist/';
 const LIVE_BASE = 'http://localhost:5173/';
+
+// Render immediately with dist paths, then upgrade if dev server is found
 renderTodos(DIST_BASE);
 renderKnowledge(DIST_BASE);
 
-// Dev server check — if available, switch links to live server
 fetch('http://localhost:5173', { mode: 'no-cors' })
   .then(() => {
     document.getElementById('serverStatus').classList.add('active');
-    // Re-render with live URLs
     renderTodos(LIVE_BASE);
     renderKnowledge(LIVE_BASE);
   })
   .catch(() => {
-    // Dim live links when no server
     document.querySelectorAll('#headerActions a[target="_blank"]').forEach(a => {
       if (a.href.startsWith('http://localhost:')) {
         a.style.opacity = '0.4';
