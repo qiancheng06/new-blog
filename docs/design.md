@@ -185,32 +185,33 @@ repo: https://github.com/...
 
 ---
 
-## 9. 远期规划：上线部署
+## 9. 上线部署（当前方案）
 
-### 架构（不变）
+**选型**: Cloudflare Tunnel + Access（免费，无需公网 IP，自带鉴权）
+
+### 架构
 
 ```
-Obsidian vault (OneDrive) → npm run build → .vitepress/dist/ → GitHub Pages
+Cloudflare CDN ← Cloudflare Tunnel ← 本地电脑 / VPS
+                    ↑
+            Cloudflare Access (鉴权)
 ```
 
-### 需要的更改
+### 前提
 
-| 文件 | 本地 | 线上 |
-|------|------|------|
-| `config.ts` `cleanUrls` | `false`（file:// 需要 .html） | `true` |
-| `config.ts` `base` | 留空 | `'/new-blog/'` |
-| 仪表盘编辑按钮 | 显示 + 复制路径 | 隐藏或改链接 |
+- 域名托管到 Cloudflare
+- 仓库设为 private（不上传 vault 内容）
+- 本地 build 后部署 dist
 
-### 部署方式
+### 详细部署步骤
 
-| 方式 | 命令 |
-|------|------|
-| A. 手动部署（推荐） | `npm run build && npx gh-pages -d .vitepress/dist` |
-| B. CI 自动部署 | GitHub Actions 监听 → 自动构建 |
+见根目录 [`deploy.md`](../deploy.md)。
 
-### 上线前检查清单
-- [ ] `index.html` 中的文件路径不泄露用户名
-- [ ] `detail.html` 的编辑路径在线上隐藏
-- [ ] `calendar.html` 的 TODO_DATA 自动隐藏 obsidian 路径
-- [ ] 构建产物不包含 `node_modules/`
-- [ ] 决定自定义域名（可选）
+### 其他可选方案
+
+| 方案 | 成本 | 适用场景 |
+|------|------|----------|
+| Cloudflare Tunnel + Access | ¥0 + 域名约 ¥30/年 | **当前方案**，无公网IP |
+| VPS + Nginx Basic Auth | ¥10-30/月 | 云服务器方案 |
+| 本地局域网 | ¥0 | 仅内网访问 |
+| Tailscale 组网 | ¥0 | 小众自用 |

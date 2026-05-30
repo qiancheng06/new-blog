@@ -55,7 +55,22 @@
 | P5 | 待办解析器（CalendarTodo.vue 接入真实数据） | 目前 calendar.html 已有数据，但 VitePress 的 CalendarTodo 组件还是空壳 |
 | P5 | 内容填充 | 写博客文章 + 整理 inbox 笔记 |
 | P5 | 手机端快捷备忘 | 见 roadmap.md #? |
-| P6 | 上线部署 | 见 design.md §9 |
+| P6 | 上线部署 | 方案已定：Cloudflare Tunnel + Access，见 `deploy.md` 和 `design.md §9` |
+
+### P6.online-deploy 🚀
+
+**决策**: Cloudflare Tunnel + Access（免费，无需公网 IP，自带鉴权）
+
+**原因**:
+- 仓库 private，vault 内容不上传
+- 无公网 IP，VPS 额外花钱
+- Cloudflare Access 自带 OAuth 鉴权（Google/GitHub 登录）
+- 不暴露任何服务器端口
+
+**产出**:
+- `deploy.md` — 完整部署方案文档（根目录）
+- `design.md §9` — 更新为当前方案
+- 待实施：配置 Tunnel + Access + 去除 filePath 泄露
 
 ### P5.enhance-css 🎨
 

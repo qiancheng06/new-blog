@@ -111,3 +111,25 @@ git push origin main          # 推送到远程
 - 每次修改代码前重新读 design.md
 - 修改代码后如有必要更新 design.md
 - 遇到模糊需求在 roadmap.md 追加条目等待用户回复
+
+## 5. 上线部署
+
+**当前方案**: Cloudflare Tunnel + Access（免费，无需公网 IP）
+
+详细步骤见根目录 [`deploy.md`](../deploy.md)。
+
+```bash
+# 本地构建
+npm run build
+
+# 启动预览服务
+npx vitepress preview . --port 4173
+
+# 另一终端启动 Cloudflare Tunnel
+cloudflared tunnel run my-blog
+```
+
+**关键约束**:
+- Obsidian vault 在 OneDrive，不在仓库内 → 只能本地 build，不支持 CI
+- 仓库设为 private → 代码和数据不公开
+- `filePath` 字段含用户名 → 需在 sync-projects.js 中移除
