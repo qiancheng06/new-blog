@@ -4,7 +4,6 @@ export default defineConfig({
   title: 'My Knowledge Base',
   description: '个人知识库 · 博客 · 待办管理',
   lang: 'zh-CN',
-  base: './',
 
   appearance: 'dark',
   lastUpdated: false,

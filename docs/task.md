@@ -95,13 +95,10 @@
 **原因**: VitePress 默认 `base: '/'`，构建产物使用绝对路径 `/assets/style.xxx.css`，file:// 下无法解析。
 
 **解决**: 
-- `.vitepress/config.ts` 设置 `base: './'`，构建后所有资源路径变为 `./assets/...`
-- **但核心问题不在路径！** VitePress 使用 ES Module (`<script type="module">`)，file:// 协议下浏览器禁止加载 ES Module（CORS 安全策略）。这是浏览器层面的硬限制，无法绕过。
-- **真正解决方案**: `index.html` 内的链接改为动态检测，当 `localhost:5173` 可用时指向开发服务器，否则显示提示信息。
-  - Header 按钮：指向 `http://localhost:5173/knowledge/` 等
-  - 知识卡片链接：检测到服务器后用 `http://localhost:5173/` 替换 `.vitepress/dist/`
-  - 待办日历链接：同上
-  - 服务器不可用时：链接变灰 + 显示"请运行 npm run dev"提示
+- 尝试 `.vitepress/config.ts` 设置 `base: './'` → **导致导航路径叠加 bug**（`/projects/` 点知识库变为 `/projects/knowledge/`）
+- **根本原因**: VitePress 使用 ES Module (`<script type="module">`)，file:// 协议下浏览器禁止加载（CORS 安全策略），路径改相对也没用
+- **最终方案**: 不设 `base`（默认 `/`），VitePress 页面必须通过 `npm run dev` 的 HTTP 服务访问。`index.html` 内的链接动态检测 dev server，可用时指向 `localhost:5173`，否则灰显提示
+- **教训**: `base: './'` 虽让 dist 用相对路径，但与 VitePress SPA 路由不兼容，导航链接会从子目录出发展开异常
 
 ---
 
