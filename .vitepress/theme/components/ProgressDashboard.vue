@@ -23,6 +23,20 @@
         </div>
 
         <div v-if="openIndex === pi" class="card-detail">
+          <div class="detail-meta">
+            <label class="detail-meta-item">
+              <span>状态</span>
+              <select :value="editableProjects[pi].status" @change="changeStatus(pi, ($event.target as HTMLSelectElement).value)" @click.stop>
+                <option v-for="s in statusKeys" :key="s" :value="s">{{ statusLabels[s] }}</option>
+              </select>
+            </label>
+            <label class="detail-meta-item">
+              <span>优先级</span>
+              <select :value="editableProjects[pi].priority" @change="changePriority(pi, ($event.target as HTMLSelectElement).value)" @click.stop>
+                <option v-for="p in priorityKeys" :key="p" :value="p">{{ priorityLabels[p] }}</option>
+              </select>
+            </label>
+          </div>
           <div v-for="(s, si) in editableProjects[pi].sections" :key="si" class="detail-section">
             <div class="detail-section-header">
               <span class="detail-section-title">{{ s.name }}</span>
@@ -201,6 +215,19 @@ function sectionProgress(s: TaskSection) {
   return { total, done }
 }
 
+const statusKeys = ['in-progress', 'planning', 'paused', 'done']
+const priorityKeys = ['high', 'medium', 'low']
+
+function changeStatus(pi: number, val: string) {
+  editableProjects.value[pi].status = val
+  saveEditable()
+}
+
+function changePriority(pi: number, val: string) {
+  editableProjects.value[pi].priority = val
+  saveEditable()
+}
+
 const statusFilter = ref('all')
 
 const statuses = computed(() => {
@@ -275,6 +302,13 @@ const statusCounts = computed(() => {
 
 .card-detail { border-top: 1px solid rgba(255,255,255,.06); padding: 1rem 1.25rem; animation: slideDown .2s ease; }
 @keyframes slideDown { from { opacity: 0; max-height: 0; } to { opacity: 1; max-height: 600px; } }
+.detail-meta { display: flex; gap: .6rem; margin-bottom: .75rem; flex-wrap: wrap; }
+.detail-meta-item { display: flex; align-items: center; gap: .35rem; font-size: .8rem; color: rgba(255,255,255,.45); cursor: pointer; }
+.detail-meta-item select {
+  background: rgba(255,255,255,.04); border: 1px solid rgba(255,255,255,.06);
+  border-radius: 6px; padding: .2rem .4rem; color: var(--vp-c-text-1); font-size: .78rem; outline: none; cursor: pointer;
+}
+.detail-meta-item select:focus { border-color: rgba(74,158,255,.3); }
 .detail-section { margin-bottom: .75rem; }
 .detail-section:last-child { margin-bottom: 0; }
 .detail-section-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: .3rem; }
