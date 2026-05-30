@@ -1,0 +1,314 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>📖 My Blog · 本地工作区</title>
+<style>
+  :root {
+    --bg: #f5f7fa;
+    --card-bg: #fff;
+    --text: #1a1a2e;
+    --text-secondary: #64748b;
+    --border: #e2e8f0;
+    --accent: #4a9eff;
+    --accent-hover: #3578e5;
+    --accent-soft: #eef5ff;
+    --shadow: 0 1px 3px rgba(0,0,0,.08), 0 1px 2px rgba(0,0,0,.06);
+    --shadow-hover: 0 10px 25px rgba(0,0,0,.1);
+  }
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body {
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    background: var(--bg);
+    color: var(--text);
+    line-height: 1.6;
+    padding: 2rem;
+  }
+  .container { max-width: 1200px; margin: 0 auto; }
+
+  header {
+    margin-bottom: 2.5rem;
+    padding: 2rem 2.5rem;
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 12px;
+    color: #fff;
+  }
+  header h1 { font-size: 1.8rem; font-weight: 700; }
+  header p { margin-top: .5rem; opacity: .75; font-size: .95rem; }
+  header .badge {
+    display: inline-block;
+    margin-top: .6rem;
+    padding: .2rem .6rem;
+    background: rgba(255,255,255,.15);
+    border-radius: 4px;
+    font-size: .78rem;
+  }
+
+  .quick-actions {
+    display: flex;
+    gap: .75rem;
+    margin-top: 1.25rem;
+    flex-wrap: wrap;
+  }
+  .quick-actions a, .quick-actions button {
+    display: inline-flex;
+    align-items: center;
+    gap: .4rem;
+    padding: .5rem 1.25rem;
+    border-radius: 8px;
+    font-size: .875rem;
+    font-weight: 500;
+    text-decoration: none;
+    cursor: pointer;
+    border: none;
+    transition: all .2s;
+  }
+  .btn-primary { background: var(--accent); color: #fff; }
+  .btn-primary:hover { background: var(--accent-hover); transform: translateY(-1px); }
+  .btn-outline {
+    background: transparent; color: #fff;
+    border: 1px solid rgba(255,255,255,.3);
+  }
+  .btn-outline:hover { background: rgba(255,255,255,.1); border-color: rgba(255,255,255,.5); }
+
+  .section { margin-bottom: 2rem; }
+  .section-title {
+    font-size: 1.1rem; font-weight: 600; margin-bottom: 1rem;
+    display: flex; align-items: center; gap: .5rem;
+  }
+
+  .blog-preview {
+    background: var(--card-bg); border-radius: 12px;
+    box-shadow: var(--shadow); overflow: hidden;
+  }
+  .blog-preview-header {
+    padding: 1.25rem 1.5rem; border-bottom: 1px solid var(--border);
+    display: flex; align-items: center; justify-content: space-between;
+  }
+  .blog-preview-header h2 { font-size: 1rem; font-weight: 600; }
+  .blog-preview-header a { font-size: .85rem; color: var(--accent); text-decoration: none; }
+  .blog-preview-header a:hover { text-decoration: underline; }
+  .blog-preview-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+    gap: 1px; background: var(--border);
+  }
+  .blog-preview-item {
+    padding: 1.25rem; background: var(--card-bg);
+    text-decoration: none; transition: all .2s;
+  }
+  .blog-preview-item:hover { background: var(--accent-soft); }
+  .blog-preview-item .icon { font-size: 1.5rem; margin-bottom: .5rem; }
+  .blog-preview-item .name { font-size: .9rem; font-weight: 500; color: var(--text); }
+  .blog-preview-item .desc { font-size: .78rem; color: var(--text-secondary); margin-top: .25rem; }
+
+  .project-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(260px, 1fr));
+    gap: 1rem;
+  }
+  .project-card {
+    background: var(--card-bg); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 1.25rem;
+    text-decoration: none; color: inherit;
+    border: 1px solid transparent;
+    transition: all .25s; position: relative; overflow: hidden;
+    cursor: pointer;
+  }
+  .project-card::before {
+    content: ''; position: absolute; top: 0; left: 0;
+    width: 100%; height: 3px;
+    background: var(--border); transition: background .25s;
+  }
+  .project-card:hover {
+    box-shadow: var(--shadow-hover); transform: translateY(-2px);
+    border-color: var(--accent);
+  }
+  .project-card:hover::before { background: var(--accent); }
+  .project-card .emoji { font-size: 1.5rem; }
+  .project-card .name { font-size: .95rem; font-weight: 600; margin-top: .5rem; }
+  .project-card .desc { font-size: .8rem; color: var(--text-secondary); margin-top: .25rem; }
+
+  .server-status {
+    margin-top: 1rem; padding: 1rem 1.5rem;
+    background: #fff8e1; border-radius: 8px;
+    border: 1px solid #ffe082; font-size: .85rem;
+    display: none;
+  }
+  .server-status.active { display: block; }
+  .server-status .label { font-weight: 600; }
+  .server-status a { color: var(--accent); }
+
+  .obsidian-guide {
+    background: var(--card-bg); border-radius: 10px;
+    box-shadow: var(--shadow); padding: 1.5rem; font-size: .85rem;
+    color: var(--text-secondary); line-height: 1.8;
+  }
+  .obsidian-guide code {
+    background: var(--accent-soft); padding: .1rem .35rem;
+    border-radius: 3px; font-size: .82rem;
+    color: var(--text);
+  }
+  .obsidian-guide .step {
+    display: flex; gap: .75rem; margin-bottom: 1rem;
+    align-items: flex-start;
+  }
+  .obsidian-guide .step-num {
+    flex-shrink: 0; width: 24px; height: 24px;
+    background: var(--accent); color: #fff; border-radius: 50%;
+    display: flex; align-items: center; justify-content: center;
+    font-size: .8rem; font-weight: 600; margin-top: .15rem;
+  }
+
+  @media (max-width: 600px) {
+    body { padding: 1rem; }
+    header { padding: 1.5rem; }
+    header h1 { font-size: 1.4rem; }
+    .blog-preview-grid { grid-template-columns: repeat(2, 1fr); }
+    .project-grid { grid-template-columns: 1fr; }
+  }
+</style>
+</head>
+<body>
+<div class="container">
+
+  <header>
+    <h1>📖 My Blog</h1>
+    <p>个人知识库 · 博客 · 待办管理</p>
+    <span class="badge">📂 Obsidian 仓库 · VitePress 构建</span>
+    <div class="quick-actions">
+      <a href=".vitepress/dist/index.html" class="btn-primary" target="_blank">🚀 打开博客</a>
+      <a href=".vitepress/dist/todo/index.html" class="btn-outline" target="_blank">✅ 待办日历</a>
+      <a href=".vitepress/dist/knowledge/index.html" class="btn-outline" target="_blank">📚 知识库</a>
+      <a href=".vitepress/dist/blog/index.html" class="btn-outline" target="_blank">📝 博客</a>
+      <a href="../" class="btn-outline" target="_blank">📁 工作区根目录</a>
+      <a href="https://github.com/your-username/my-blog" class="btn-outline" target="_blank">🌐 GitHub</a>
+    </div>
+    <div id="serverStatus" class="server-status">
+      <span class="label">🟢 开发服务器运行中</span>
+      <a href="http://localhost:5173" target="_blank">http://localhost:5173</a>
+    </div>
+  </header>
+
+  <div class="section">
+    <div class="section-title">📖 博客 · 快速入口</div>
+    <div class="blog-preview">
+      <div class="blog-preview-header">
+        <h2>知识库分类</h2>
+        <a href=".vitepress/dist/knowledge/index.html" target="_blank">查看全部 →</a>
+      </div>
+      <div class="blog-preview-grid">
+        <a class="blog-preview-item" href=".vitepress/dist/knowledge/resource-library/datasets.html" target="_blank">
+          <div class="icon">🗃️</div>
+          <div class="name">数据集索引</div>
+          <div class="desc">计算机视觉数据集汇总</div>
+        </a>
+        <a class="blog-preview-item" href=".vitepress/dist/knowledge/tech-manual/git-cheatsheet.html" target="_blank">
+          <div class="icon">📋</div>
+          <div class="name">Git 速查</div>
+          <div class="desc">常用 Git 命令参考</div>
+        </a>
+        <a class="blog-preview-item" href=".vitepress/dist/knowledge/tech-manual/docker-commands.html" target="_blank">
+          <div class="icon">🐳</div>
+          <div class="name">Docker 命令</div>
+          <div class="desc">Docker 常用命令</div>
+        </a>
+        <a class="blog-preview-item" href=".vitepress/dist/knowledge/skill-tree/embedded.html" target="_blank">
+          <div class="icon">🔧</div>
+          <div class="name">嵌入式技能树</div>
+          <div class="desc">C51 / ESP32 学习路线</div>
+        </a>
+        <a class="blog-preview-item" href=".vitepress/dist/knowledge/skill-tree/computer-vision.html" target="_blank">
+          <div class="icon">👁️</div>
+          <div class="name">CV 技能树</div>
+          <div class="desc">计算机视觉学习路线</div>
+        </a>
+        <a class="blog-preview-item" href=".vitepress/dist/todo/2026-05.html" target="_blank">
+          <div class="icon">✅</div>
+          <div class="name">5 月待办</div>
+          <div class="desc">本月任务清单</div>
+        </a>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">📂 工作区项目</div>
+    <div class="project-grid">
+      <div class="project-card" onclick="window.open('../','_blank')">
+        <div class="emoji">🏠</div>
+        <div class="name">code/</div>
+        <div class="desc">工作区根目录</div>
+      </div>
+      <div class="project-card" onclick="window.open('../c51/','_blank')">
+        <div class="emoji">🔌</div>
+        <div class="name">c51</div>
+        <div class="desc">C51 单片机项目</div>
+      </div>
+      <div class="project-card" onclick="window.open('../computer%20vision/','_blank')">
+        <div class="emoji">👁️</div>
+        <div class="name">computer vision</div>
+        <div class="desc">计算机视觉 · Wharf 数据集</div>
+      </div>
+      <div class="project-card" onclick="window.open('../esp32/','_blank')">
+        <div class="emoji">📡</div>
+        <div class="name">esp32</div>
+        <div class="desc">ESP32 Arduino 项目</div>
+      </div>
+      <div class="project-card" onclick="window.open('../nginx/','_blank')">
+        <div class="emoji">🌐</div>
+        <div class="name">nginx</div>
+        <div class="desc">Nginx 配置</div>
+      </div>
+      <div class="project-card" onclick="window.open('../vscode/','_blank')">
+        <div class="emoji">💻</div>
+        <div class="name">vscode</div>
+        <div class="desc">MATLAB 计算 · Markdown 笔记</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">🧠 LLM Wiki · 知识管理循环</div>
+    <div class="obsidian-guide">
+      <div class="step">
+        <span class="step-num">I</span>
+        <div><strong>Ingest（摄入）</strong> — 新资料丢进 <code>raw/</code>，AI 自动消化为 wiki 页面</div>
+      </div>
+      <div class="step">
+        <span class="step-num">Q</span>
+        <div><strong>Query（查询）</strong> — 向 AI 提问，高质量回答回灌为 <code>wiki/analyses/</code></div>
+      </div>
+      <div class="step">
+        <span class="step-num">L</span>
+        <div><strong>Lint（检查）</strong> — 定期检查 wiki 的矛盾、孤立、过时</div>
+      </div>
+      <div style="margin-top: .75rem; padding-top: .75rem; border-top: 1px solid var(--border); font-size: .82rem;">
+        详见 <code>docs/instructions.md</code> 或 vault 根目录的 <code>CLAUDE.md</code>
+      </div>
+    </div>
+  </div>
+
+  <div class="section">
+    <div class="section-title">💡 使用提示</div>
+    <div class="obsidian-guide">
+      <p><strong>🚀 启动开发服务器</strong>（推荐体验完整功能）：</p>
+      <pre style="background: #1a1a2e; color: #e2e8f0; padding: .75rem 1rem; border-radius: 6px; margin: .5rem 0; overflow-x: auto;">npm run dev
+# 然后访问 http://localhost:5173</pre>
+      <p><strong>🔧 编辑内容</strong>：在 Obsidian vault 中编辑 Markdown，保存即热更新。</p>
+      <p><strong>📥 摄入新资料</strong>：放入 <code>raw/</code> → 让 AI 执行 Ingest → 自动更新 wiki。</p>
+      <p><strong>🏗️ 构建静态站点</strong>：</p>
+      <pre style="background: #1a1a2e; color: #e2e8f0; padding: .75rem 1rem; border-radius: 6px; margin: .5rem 0; overflow-x: auto;">npm run build
+# 构建产物在 Obsidian 仓库 .vitepress/dist/</pre>
+    </div>
+  </div>
+</div>
+
+<script>
+fetch('http://localhost:5173', { mode: 'no-cors' })
+  .then(() => document.getElementById('serverStatus').classList.add('active'))
+  .catch(() => {})
+</script>
+</body>
+</html>
