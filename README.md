@@ -1,6 +1,6 @@
-# My Blog
+# 个人工作台
 
-个人知识库 · 博客 · 待办管理，基于 VitePress + Obsidian。
+个人知识管理 · 项目跟踪 · 待办日历，基于 VitePress + Obsidian。
 
 ## 快速开始
 
@@ -11,6 +11,9 @@ npm install
 # 开发（自动同步 + 热更新）
 npm run dev
 
+# Mock 后端（本地无网络体验 API，不启动 Telegram）
+npm run dev:backend:mock
+
 # 构建静态站
 npm run build
 
@@ -19,68 +22,98 @@ npm run sync
 
 # 文件监听（自动同步）
 npm run watch
+
+# 统一本地验证入口（默认验收）
+npm run verify:local
 ```
+
+PowerShell 如果提示禁止加载 `npm.ps1`，使用同等命令 `npm.cmd run dev` / `npm.cmd run build` / `npm.cmd run sync` / `npm.cmd run verify:local`。
+
+## 验证入口
+
+默认验收优先运行：
+
+```bash
+npm.cmd run verify:local
+```
+
+该入口会串联 Backend TypeScript build、无网络 API smoke、Workspace sync，以及当前文档的旧引用检查。单项排查时可运行 `npm.cmd run build:backend`、`npm.cmd run smoke:api`、`npm.cmd run sync`。
+
+需要本机权限或真实环境的检查不要纳入默认验收：真实 Telegram/LLM 后端用 `npm.cmd run dev:backend` 单独验证；Obsidian vault 内容完整性、OneDrive 路径、`npm.cmd run watch` 文件监听和真实 vault 同步，需要在拥有 vault 的本机确认。
 
 ### 如何访问
 
 | 方式 | 页面 | 说明 |
 |------|------|------|
-| 双击 `index.html` | 仪表盘（项目进度/待办/知识库概览） | `file://` 直接打开，无需服务器 |
-| `http://localhost:5173` | 完整的 VitePress 站点（知识库/待办/博客/项目） | 需先运行 `npm run dev` |
-| `http://localhost:4173` | 构建后的 VitePress 站点 | 需先运行 `npm run build && npm run preview` |
+| 双击 `apps/workspace/index.html` | 仪表盘（项目进度/待办/知识库概览） | `file://` 直接打开，无需服务器 |
+| 双击 `apps/workspace/start-blog.bat` | 一键启动 | 打开仪表盘，并启动监听与 VitePress dev server；不启动 Persona 后端 |
+| `http://127.0.0.1:5173` | 完整的 VitePress 站点（知识库/待办/博客/项目） | 需先运行 `npm run dev` |
+| `http://127.0.0.1:4173` | 构建后的 VitePress 站点 | 需先运行 `npm run build && npm run preview` |
 
-> ⚠️ **VitePress 页面必须通过 HTTP 访问**。由于 VitePress 使用 ES Module，浏览器禁止在 `file://` 协议下加载。从仪表盘点击博客/知识库等链接时，会自动检测开发服务器并切换到 `localhost:5173` 地址；若服务器未运行，链接会变灰并提示启动命令。
+> 如果网页打不开，先确认你没有再打开旧的根目录 `index.html` 或 `start-blog.bat`。Monorepo 整理后，本地仪表盘入口是 `apps/workspace/index.html`，一键启动脚本是 `apps/workspace/start-blog.bat`。VitePress 固定使用 `127.0.0.1:5173`，避免旧 `localhost` 进程造成 404。
+> 需要体验 `/api/chat` 等 Persona API 时，另开终端运行 `npm.cmd run dev:backend:mock`（无网络、无 Telegram、默认 `127.0.0.1:3001`）。如果 3001 已被旧后端占用，先停止旧窗口/进程后重启；不要期待 `start-blog.bat` 自动重启后端。
+
+> ⚠️ **VitePress 页面必须通过 HTTP 访问**。由于 VitePress 使用 ES Module，浏览器禁止在 `file://` 协议下加载。从仪表盘点击博客/知识库等链接时，会自动检测开发服务器并切换到 `127.0.0.1:5173` 地址；若服务器未运行，链接会变灰并提示启动命令。
+
+> AI 协作入口：Workspace 当前根是 `apps/workspace/`，Persona OS 当前代码根是 `apps/persona/src/`。根目录 `index.html` / `detail.html` / `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 只应作为迁移历史理解，不要作为当前实现入口。
+
+### 部署入口
+
+仓库级部署入口见 [deploy.md](deploy.md)，详细策略见 [docs/05-infra/deployment.md](docs/05-infra/deployment.md)。当前部署边界是：Workspace 只发布 `apps/workspace/.vitepress/dist/` 静态产物；Persona 后台先本地运行；`data/` 与 Obsidian vault 外部路径不进入静态部署。
 
 ## 项目结构
 
 ```
-├── .vitepress/            VitePress 配置 + 暗色科技风主题 + Vue 组件
-│   ├── config.ts          站点配置（base/nav/sidebar/srcDir）
-│   ├── theme/
-│   │   ├── custom.css     全站暗色科技风（毛玻璃导航/卡片/代码块/表格…）
-│   │   ├── index.ts       Theme 入口（注册 Vue 组件 + 导入 custom.css）
-│   │   └── components/    CalendarTodo / KnowledgeCard / ProgressDashboard
-├── docs/                  项目文档
-│   ├── design.md          架构设计
-│   ├── instructions.md    使用说明 + AI 协作规范
-│   ├── roadmap.md         需求路线图（只增不改）
-│   └── task.md            任务进度 + 踩坑记录
-├── projects/              项目进度数据（.md 文件，已 gitignore，不上传）
-├── scripts/
-│   ├── sync-projects.js   数据同步（.md → HTML 内嵌数据）
-│   └── watch.js           文件监听自动同步
-├── index.html             主仪表盘（file:// 可打开，内嵌项目/待办/知识数据）
-├── detail.html            项目详情 + 内联编辑（localStorage 持久化）
-├── calendar.html          待办日历月视图
-├── start-blog.bat         一键启动
+├── apps/
+│   ├── workspace/         Workspace 前台（VitePress + 静态 HTML 仪表盘）
+│   │   ├── .vitepress/    VitePress 配置 + 主题 + Vue 组件
+│   │   ├── scripts/       数据同步与文件监听
+│   │   ├── index.html     主仪表盘（file:// 可打开）
+│   │   ├── detail.html    项目详情 + 内联编辑
+│   │   ├── calendar.html  待办日历月视图
+│   │   └── start-blog.bat 一键启动
+│   └── persona/           Persona OS 后端（Telegram Bot + API + 认知引擎）
+│       └── src/           按架构域分层的 TypeScript 源码
+├── docs/                  项目文档（按架构域组织）
+│   ├── 00-overview/       当前架构、领域地图、术语表、AI 加载指南
+│   ├── 01-workspace/      前台设计、Obsidian 规范、同步规范、仪表盘
+│   ├── 02-persona/        认知算子（archivist/critic/researcher/delivery）、Prompt
+│   ├── 03-memory/         记忆层数据模型、事件模型、遗忘策略
+│   ├── 04-application/    编排层、事件总线、Workspace-Persona 桥接
+│   ├── 05-infra/          DB、LLM、Telegram、Obsidian、部署与配置
+│   ├── 06-governance/     架构原则、编码规范、调试手册、操作说明
+│   ├── 07-product/        产品简报、验收标准、远期规划
+│   └── 99-archive/        历史归档（ADR、提案、运行日志）
 └── package.json
 ```
 
-## 数据流
+## 系统架构
 
 ```
-Obsidian vault (OneDrive)
-        │
-        │ srcDir
-        ▼
-VitePress 站点 (localhost:5173)     index.html / detail.html / calendar.html
-  ├─ 知识库 /knowledge/         ──→  知识卡片展示（KNOWLEDGE_DATA）
-  ├─ 待办 /todo/                ──→  日历月视图 + 今日待办（TODO_DATA）
-  ├─ 项目 /projects/            ──→  项目进度看板（EMBEDDED_PROJECTS）
-  └─ 博客 /blog/
-
-projects/*.md ── sync-projects.js ──→  HTML 内嵌数据
-
-仪表盘 → 检测 localhost:5173 是否可达
-  ├─ 可达 → 链接指向 live 服务器
-  └─ 不可达 → 链接变灰 + 提示启动
+┌─────────────────────────────────────────────────────────┐
+│                    Persona Workspace                    │
+│                                                         │
+│  ┌──────────────┐   HTTP     ┌──────────────────────┐ │
+│  │  Workspace   │◄──────────►│    Persona OS        │ │
+│  │  (前台)       │  /api/chat │    (后台 :3001)      │ │
+│  │              │            │                      │ │
+│  │ VitePress    │            │ Telegram Bot  ──→ 用户 │
+│  │ HTML 仪表盘   │            │ API Server           │ │
+│  │ Vue 组件     │            │ 认知引擎 (4 算子)     │ │
+│  │ Obsidian     │            │ SQLite (事件溯源)     │ │
+│  └──────────────┘            └──────────────────────┘ │
+│                                                         │
+│  同步管道: Obsidian ── sync-projects.js ──→ HTML 内嵌数据│
+│  认知管道: 消息 ──→ Event ──→ Researcher/Critic/       │
+│            Archivist ──→ Memory ──→ Companion ──→ 回复  │
+└─────────────────────────────────────────────────────────┘
 ```
 
 ### 编辑项目进度
 
-1. 打开 `detail.html#blog` → 点"编辑"
+1. 打开 `apps/workspace/detail.html#blog` → 点"编辑"
 2. 勾选/添加/删除任务 → 自动保存到浏览器
-3. 导出为 .md → 覆盖 `projects/` 源文件 → 同步到源代码
+3. 导出为 .md → 覆盖 `apps/workspace/projects/` 源文件 → 同步到源代码
 
 ### 添加知识页
 
@@ -88,19 +121,46 @@ projects/*.md ── sync-projects.js ──→  HTML 内嵌数据
 2. `npm run watch` 自动检测 → 同步到仪表盘知识段
 3. `npm run dev` 热更新 → VitePress 站点立即显示
 
-## Docs
+### 启动 Persona OS 后台
 
-| 文档 | 说明 |
-|------|------|
-| [design.md](docs/design.md) | 架构设计、数据流、技术选型 |
-| [instructions.md](docs/instructions.md) | 使用命令、编辑方式、AI 协作规范 |
-| [roadmap.md](docs/roadmap.md) | 需求路线图，只增不改，含 AI 回应 |
-| [task.md](docs/task.md) | 已完成 + 待完成 + 决策 + 踩坑 |
+```bash
+npm run dev:backend    # 启动 API + Telegram Bot (端口 3001)
+npm run dev:backend:mock    # 启动本地 mock API，不调用真实 LLM
+npm run smoke:api      # 不出网验证 /api/chat → Event → Memory
+```
+
+如果 Workspace 状态面板提示 `/api/status` 不存在，通常是 `3001` 上还跑着旧后端进程。停止旧进程后重新运行 `npm run dev:backend` 或 `npm run dev:backend:mock`。
+
+## Docs 导航
+
+> 文档按架构域组织，AI Agent 首次加载时请按以下顺序阅读：
+> 多 AI 并行时，只改自己任务范围内的文件；遇到已有工作区改动，默认视为他人改动，不回滚、不顺手整理。
+
+| 优先级 | 文档 | 说明 |
+|--------|------|------|
+| **必读** | [00-overview/README.md](docs/00-overview/README.md) | 文档入口：多 AI 协作的加载起点 |
+| **必读** | [00-overview/current-architecture.md](docs/00-overview/current-architecture.md) | 当前真实架构：已实现/半实现/愿景 |
+| **必读** | [00-overview/glossary.md](docs/00-overview/glossary.md) | 术语表：Project≠Topic, Knowledge≠Memory |
+| **必读** | [06-governance/architecture-invariants.md](docs/06-governance/architecture-invariants.md) | 架构不变原则 |
+| 加载规则 | [00-overview/AI_LOADING_GUIDE.md](docs/00-overview/AI_LOADING_GUIDE.md) | AI 任务加载指南：什么任务该看哪些文件 |
+| 全貌 | [07-product/project-brief.md](docs/07-product/project-brief.md) | Persona Workspace 产品简报 |
+| 工作台 | [01-workspace/design.md](docs/01-workspace/design.md) | 前台架构设计、数据流、技术选型 |
+| Persona | [02-persona/flow.md](docs/02-persona/flow.md) | 认知流程定义 |
+| 操作 | [06-governance/instructions.md](docs/06-governance/instructions.md) | 命令清单、AI 协作规范 |
+| 需求 | [99-archive/historical/feature-roadmap.md](docs/99-archive/historical/feature-roadmap.md) | 需求路线图（日志，只增不改） |
+| 进度 | [99-archive/historical/task-log.md](docs/99-archive/historical/task-log.md) | 任务进度 + 踩坑记录 |
 
 ## 技术栈
 
-- VitePress 1.6（静态站生成器）
+**前台 (Workspace)**
+- VitePress 1.6（静态站点生成）
 - Vue 3（自定义组件：日历/知识卡片/项目看板）
 - Obsidian（Markdown 内容编辑）
-- Tailwind CSS（CDN，仪表盘样式）
-- Vanilla JS + localStorage（仪表盘独立运行，离线可用）
+- Vanilla JS + localStorage（仪表盘离线运行）
+
+**后台 (Persona OS)**
+- Node.js + TypeScript（`tsx` 开发运行）
+- better-sqlite3（事件溯源存储，WAL 模式）
+- DeepSeek API（认知引擎：Companion / Researcher / Critic / Archivist）
+- grammy（Telegram Bot）
+- zod（运行时类型校验）

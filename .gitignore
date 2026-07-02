@@ -1,8 +1,14 @@
 node_modules/
-.vitepress/dist/
-.vitepress/cache/
+apps/workspace/.vitepress/dist/
+apps/workspace/.vitepress/cache/
 .obsidian/
-projects/
+apps/workspace/projects/
 *.local
 .DS_Store
 Thumbs.db
+
+# Persona OS backend
+dist/
+.env
+data/
+*.log
