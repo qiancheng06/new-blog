@@ -22,3 +22,12 @@
 - 不可以把一次性情绪、玩笑或假设写成长期 Profile。
 - 不可以绕过 Memory 域直接改数据库。
 - 不可以把 Obsidian 描述为当前唯一运行时主库；当前运行时主库是 SQLite。
+## Current Inspection Boundary
+
+Current inspection APIs are read-only. They can expose stats and recent
+Topic/Profile/Timeline rows, but they cannot delete, archive, or rewrite memory.
+
+Safe archive/delete behavior is a later governed design. Prefer corrective
+events, inactive markers, or deactivation flags before considering physical
+deletion. Event rows remain immutable facts and must not be physically deleted
+by Memory flows.

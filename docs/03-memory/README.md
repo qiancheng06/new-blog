@@ -62,6 +62,9 @@ inserted.
   rows. Existing timeline rows are never updated.
 - `getMemoryContext({ topicLimit, profileLimit, timelineLimit })`: reads the
   latest topic, profile, and timeline rows for AI runtime context.
+- `inspectMemory({ topicLimit, profileLimit, timelineLimit })`: returns a
+  read-only inspection snapshot with stats plus topic/profile/timeline rows for
+  tests, debug panels, and future management UI.
 - `buildMemoryContextText()`: formats the current memory context into a compact
   text block that Persona can include in its system prompt.
 
@@ -82,3 +85,23 @@ calling Companion:
 This is the current minimal memory loop. It is intentionally simple: Memory
 decides how rows are read and written, while Persona only consumes formatted
 context and proposes future patches.
+
+## Read-only inspection contract
+
+Current Memory inspection is read-only. It may expose:
+
+- counts for `topics`, `profile`, and `timeline_events`
+- recent `TopicRow` records ordered by activity
+- recent `ProfileRow` records ordered by update time
+- recent `TimelineEventRow` records ordered by date and creation time
+
+It must not delete, archive, rewrite, or directly mutate Events. Any future
+delete/archive behavior must be modeled as a separate governed flow with clear
+provenance and should prefer deactivation or corrective events over physical
+deletion.
+
+Run the no-network inspection contract from the repository root:
+
+```bash
+npm.cmd run inspect:memory
+```

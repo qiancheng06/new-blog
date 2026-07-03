@@ -47,6 +47,39 @@ export interface MemoryStats {
   timelineEvents: number
 }
 
+export interface MemoryListOptions {
+  limit?: number
+  offset?: number
+}
+
+export interface TopicListOptions extends MemoryListOptions {
+  name?: string
+}
+
+export interface ProfileListOptions extends MemoryListOptions {
+  key?: string
+}
+
+export interface TimelineListOptions extends MemoryListOptions {
+  type?: TimelineEventRow["type"]
+  date?: string
+  sourceEventId?: string
+}
+
+export interface MemoryInspection {
+  stats: MemoryStats
+  topics: TopicRow[]
+  profile: ProfileRow[]
+  timelineEvents: TimelineEventRow[]
+}
+
+export interface MemorySourceInspection {
+  profileWithSource: number
+  profileMissingSource: number
+  timelineWithSource: number
+  timelineMissingSource: number
+}
+
 export function applyMemoryPatch(patch: MemoryPatch, options: MemoryPatchWriteOptions = {}): MemoryPatchWriteResult {
   return {
     topics: upsertTopicUpdates(patch.topic_updates),
@@ -81,6 +114,100 @@ export function getMemoryStats(): MemoryStats {
     topics: readCount("topics"),
     profile: readCount("profile"),
     timelineEvents: readCount("timeline_events"),
+  }
+}
+
+export function inspectMemory(options: {
+  topicLimit?: number
+  profileLimit?: number
+  timelineLimit?: number
+} = {}): MemoryInspection {
+  const context = getMemoryContext(options)
+  return {
+    stats: getMemoryStats(),
+    topics: context.topics,
+    profile: context.profile,
+    timelineEvents: context.timelineEvents,
+  }
+}
+
+export function listMemoryTopics(options: TopicListOptions = {}): TopicRow[] {
+  const params: unknown[] = []
+  const where: string[] = []
+
+  if (options.name?.trim()) {
+    where.push("name LIKE ?")
+    params.push(`%${options.name.trim()}%`)
+  }
+
+  params.push(normalizeLimit(options.limit ?? 20))
+  params.push(normalizeOffset(options.offset ?? 0))
+
+  return query<TopicRow>(
+    `SELECT * FROM topics
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY last_active_at DESC, message_count DESC
+     LIMIT ? OFFSET ?`,
+    params
+  )
+}
+
+export function listMemoryProfile(options: ProfileListOptions = {}): ProfileRow[] {
+  const params: unknown[] = []
+  const where: string[] = []
+
+  if (options.key?.trim()) {
+    where.push("key LIKE ?")
+    params.push(`%${options.key.trim()}%`)
+  }
+
+  params.push(normalizeLimit(options.limit ?? 20))
+  params.push(normalizeOffset(options.offset ?? 0))
+
+  return query<ProfileRow>(
+    `SELECT * FROM profile
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY updated_at DESC
+     LIMIT ? OFFSET ?`,
+    params
+  )
+}
+
+export function listMemoryTimelineEvents(options: TimelineListOptions = {}): TimelineEventRow[] {
+  const params: unknown[] = []
+  const where: string[] = []
+
+  if (options.type) {
+    where.push("type = ?")
+    params.push(options.type)
+  }
+  if (options.date?.trim()) {
+    where.push("date = ?")
+    params.push(options.date.trim())
+  }
+  if (options.sourceEventId?.trim()) {
+    where.push("source_event_id = ?")
+    params.push(options.sourceEventId.trim())
+  }
+
+  params.push(normalizeLimit(options.limit ?? 20))
+  params.push(normalizeOffset(options.offset ?? 0))
+
+  return query<TimelineEventRow>(
+    `SELECT * FROM timeline_events
+     ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
+     ORDER BY date DESC, created_at DESC
+     LIMIT ? OFFSET ?`,
+    params
+  )
+}
+
+export function inspectMemorySources(): MemorySourceInspection {
+  return {
+    profileWithSource: readSourceCount("profile", true),
+    profileMissingSource: readSourceCount("profile", false),
+    timelineWithSource: readSourceCount("timeline_events", true),
+    timelineMissingSource: readSourceCount("timeline_events", false),
   }
 }
 
@@ -248,7 +375,25 @@ function normalizeLimit(limit: number): number {
   return Math.max(1, Math.floor(limit))
 }
 
+function normalizeOffset(offset: number): number {
+  if (!Number.isFinite(offset)) return 0
+  return Math.max(0, Math.floor(offset))
+}
+
 function readCount(tableName: "topics" | "profile" | "timeline_events"): number {
   const row = queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM ${tableName}`)
+  return row ? Number(row.count) : 0
+}
+
+function readSourceCount(tableName: "profile" | "timeline_events", sourceExists: boolean): number {
+  const condition = sourceExists
+    ? "m.source_event_id IS NOT NULL AND e.id IS NOT NULL"
+    : "m.source_event_id IS NOT NULL AND e.id IS NULL"
+  const row = queryOne<{ count: number }>(
+    `SELECT COUNT(*) as count
+     FROM ${tableName} m
+     LEFT JOIN events e ON e.id = m.source_event_id
+     WHERE ${condition}`
+  )
   return row ? Number(row.count) : 0
 }

@@ -21,6 +21,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:api",
   },
   {
+    name: "Memory inspection contract test",
+    command: "npm.cmd run inspect:memory",
+  },
+  {
     name: "Workspace sync",
     command: "npm.cmd run sync",
   },
@@ -90,6 +94,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/interface/api/server.ts",
     "apps/persona/src/application/conversation.ts",
     "apps/persona/src/application/api-contract.ts",
+    "apps/persona/src/domain/memory/inspect-memory.ts",
     "docs/00-overview/README.md",
     "docs/00-overview/current-architecture.md",
     "docs/00-overview/AI_LOADING_GUIDE.md",

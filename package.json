@@ -13,6 +13,7 @@
     "dev:backend": "tsx apps/persona/src/index.ts",
     "dev:backend:mock": "tsx apps/persona/scripts/dev-backend-mock.ts",
     "contract:api": "tsx apps/persona/src/application/api-contract.ts",
+    "inspect:memory": "tsx apps/persona/src/domain/memory/inspect-memory.ts",
     "smoke:api": "tsx apps/persona/src/application/smoke-api.ts",
     "verify:local": "tsx apps/persona/scripts/verify-local.ts",
     "build:backend": "tsc",
