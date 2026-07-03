@@ -49,8 +49,7 @@ local environment risk unless the task specifically changes sync behavior.
 For a local demo without real model calls:
 
 ```bash
-npm.cmd run dev
-npm.cmd run dev:backend:mock
+npm.cmd run dev:mock
 ```
 
 Expected result:
@@ -59,6 +58,8 @@ Expected result:
 - Workspace chat panel connects to `http://127.0.0.1:3001/api/chat`.
 - Workspace Persona OS status panel reads `http://127.0.0.1:3001/api/status`.
 - Messages produce a mock Companion reply and a Memory patch.
+
+Focused diagnosis can still run `npm.cmd run dev` and `npm.cmd run dev:backend:mock` in separate terminals.
 
 These runtime checks require local ports, a browser, and a long-running process.
 They are acceptance evidence for interactive changes, but they are not part of

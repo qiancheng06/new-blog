@@ -417,7 +417,7 @@ header p { margin-top: .3rem; color: var(--text2); font-size: .95rem; }
       <div class="persona-metric"><div class="value" id="personaTimelineCount">-</div><div class="label">Timeline</div></div>
     </div>
     <div class="persona-events" id="personaRecentEvents">
-      <div class="persona-empty">启动后端以查看 AI OS 状态：npm run dev:backend</div>
+      <div class="persona-empty">启动本地 mock demo 以查看 AI OS 状态：npm run dev:mock</div>
     </div>
   </div>
 </div>
@@ -1177,7 +1177,7 @@ function renderPersonaOffline() {
   setText('personaProfileCount', '-');
   setText('personaTimelineCount', '-');
   const recent = document.getElementById('personaRecentEvents');
-  if (recent) recent.innerHTML = '<div class="persona-empty">启动后端以查看 AI OS 状态：npm run dev:backend</div>';
+  if (recent) recent.innerHTML = '<div class="persona-empty">启动本地 mock demo 以查看 AI OS 状态：npm run dev:mock</div>';
 }
 
 function renderPersonaStatus(data) {
@@ -1393,7 +1393,7 @@ function toggleTheme() {
     .catch(function() {
       removeTyping();
       setChatStatus('offline', '离线');
-      appendMsg('assistant', '连接失败，请确认后端运行中：npm run dev:backend');
+      appendMsg('assistant', '连接失败，请确认本地 mock demo 运行中：npm run dev:mock');
     })
     .finally(function() {
       chatBusy = false;

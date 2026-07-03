@@ -32,7 +32,8 @@ Set `LLM_PROVIDER=mock` for no-network smoke tests. The mock provider returns a 
 
 - `npm run dev:backend` starts the real local Persona runtime on port 3001, including API and Telegram bot wiring.
 - `npm run dev:backend:mock` starts the same API surface on `http://127.0.0.1:3001` with `LLM_PROVIDER=mock` and Telegram disabled. Use this for local Workspace demos when the chat panel and status panel should work without calling a real model.
-- `apps/workspace/start-blog.bat` is a Workspace convenience launcher only: it opens the dashboard, `npm run watch`, and the VitePress dev server. It does not start or restart the Persona backend.
+- `npm run dev:mock` starts or reuses both local demo services: Workspace at `http://127.0.0.1:5173/` and Persona mock API at `http://127.0.0.1:3001`.
+- `apps/workspace/start-blog.bat` is a Windows convenience launcher for the same mock demo flow. It waits for both the Workspace dev server and Persona mock API before opening the dashboard.
 - If port 3001 is already occupied by an old backend process, stop that process or window before restarting `dev:backend` / `dev:backend:mock`. A stale backend can also show up as `http://127.0.0.1:3001/api/status` returning 404.
 
 ## Obsidian Vault Path

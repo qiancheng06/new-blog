@@ -5,12 +5,15 @@
 Backend commands:
 
 ```bash
+npm run dev:mock          # Start/reuse Workspace + Persona mock API for local demo
 npm run dev:backend       # Start Persona OS API + Telegram Bot
 npm run dev:backend:mock  # Start Persona OS API with mock LLM, no real model call
 npm run smoke:api         # No-network API smoke test: /api/chat -> Event -> Memory
 ```
 
 If `http://127.0.0.1:3001/api/status` returns 404, stop the old backend process and restart it with one of the backend commands above.
+
+Current local demo rule: prefer `npm.cmd run dev:mock` for interactive Workspace testing. It starts or reuses both `http://127.0.0.1:5173/` and `http://127.0.0.1:3001`. The Windows launcher `apps/workspace/start-blog.bat` uses the same flow.
 
 ---
 
@@ -31,7 +34,7 @@ npm run verify:local # 统一本地验证入口：后端构建 + API smoke + Wor
 PowerShell 如果提示禁止加载 `npm.ps1`，使用同等命令 `npm.cmd run dev` / `npm.cmd run build` / `npm.cmd run sync` / `npm.cmd run verify:local`。
 
 双击 `apps/workspace/index.html` 打开仪表盘（file:// 兼容，不依赖服务器）。
-双击 `apps/workspace/start-blog.bat` 一键启动（打开仪表盘 + dev server + 文件监听）。一键脚本只覆盖 Workspace 本地体验，不启动 Persona 后端；需要 `/api/chat` 时另开终端运行 `npm.cmd run dev:backend:mock`。
+双击 `apps/workspace/start-blog.bat` 一键启动本地 mock demo。它与 `npm.cmd run dev:mock` 使用同一流程：启动或复用 Workspace dev server 与 Persona mock API。
 如果 3001 已有旧后端进程，先停止旧窗口/进程再重启 mock 后端，避免浏览器仍命中旧响应。
 
 当前入口只认 `apps/workspace/` 和 `apps/persona/src/`。根目录旧入口 `index.html` / `detail.html` / `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 不再作为当前事实引用。

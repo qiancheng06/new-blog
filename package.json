@@ -7,6 +7,7 @@
     "sync": "node apps/workspace/scripts/sync-projects.js",
     "watch": "node apps/workspace/scripts/watch.js",
     "dev": "node apps/workspace/scripts/sync-projects.js && vitepress dev apps/workspace --host 127.0.0.1",
+    "dev:mock": "tsx apps/workspace/scripts/dev-demo.ts",
     "build": "node apps/workspace/scripts/sync-projects.js && vitepress build apps/workspace",
     "preview": "vitepress preview apps/workspace --host 127.0.0.1",
     "dev:backend": "tsx apps/persona/src/index.ts",

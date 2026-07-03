@@ -46,12 +46,12 @@ npm.cmd run verify:local
 | 方式 | 页面 | 说明 |
 |------|------|------|
 | 双击 `apps/workspace/index.html` | 仪表盘（项目进度/待办/知识库概览） | `file://` 直接打开，无需服务器 |
-| 双击 `apps/workspace/start-blog.bat` | 一键启动 | 打开仪表盘，并启动监听与 VitePress dev server；不启动 Persona 后端 |
+| 双击 `apps/workspace/start-blog.bat` | 一键启动 | Starts or reuses Workspace dev server and Persona mock API, then opens the dashboard. |
 | `http://127.0.0.1:5173` | 完整的 VitePress 站点（知识库/待办/博客/项目） | 需先运行 `npm run dev` |
 | `http://127.0.0.1:4173` | 构建后的 VitePress 站点 | 需先运行 `npm run build && npm run preview` |
 
 > 如果网页打不开，先确认你没有再打开旧的根目录 `index.html` 或 `start-blog.bat`。Monorepo 整理后，本地仪表盘入口是 `apps/workspace/index.html`，一键启动脚本是 `apps/workspace/start-blog.bat`。VitePress 固定使用 `127.0.0.1:5173`，避免旧 `localhost` 进程造成 404。
-> 需要体验 `/api/chat` 等 Persona API 时，另开终端运行 `npm.cmd run dev:backend:mock`（无网络、无 Telegram、默认 `127.0.0.1:3001`）。如果 3001 已被旧后端占用，先停止旧窗口/进程后重启；不要期待 `start-blog.bat` 自动重启后端。
+> 需要体验 `/api/chat` 等 Persona API 时，优先运行 `npm.cmd run dev:mock`；它会启动或复用 Workspace dev server 与 Persona mock API。
 
 > ⚠️ **VitePress 页面必须通过 HTTP 访问**。由于 VitePress 使用 ES Module，浏览器禁止在 `file://` 协议下加载。从仪表盘点击博客/知识库等链接时，会自动检测开发服务器并切换到 `127.0.0.1:5173` 地址；若服务器未运行，链接会变灰并提示启动命令。
 
@@ -164,3 +164,18 @@ npm run smoke:api      # 不出网验证 /api/chat → Event → Memory
 - DeepSeek API（认知引擎：Companion / Researcher / Critic / Archivist）
 - grammy（Telegram Bot）
 - zod（运行时类型校验）
+## Local Mock Demo
+
+Use this when you want the full local Workspace experience without real LLM or Telegram calls:
+
+```bash
+npm.cmd run dev:mock
+```
+
+It starts or reuses:
+
+- Workspace dev server: `http://127.0.0.1:5173/`
+- Persona mock API: `http://127.0.0.1:3001/api/status`
+
+The Windows launcher `apps/workspace/start-blog.bat` uses the same flow.
+This supersedes older notes that describe `start-blog.bat` as Workspace-only.
