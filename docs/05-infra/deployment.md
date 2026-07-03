@@ -7,9 +7,8 @@
 | 部分 | 当前定位 | 是否部署 | 说明 |
 |------|----------|----------|------|
 | `apps/workspace/` | Workspace 前台 | 部署静态产物 | `npm run build` 生成 `apps/workspace/.vitepress/dist/` |
-| `apps/workspace/index.html` | 本地仪表盘 | 不公网部署 | 可 `file://` 打开，面向本机工作流 |
-| `apps/workspace/detail.html` | 本地项目详情与编辑 | 不公网部署 | 含本地编辑体验，不作为静态站入口 |
-| `apps/workspace/calendar.html` | 本地日历视图 | 不公网部署 | 面向本机待办查看 |
+| `http://127.0.0.1:5173/` | Workspace 主入口 | 本地开发/预览 | 由 VitePress dev server 提供 |
+| `apps/workspace/legacy/*.html` | Legacy standalone HTML assets | 不公网部署 | 仅用于迁移兼容/历史参考，不作为当前主入口 |
 | `apps/persona/` | Persona OS 后台 | 当前本地运行 | API、Telegram Bot、认知流程，默认端口 `3001` |
 | `data/` | Persona 本地数据 | 不部署到静态站 | 当前包含 `persona-os.db`、WAL/SHM 等运行数据 |
 | Obsidian vault | 仓库外部内容源 | 不入仓、不直接部署 | 当前路径由同步脚本读取，例如 `C:\Users\33831\OneDrive\obsidian\obsidian\` |
@@ -42,7 +41,7 @@
 
 ## Workspace 静态站部署
 
-Workspace 的发布对象是 VitePress 构建产物，不是仓库根目录，也不是 `apps/workspace/index.html` 这类本地仪表盘文件。
+Workspace 的发布对象是 VitePress 构建产物，不是仓库根目录，也不是 `apps/workspace/legacy/*.html` 这类 legacy standalone HTML 文件。
 
 ```bash
 cd C:\Users\33831\Desktop\code\projects\blog

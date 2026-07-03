@@ -33,8 +33,8 @@ npm run verify:local # 统一本地验证入口：后端构建 + API smoke + Wor
 
 PowerShell 如果提示禁止加载 `npm.ps1`，使用同等命令 `npm.cmd run dev` / `npm.cmd run build` / `npm.cmd run sync` / `npm.cmd run verify:local`。
 
-双击 `apps/workspace/index.html` 打开仪表盘（file:// 兼容，不依赖服务器）。
-双击 `apps/workspace/start-blog.bat` 一键启动本地 mock demo。它与 `npm.cmd run dev:mock` 使用同一流程：启动或复用 Workspace dev server 与 Persona mock API。
+Workspace 当前主入口是 `http://127.0.0.1:5173/`，通过 `npm.cmd run dev` 或 `npm.cmd run dev:mock` 提供。
+双击 `apps/workspace/start-blog.bat` 一键启动本地 mock demo。它与 `npm.cmd run dev:mock` 使用同一流程：启动或复用 Workspace dev server 与 Persona mock API，然后打开端口入口。
 如果 3001 已有旧后端进程，先停止旧窗口/进程再重启 mock 后端，避免浏览器仍命中旧响应。
 
 当前入口只认 `apps/workspace/` 和 `apps/persona/src/`。根目录旧入口 `index.html` / `detail.html` / `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 不再作为当前事实引用。
@@ -67,9 +67,10 @@ npm.cmd run verify:local
 
 | 页面 | 路径 | 如何打开 |
 |------|------|----------|
-| 主仪表盘 | `apps/workspace/index.html` | 双击 / `apps/workspace/start-blog.bat` |
-| 项目详情 + 编辑 | `apps/workspace/detail.html#项目ID` | 点击看板卡片 / 直接打开 |
-| 日历月视图 | `apps/workspace/calendar.html` | 点击仪表盘"📅 今日待办"标题 |
+| Workspace 主入口 | `http://127.0.0.1:5173/` | `npm.cmd run dev` / `npm.cmd run dev:mock` |
+| Legacy 仪表盘 | `apps/workspace/legacy/index.html` | 迁移兼容，不作为主入口 |
+| Legacy 项目详情 + 编辑 | `apps/workspace/legacy/detail.html#项目ID` | 迁移兼容 |
+| Legacy 日历月视图 | `apps/workspace/legacy/calendar.html` | 迁移兼容 |
 | 项目详情完整版 | VitePress `/projects/` | `npm run dev` → 打开浏览器 |
 | VitePress 站点 | `127.0.0.1:5173` | `npm run dev` |
 | 构建产物 | `apps/workspace/.vitepress/dist/` | `npm run build` 后预览 |
@@ -111,12 +112,12 @@ git push origin main          # 推送到远程
 
 | 想改什么 | 方式 |
 |----------|------|
-| **项目进度**（浏览器内） | `apps/workspace/detail.html#ID` → 点"编辑" → 勾选/添加/删除 → 自动保存到浏览器 |
+| **项目进度**（legacy 浏览器内） | `apps/workspace/legacy/detail.html#ID` → 点"编辑" → 勾选/添加/删除 → 自动保存到浏览器 |
 | **项目进度**（源文件） | 改 `apps/workspace/projects/*.md` → 自动监听触发同步 |
 | **待办事项** | 改 `vault/todo/*.md` → 自动监听触发同步 |
 | **知识库内容** | 改 `vault/knowledge/*.md`（Obsidian 编辑） |
 | **博客文章** | 在 `vault/blog/` 下新建 `.md`，写 frontmatter（title/date/tags）→ 保存自动同步到文章列表和标签索引 |
-| **仪表盘布局** | 改 `apps/workspace/index.html` |
+| **Legacy 仪表盘布局** | 改 `apps/workspace/legacy/index.html` |
 | **同步到源代码** | 编辑完成后点"导出为 .md" → 覆盖 `apps/workspace/projects/*.md` |
 
 ### 重置

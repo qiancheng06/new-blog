@@ -37,6 +37,10 @@ const steps: Step[] = [
     command: "npm.cmd run sync",
   },
   {
+    name: "Workspace entrypoint contract test",
+    command: "npm.cmd run check:workspace",
+  },
+  {
     name: "Current-doc stale reference check",
     command: [
       "rg",
@@ -91,10 +95,11 @@ function runRootStructureCheck(): void {
 
   const requiredFiles = [
     "apps/workspace/.vitepress/config.ts",
-    "apps/workspace/index.html",
-    "apps/workspace/detail.html",
-    "apps/workspace/calendar.html",
+    "apps/workspace/legacy/index.html",
+    "apps/workspace/legacy/detail.html",
+    "apps/workspace/legacy/calendar.html",
     "apps/workspace/start-blog.bat",
+    "apps/workspace/scripts/entry-contract.ts",
     "apps/workspace/scripts/sync-projects.js",
     "apps/workspace/scripts/watch.js",
     "apps/persona/src/index.ts",

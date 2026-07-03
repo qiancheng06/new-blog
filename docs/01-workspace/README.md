@@ -27,10 +27,8 @@ Workspace 是用户主动管理内容的前台域。
 
 ## 相关代码位置
 
-- `apps/workspace/index.html`
-- `apps/workspace/detail.html`
-- `apps/workspace/calendar.html`
 - `apps/workspace/.vitepress/`
+- `apps/workspace/legacy/` (legacy standalone HTML assets, not the primary browser entrypoint)
 - `apps/workspace/scripts/sync-projects.js`
 - `apps/workspace/scripts/watch.js`
 - `apps/workspace/projects/*.md`

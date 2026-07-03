@@ -34,7 +34,9 @@
 - `apps/persona/src/ai-runtime/`
 - `apps/persona/src/infra/`
 - `apps/workspace/scripts/`
-- `apps/workspace/index.html`, `apps/workspace/detail.html`, `apps/workspace/calendar.html`
+- `apps/workspace/.vitepress/`
+- `apps/workspace/legacy/` (legacy standalone HTML assets, not the primary browser entrypoint)
+- `apps/workspace/scripts/`
 
 ## AI 修改前检查项
 

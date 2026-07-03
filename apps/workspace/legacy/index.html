@@ -400,7 +400,7 @@ header p { margin-top: .3rem; color: var(--text2); font-size: .95rem; }
 
 <!-- Build check -->
 <div class="build-note">
-  💡 当前仪表盘是 <code>apps/workspace/index.html</code>，可用 <code>file://</code> 直接打开。VitePress 页面（知识库/待办/博客）请用 <code>npm run dev</code> 后访问 <code>127.0.0.1:5173</code>。
+  💡 当前 Workspace 主入口是 <code>http://127.0.0.1:5173/</code>。本页是 <code>apps/workspace/legacy/index.html</code>，仅作为 legacy 静态资产保留；VitePress 页面（知识库/待办/博客）请用 <code>npm run dev</code> 后访问 <code>127.0.0.1:5173</code>。
 </div>
 
 <!-- Persona OS Status -->
@@ -445,9 +445,9 @@ header p { margin-top: .3rem; color: var(--text2); font-size: .95rem; }
 <div class="section">
   <div class="section-title">💡 使用提示</div>
   <div class="help-box">
-    <div class="step"><span class="step-num">1</span><div><strong>打开仪表盘</strong> — 双击 <code>apps/workspace/index.html</code> 或运行 <code>apps/workspace/start-blog.bat</code></div></div>
+    <div class="step"><span class="step-num">1</span><div><strong>打开 Workspace</strong> — 运行 <code>npm.cmd run dev:mock</code> 或 <code>apps/workspace/start-blog.bat</code>，访问 <code>http://127.0.0.1:5173/</code></div></div>
     <div class="step"><span class="step-num">2</span><div><strong>启动开发服务器</strong> — 在仓库根目录运行 <code>npm run dev</code>，访问 <code>127.0.0.1:5173</code> 查看 VitePress 页面</div></div>
-    <div class="step"><span class="step-num">3</span><div><strong>编辑项目进度</strong> — 打开 <code>detail.html#ID</code> → 点"编辑"直接修改 → 自动保存到浏览器</div></div>
+    <div class="step"><span class="step-num">3</span><div><strong>编辑项目进度</strong> — legacy 兼容路径可打开 <code>legacy/detail.html#ID</code> → 点"编辑"直接修改 → 自动保存到浏览器</div></div>
     <div class="step"><span class="step-num">4</span><div><strong>同步到源代码</strong> — 编辑完成后点"导出为 .md" → 覆盖 <code>apps/workspace/projects/对应项目.md</code> → 运行 <code>npm run sync</code> 同步内嵌数据</div></div>
   </div>
 </div>
@@ -739,11 +739,11 @@ const EMBEDDED_PROJECTS = [
             done: true
           },
           {
-            text: "仪表盘 index.html（file:// 可打开）",
+            text: "legacy/index.html 保留为兼容静态资产",
             done: true
           },
           {
-            text: "start-blog.bat 一键启动",
+            text: "start-blog.bat 一键启动端口入口",
             done: true
           }
         ]

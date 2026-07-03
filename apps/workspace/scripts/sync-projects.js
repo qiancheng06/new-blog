@@ -7,11 +7,12 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const ROOT = join(__dirname, '..')
 const REPO_ROOT = join(ROOT, '..', '..')
 loadEnv({ path: join(REPO_ROOT, '.env') })
+const LEGACY_DIR = join(ROOT, 'legacy')
 const PROJECTS_DIR = join(ROOT, 'projects')
 const PROJECTS_WEB_DIR = 'apps/workspace/projects'
-const INDEX_HTML = join(ROOT, 'index.html')
-const DETAIL_HTML = join(ROOT, 'detail.html')
-const CALENDAR_HTML = join(ROOT, 'calendar.html')
+const INDEX_HTML = join(LEGACY_DIR, 'index.html')
+const DETAIL_HTML = join(LEGACY_DIR, 'detail.html')
+const CALENDAR_HTML = join(LEGACY_DIR, 'calendar.html')
 const VAULT_ROOT = process.env.OBSIDIAN_VAULT_PATH || 'C:\\Users\\33831\\OneDrive\\obsidian\\obsidian'
 const TODO_DIR = join(VAULT_ROOT, 'todo')
 const KNOWLEDGE_DIR = join(VAULT_ROOT, 'knowledge')
@@ -483,7 +484,7 @@ function main() {
   const blogUpdated = syncBlog()
 
   if (updated && blogUpdated) console.log('✅ Updated all files + blog')
-  else if (updated) console.log('✅ Updated index.html + detail.html + calendar.html')
+  else if (updated) console.log('✅ Updated legacy/index.html + legacy/detail.html + legacy/calendar.html')
   else if (blogUpdated) console.log('✅ Updated blog')
   else console.log('⚠️  No changes detected')
 }

@@ -31,9 +31,10 @@ code/projects/blog/                  ← 仓库根（依赖、配置、文档、
 │   │   ├── .vitepress/              ← VitePress 配置 + 主题 + Vue 组件
 │   │   ├── scripts/                 ← sync-projects.js + watch.js
 │   │   ├── projects/                ← 项目进度源文件
-│   │   ├── index.html               ← 主仪表盘（file:// 可打开）
-│   │   ├── detail.html              ← 项目详情页 + 内联编辑
-│   │   ├── calendar.html            ← 日历月视图
+│   │   ├── legacy/                  ← 旧 standalone HTML 资产（非主入口）
+│   │   │   ├── index.html           ← legacy 仪表盘
+│   │   │   ├── detail.html          ← legacy 项目详情页 + 内联编辑
+│   │   │   └── calendar.html        ← legacy 日历月视图
 │   │   └── start-blog.bat           ← 一键启动
 │   └── persona/                     ← Persona OS 后端
 │       └── src/                     ← 按架构域分层的 TypeScript 源码
@@ -88,7 +89,7 @@ apps/workspace/projects/*.md + vault/todo/*.md + vault/knowledge/
     ▼
 sync-projects.js
     │
-    ├──→ apps/workspace/index.html / detail.html / calendar.html（EMBEDDED_PROJECTS + TODO_DATA + KNOWLEDGE_DATA）
+    ├──→ apps/workspace/legacy/index.html / detail.html / calendar.html（EMBEDDED_PROJECTS + TODO_DATA + KNOWLEDGE_DATA）
     │
     └──→ vault/blog/index.md + vault/blog/tags.md（BLOG_LIST / BLOG_TAGS 自动填充）
          └──→ apps/workspace/.vitepress/config.ts（SIDEBAR:BLOG 自动更新）
@@ -100,14 +101,14 @@ sync-projects.js
 
 | 页面 | 访问方式 | 功能 |
 |------|----------|------|
-| `apps/workspace/index.html` | 双击 / `apps/workspace/start-blog.bat` | 主仪表盘：今日待办 + 项目看板 + 知识库速览 |
-| `apps/workspace/detail.html#blog` | 点击项目卡片 / 直接打开 | 项目详情 + 内联编辑（勾选/添加/删除） |
-| `apps/workspace/calendar.html` | 点击"今日待办"标题 | 月视图日历 + 日期详情 |
-| `127.0.0.1:5173` | `npm run dev` | VitePress 站点（含博客/知识库/待办/项目页面） |
+| `127.0.0.1:5173` | `npm run dev` / `npm.cmd run dev:mock` | Workspace 主入口（博客/知识库/待办/项目页面） |
+| `apps/workspace/legacy/index.html` | 迁移兼容/历史参考 | legacy 仪表盘：今日待办 + 项目看板 + 知识库速览 |
+| `apps/workspace/legacy/detail.html#blog` | 迁移兼容/历史参考 | legacy 项目详情 + 内联编辑（勾选/添加/删除） |
+| `apps/workspace/legacy/calendar.html` | 迁移兼容/历史参考 | legacy 月视图日历 + 日期详情 |
 
 ### Companion chat 入口
 
-`apps/workspace/index.html` 的 Companion 浮窗属于 Workspace 前台入口，但对话能力不在本域实现。入口固定连接本地 Application API：
+Workspace Companion 浮窗属于 Workspace 前台能力，但对话能力不在本域实现。入口固定连接本地 Application API：
 
 - `GET http://127.0.0.1:3001/health`：检测 Companion 后端在线状态。
 - `POST http://127.0.0.1:3001/api/chat`：发送用户消息，进入 Conversation Flow。
@@ -126,7 +127,7 @@ apps/workspace/projects/*.md (frontmatter + ## 阶段 + - [x] 任务)
         → 状态/优先级下拉编辑 + 任务勾选/添加/删除
         → localStorage 持久化
     → sync-projects.js → EMBEDDED_PROJECTS / ALL_PROJECTS
-    → apps/workspace/index.html（看板卡片） / detail.html（详情+编辑）
+    → apps/workspace/legacy/index.html（看板卡片） / legacy/detail.html（详情+编辑）
     → localStorage（编辑时持久化）
 ```
 
@@ -134,8 +135,8 @@ apps/workspace/projects/*.md (frontmatter + ## 阶段 + - [x] 任务)
 ```
 vault/todo/2026-*.md (- [x] 描述 @日期)
     → sync-projects.js → TODO_DATA
-    → apps/workspace/index.html（今日/逾期/近期待办）
-    → apps/workspace/calendar.html（月视图）
+    → apps/workspace/legacy/index.html（今日/逾期/近期待办）
+    → apps/workspace/legacy/calendar.html（月视图）
     → CalendarTodo.vue（VitePress 端，待接入）
 ```
 
@@ -178,7 +179,7 @@ repo: https://github.com/...
 | 静态站 | VitePress 1.x | Markdown → HTML + 搜索/导航/主题 |
 | 自定义组件 | Vue 3 (Composition API) | 日历组件需要动态交互 |
 | 编辑器 | Obsidian | 本地优先，Markdown 原生 |
-| 仪表盘 | 原生 HTML+CSS+JS | file:// 兼容，零依赖，支持深色/浅色切换 |
+| Legacy 仪表盘 | 原生 HTML+CSS+JS | 迁移兼容资产，由同步脚本维护，不作为当前主入口 |
 | 数据同步 | Node.js fs.watch + 内嵌数据 | 自动监听 .md 变更，实时更新 HTML |
 | 持久化 | localStorage | 离线编辑，浏览器独立 |
 | 包管理 | npm | 环境已有 |

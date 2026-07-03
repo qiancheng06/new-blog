@@ -47,7 +47,8 @@ Infrastructure
 
 ## 已实现
 
-- Workspace 本地仪表盘：`apps/workspace/index.html`, `apps/workspace/detail.html`, `apps/workspace/calendar.html`
+- Workspace 主入口：`http://127.0.0.1:5173/` via VitePress dev server
+- Workspace legacy 静态资产：`apps/workspace/legacy/index.html`, `apps/workspace/legacy/detail.html`, `apps/workspace/legacy/calendar.html`
 - Workspace VitePress 配置和组件：`apps/workspace/.vitepress/`
 - Obsidian/VitePress 同步脚本：`apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js`
 - Persona OS TypeScript 源码：`apps/persona/src/`
@@ -79,7 +80,7 @@ Infrastructure
 ## 当前数据主权
 
 - Workspace 内容主库：Obsidian/Markdown 与本地 `apps/workspace/projects/*.md`
-- Workspace 展示层：VitePress 和静态 HTML
+- Workspace 展示层：VitePress dev server 为主，legacy 静态 HTML 仅作迁移兼容资产
 - Persona 运行时事实源：SQLite 中的 `events`
 - 长期记忆目标层：Obsidian 可读文件
 

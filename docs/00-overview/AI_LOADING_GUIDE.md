@@ -4,7 +4,7 @@
 
 | 任务类型 | 加载 `docs/` | 加载代码 / 入口 | 禁止加载 |
 |----------|-------------|-------------|----------|
-| 修改 Dashboard / Calendar | `01-workspace/` | `apps/workspace/index.html`, `apps/workspace/detail.html`, `apps/workspace/calendar.html`, `apps/workspace/.vitepress/` | 02-persona, 03-memory |
+| 修改 Dashboard / Calendar | `01-workspace/` | `apps/workspace/.vitepress/`, `apps/workspace/legacy/`, `apps/workspace/scripts/` | 02-persona, 03-memory |
 | 修改同步管道 | `01-workspace/`, `05-infra/` | `apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js` | 02-persona, 03-memory |
 | 修改 Companion / Prompt | `02-persona/` | `apps/persona/src/ai-runtime/`, `apps/persona/src/domain/persona/` | 01-workspace |
 | 修改记忆模型 | `03-memory/`, `05-infra/` | `apps/persona/src/domain/event/`, `apps/persona/src/domain/memory/`, `apps/persona/src/infra/db/` | 01-workspace |

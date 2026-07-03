@@ -45,12 +45,12 @@ npm.cmd run verify:local
 
 | 方式 | 页面 | 说明 |
 |------|------|------|
-| 双击 `apps/workspace/index.html` | 仪表盘（项目进度/待办/知识库概览） | `file://` 直接打开，无需服务器 |
-| 双击 `apps/workspace/start-blog.bat` | 一键启动 | Starts or reuses Workspace dev server and Persona mock API, then opens the dashboard. |
-| `http://127.0.0.1:5173` | 完整的 VitePress 站点（知识库/待办/博客/项目） | 需先运行 `npm run dev` |
+| `http://127.0.0.1:5173` | Workspace 主入口（知识库/待办/博客/项目） | 需先运行 `npm run dev` 或 `npm.cmd run dev:mock` |
+| 双击 `apps/workspace/start-blog.bat` | 一键启动 | Starts or reuses Workspace dev server and Persona mock API, then opens `http://127.0.0.1:5173/`. |
+| `apps/workspace/legacy/index.html` | Legacy 静态仪表盘资产 | 不作为当前主入口，仅用于历史兼容/迁移参考 |
 | `http://127.0.0.1:4173` | 构建后的 VitePress 站点 | 需先运行 `npm run build && npm run preview` |
 
-> 如果网页打不开，先确认你没有再打开旧的根目录 `index.html` 或 `start-blog.bat`。Monorepo 整理后，本地仪表盘入口是 `apps/workspace/index.html`，一键启动脚本是 `apps/workspace/start-blog.bat`。VitePress 固定使用 `127.0.0.1:5173`，避免旧 `localhost` 进程造成 404。
+> 如果网页打不开，先确认你访问的是 `http://127.0.0.1:5173/`。Monorepo 整理后，`apps/workspace/legacy/*.html` 只是历史静态资产，不再作为 Workspace 主入口。
 > 需要体验 `/api/chat` 等 Persona API 时，优先运行 `npm.cmd run dev:mock`；它会启动或复用 Workspace dev server 与 Persona mock API。
 
 > ⚠️ **VitePress 页面必须通过 HTTP 访问**。由于 VitePress 使用 ES Module，浏览器禁止在 `file://` 协议下加载。从仪表盘点击博客/知识库等链接时，会自动检测开发服务器并切换到 `127.0.0.1:5173` 地址；若服务器未运行，链接会变灰并提示启动命令。
@@ -68,10 +68,8 @@ npm.cmd run verify:local
 │   ├── workspace/         Workspace 前台（VitePress + 静态 HTML 仪表盘）
 │   │   ├── .vitepress/    VitePress 配置 + 主题 + Vue 组件
 │   │   ├── scripts/       数据同步与文件监听
-│   │   ├── index.html     主仪表盘（file:// 可打开）
-│   │   ├── detail.html    项目详情 + 内联编辑
-│   │   ├── calendar.html  待办日历月视图
-│   │   └── start-blog.bat 一键启动
+│   │   ├── legacy/        旧 standalone HTML 资产（非主入口）
+│   │   └── start-blog.bat 一键启动 dev-server 入口
 │   └── persona/           Persona OS 后端（Telegram Bot + API + 认知引擎）
 │       └── src/           按架构域分层的 TypeScript 源码
 ├── docs/                  项目文档（按架构域组织）
@@ -111,7 +109,7 @@ npm.cmd run verify:local
 
 ### 编辑项目进度
 
-1. 打开 `apps/workspace/detail.html#blog` → 点"编辑"
+1. 打开 `apps/workspace/legacy/detail.html#blog` → 点"编辑"（legacy 兼容路径）
 2. 勾选/添加/删除任务 → 自动保存到浏览器
 3. 导出为 .md → 覆盖 `apps/workspace/projects/` 源文件 → 同步到源代码
 
@@ -188,9 +186,10 @@ Use the dev server URL as the active Workspace entrypoint:
 http://127.0.0.1:5173/
 ```
 
-Do not open `apps/workspace/index.html` as the primary app entrypoint. The HTML
-files under `apps/workspace/` are legacy/static workspace assets; the current
-browser workflow is served through the Node/VitePress dev server.
+Do not open `apps/workspace/legacy/index.html` as the primary app entrypoint.
+The HTML files under `apps/workspace/legacy/` are legacy/static workspace
+assets; the current browser workflow is served through the Node/VitePress dev
+server.
 
 For real Persona backend startup, use `npm.cmd run dev:backend`. It requires a
 valid DeepSeek bearer token in `OPENAI_API_KEY` when `LLM_PROVIDER=deepseek`.
