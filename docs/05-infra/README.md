@@ -58,6 +58,11 @@ Default AI gates must not call real DeepSeek or Telegram services. Use
 `LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
 offline.
 
+For human-run real network verification, use
+[`../07-product/real-mode-evaluation.md`](../07-product/real-mode-evaluation.md).
+It covers DeepSeek quality, Telegram end-to-end behavior, Workspace real-backend
+checks, rollback, and evidence capture.
+
 ## Obsidian Vault Path
 
 Workspace sync and VitePress read the external Obsidian vault from `OBSIDIAN_VAULT_PATH`.
@@ -87,6 +92,7 @@ The current fallback keeps the original local path for this machine, but new mac
 - Current backend storage is SQLite, not PostgreSQL.
 - `OPENAI_API_KEY` is currently used for DeepSeek API calls.
 - `npm.cmd run check:infra` must stay no-network; it validates config shape and real-mode preflight behavior only.
+- Real DeepSeek and Telegram checks belong in `docs/07-product/real-mode-evaluation.md`, not the default AI gate.
 - Local Obsidian paths must be configured through `OBSIDIAN_VAULT_PATH`; do not add new hard-coded user paths to Workspace scripts or VitePress config.
 - Do not add new infrastructure dependencies unless the task explicitly requires them.
 - LLM provider or model parameter changes must be synchronized with Persona runtime behavior.

@@ -1,5 +1,12 @@
 # Persona
 
+## Real-Mode Quality Gate
+
+- Do not add real DeepSeek calls to `verify:local`.
+- Use `docs/07-product/real-mode-evaluation.md` when a human is validating real Companion quality.
+- Real-mode replies must keep the same visibility boundary as the prompt fixture: Companion natural language only, with Critic/Researcher/Archivist/Memory patch hidden.
+- If a real response leaks JSON or hidden analysis fields, treat it as a Persona quality failure even when the HTTP request succeeds.
+
 ## Prompt Fixture Contract
 
 - Run `npm.cmd run fixture:persona` after changing Persona prompts, prompt builder behavior, or mock LLM assumptions.

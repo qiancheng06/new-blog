@@ -74,6 +74,7 @@ function isPlaceholderOrEmpty(value: string): boolean {
     !normalized ||
     normalized === "your_bot_token_here" ||
     normalized === "sk-your_key_here" ||
+    normalized === "sk-your_deepseek_key_here" ||
     normalized === "your_key_here"
   )
 }

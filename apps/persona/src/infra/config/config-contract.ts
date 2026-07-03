@@ -35,11 +35,21 @@ assert(
 const missingDeepseekKey = loadRuntimeConfig({
   LLM_PROVIDER: "deepseek",
   API_PORT: "3001",
-  OPENAI_API_KEY: "sk-your_key_here",
+  OPENAI_API_KEY: "sk-your_deepseek_key_here",
 })
 assert(
   validateRuntimeConfig(missingDeepseekKey, { requireLlm: true }).some((error) => error.includes("OPENAI_API_KEY")),
   "real DeepSeek mode should reject empty or placeholder API key",
+)
+
+const legacyPlaceholderDeepseekKey = loadRuntimeConfig({
+  LLM_PROVIDER: "deepseek",
+  API_PORT: "3001",
+  OPENAI_API_KEY: "sk-your_key_here",
+})
+assert(
+  validateRuntimeConfig(legacyPlaceholderDeepseekKey, { requireLlm: true }).some((error) => error.includes("OPENAI_API_KEY")),
+  "real DeepSeek mode should reject legacy placeholder API key",
 )
 
 const missingTelegramToken = loadRuntimeConfig({

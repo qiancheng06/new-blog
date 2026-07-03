@@ -33,12 +33,12 @@ function parseCommand(text: string): { type: TelegramEventType; content: string 
 
 bot.command("start", (ctx: Context) => {
   if (ctx.chat) knownChats.add(ctx.chat.id)
-  ctx.reply(`Persona OS 已上线\nChat ID: ${ctx.chat?.id}`)
+  ctx.reply(`Persona OS is online.\nChat ID: ${ctx.chat?.id}`)
 })
 
 bot.command("stats", (ctx: Context) => {
   const today = countConversationEventsToday()
-  ctx.reply(`今日事件：${today} 条`)
+  ctx.reply(`Events today: ${today}`)
 })
 
 bot.on("message:text", async (ctx: Context) => {
@@ -65,8 +65,13 @@ bot.on("message:text", async (ctx: Context) => {
   const event = createTelegramEvent(payload, eventType)
 
   if (cmd) {
-    const result = await handleConversationEvent(event, { shouldReply: false })
-    console.log(`  -> event:${eventType} id:${result.event.id.slice(0, 8)}`)
+    try {
+      const result = await handleConversationEvent(event, { shouldReply: false })
+      console.log(`  -> event:${eventType} id:${result.event.id.slice(0, 8)}`)
+    } catch (err) {
+      console.error("  -> command error:", err instanceof Error ? err.message : err)
+      await ctx.reply(CONVERSATION_FALLBACK_REPLY, { reply_to_message_id: msgId })
+    }
     return
   }
 

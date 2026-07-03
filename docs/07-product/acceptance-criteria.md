@@ -79,6 +79,7 @@ Run these only when the task explicitly needs the user's machine state:
 
 - `npm.cmd run dev:backend` for real Telegram/LLM wiring; requires `.env`, network access, and available local ports.
 - `npm.cmd run dev:backend` should fail fast when `LLM_PROVIDER=deepseek` lacks a real `OPENAI_API_KEY`, or when Telegram startup is enabled with an empty/placeholder token.
+- Use [real-mode-evaluation.md](real-mode-evaluation.md) for the human-run DeepSeek quality, Telegram end-to-end, Workspace real-backend, and rollback checklist.
 - `npm.cmd run watch` for filesystem watcher behavior; requires a long-running local process and access to watched paths.
 - Obsidian vault checks for real vault path existence, OneDrive availability, content completeness, and save-to-sync behavior.
 - Browser interaction checks for VitePress pages, Workspace dashboard links, chat panel, and status panel.
