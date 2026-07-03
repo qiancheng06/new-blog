@@ -12,6 +12,7 @@
     "preview": "vitepress preview apps/workspace --host 127.0.0.1",
     "dev:backend": "tsx apps/persona/src/index.ts",
     "dev:backend:mock": "tsx apps/persona/scripts/dev-backend-mock.ts",
+    "contract:api": "tsx apps/persona/src/application/api-contract.ts",
     "smoke:api": "tsx apps/persona/src/application/smoke-api.ts",
     "verify:local": "tsx apps/persona/scripts/verify-local.ts",
     "build:backend": "tsc",

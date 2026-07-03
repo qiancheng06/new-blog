@@ -17,6 +17,10 @@ const steps: Step[] = [
     command: "npm.cmd run smoke:api",
   },
   {
+    name: "No-network API contract test",
+    command: "npm.cmd run contract:api",
+  },
+  {
     name: "Workspace sync",
     command: "npm.cmd run sync",
   },
@@ -85,6 +89,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/main/index.ts",
     "apps/persona/src/interface/api/server.ts",
     "apps/persona/src/application/conversation.ts",
+    "apps/persona/src/application/api-contract.ts",
     "docs/00-overview/README.md",
     "docs/00-overview/current-architecture.md",
     "docs/00-overview/AI_LOADING_GUIDE.md",
