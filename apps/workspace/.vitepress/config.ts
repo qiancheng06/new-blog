@@ -3,7 +3,7 @@ import { config as loadEnv } from 'dotenv'
 import { resolve } from 'path'
 
 loadEnv({ path: resolve(process.cwd(), '.env') })
-const vaultPath = process.env.OBSIDIAN_VAULT_PATH || '../../../../../../OneDrive/obsidian/obsidian'
+const vaultPath = process.env.OBSIDIAN_VAULT_PATH || resolve(process.env.USERPROFILE || process.cwd(), 'OneDrive', 'obsidian', 'obsidian')
 
 export default defineConfig({
   title: '个人工作台',

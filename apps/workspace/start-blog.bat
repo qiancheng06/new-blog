@@ -1,6 +1,5 @@
 @echo off
 set "ROOT=%~dp0..\.."
-set "DASHBOARD=%~dp0index.html"
 cd /d "%ROOT%"
 echo Starting auto-sync + dev server...
 
@@ -19,10 +18,8 @@ if errorlevel 1 goto retry
 :: Open single browser tab
 echo.
 echo Dev services are ready!
-start "" "%DASHBOARD%"
 start "" "http://127.0.0.1:5173"
 echo.
-echo Dashboard: %DASHBOARD%
 echo VitePress: http://127.0.0.1:5173
 echo Persona API: http://127.0.0.1:3001/api/status
 echo Press any key to stop all services.

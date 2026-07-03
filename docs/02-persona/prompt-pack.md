@@ -4,6 +4,10 @@
 
 ---
 
+## Prompt Fixture Gate
+
+Run `npm.cmd run fixture:persona` after changing this pack, `prompt-builder.ts`, or mock LLM assumptions. The fixture is no-network and checks Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
+
 ## Prompt Builder 边界
 
 - `companionSystemPrompt`：唯一用户可见输出来源，只返回 Companion 自然语言回复。
