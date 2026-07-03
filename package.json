@@ -12,6 +12,7 @@
     "preview": "vitepress preview apps/workspace --host 127.0.0.1",
     "dev:backend": "tsx apps/persona/src/index.ts",
     "dev:backend:mock": "tsx apps/persona/scripts/dev-backend-mock.ts",
+    "check:infra": "tsx apps/persona/src/infra/config/config-contract.ts",
     "contract:api": "tsx apps/persona/src/application/api-contract.ts",
     "fixture:persona": "tsx apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "inspect:memory": "tsx apps/persona/src/domain/memory/inspect-memory.ts",

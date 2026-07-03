@@ -81,7 +81,10 @@ bot.on("message:text", async (ctx: Context) => {
   }
 })
 
-export function startBot(): void {
-  bot.start()
+export async function startBot(): Promise<void> {
+  bot.catch((err) => {
+    console.error("[telegram bot error]", err.error instanceof Error ? err.error.message : err.error)
+  })
+  await bot.start()
   console.log("telegram bot started")
 }

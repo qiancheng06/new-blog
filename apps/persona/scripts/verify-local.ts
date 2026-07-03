@@ -25,6 +25,10 @@ const steps: Step[] = [
     command: "npm.cmd run fixture:persona",
   },
   {
+    name: "Infra config contract test",
+    command: "npm.cmd run check:infra",
+  },
+  {
     name: "Memory inspection contract test",
     command: "npm.cmd run inspect:memory",
   },
@@ -99,6 +103,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/conversation.ts",
     "apps/persona/src/application/api-contract.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
+    "apps/persona/src/infra/config/config-contract.ts",
     "apps/persona/src/domain/memory/inspect-memory.ts",
     "docs/00-overview/README.md",
     "docs/00-overview/current-architecture.md",

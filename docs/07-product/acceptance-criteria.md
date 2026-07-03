@@ -19,6 +19,7 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
 - No-network API contract test for `/health`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
+- Infra config contract test for no-network real-mode preflight behavior.
 - Workspace sync script; `No changes detected` is an acceptable passing result.
 - Repository structure check for required app/docs directories, key moved files, allowed docs top-level domains, and stale root entries.
 - Current-doc stale reference scan for old root paths and outdated local URLs.
@@ -29,6 +30,7 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
 - `npm.cmd run contract:api` for Application API request/response shape failures.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
+- `npm.cmd run check:infra` for `.env`, provider, API port, and real-mode preflight failures.
 - `npm.cmd run sync` for Workspace data parsing and embedding failures.
 
 ## Full Local Gate
@@ -74,6 +76,7 @@ the default handoff gate.
 Run these only when the task explicitly needs the user's machine state:
 
 - `npm.cmd run dev:backend` for real Telegram/LLM wiring; requires `.env`, network access, and available local ports.
+- `npm.cmd run dev:backend` should fail fast when `LLM_PROVIDER=deepseek` lacks a real `OPENAI_API_KEY`, or when Telegram startup is enabled with an empty/placeholder token.
 - `npm.cmd run watch` for filesystem watcher behavior; requires a long-running local process and access to watched paths.
 - Obsidian vault checks for real vault path existence, OneDrive availability, content completeness, and save-to-sync behavior.
 - Browser interaction checks for VitePress pages, Workspace dashboard links, chat panel, and status panel.

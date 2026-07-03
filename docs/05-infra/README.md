@@ -36,6 +36,28 @@ Set `LLM_PROVIDER=mock` for no-network smoke tests. The mock provider returns a 
 - `apps/workspace/start-blog.bat` is a Windows convenience launcher for the same mock demo flow. It waits for both the Workspace dev server and Persona mock API before opening the dashboard.
 - If port 3001 is already occupied by an old backend process, stop that process or window before restarting `dev:backend` / `dev:backend:mock`. A stale backend can also show up as `http://127.0.0.1:3001/api/status` returning 404.
 
+## Real-Mode Readiness
+
+Run the no-network infra contract before changing real-mode startup behavior:
+
+```bash
+npm.cmd run check:infra
+```
+
+Real DeepSeek mode uses `LLM_PROVIDER=deepseek` and requires `OPENAI_API_KEY`.
+The variable name is kept for compatibility, but the current adapter sends it as
+the bearer token to `https://api.deepseek.com/v1/chat/completions`.
+
+`TELEGRAM_TOKEN` is optional. When it is empty, Persona starts the API and skips
+Telegram. When Telegram startup is enabled, empty or placeholder tokens fail
+preflight before the bot starts. Runtime Telegram polling errors are logged with
+`[telegram startup error]` or `[telegram bot error]` and should not be treated as
+Workspace API contract changes.
+
+Default AI gates must not call real DeepSeek or Telegram services. Use
+`LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
+offline.
+
 ## Obsidian Vault Path
 
 Workspace sync and VitePress read the external Obsidian vault from `OBSIDIAN_VAULT_PATH`.
@@ -64,6 +86,7 @@ The current fallback keeps the original local path for this machine, but new mac
 
 - Current backend storage is SQLite, not PostgreSQL.
 - `OPENAI_API_KEY` is currently used for DeepSeek API calls.
+- `npm.cmd run check:infra` must stay no-network; it validates config shape and real-mode preflight behavior only.
 - Local Obsidian paths must be configured through `OBSIDIAN_VAULT_PATH`; do not add new hard-coded user paths to Workspace scripts or VitePress config.
 - Do not add new infrastructure dependencies unless the task explicitly requires them.
 - LLM provider or model parameter changes must be synchronized with Persona runtime behavior.

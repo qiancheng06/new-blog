@@ -179,3 +179,20 @@ It starts or reuses:
 
 The Windows launcher `apps/workspace/start-blog.bat` uses the same flow.
 This supersedes older notes that describe `start-blog.bat` as Workspace-only.
+
+## Current Browser Entrypoint
+
+Use the dev server URL as the active Workspace entrypoint:
+
+```text
+http://127.0.0.1:5173/
+```
+
+Do not open `apps/workspace/index.html` as the primary app entrypoint. The HTML
+files under `apps/workspace/` are legacy/static workspace assets; the current
+browser workflow is served through the Node/VitePress dev server.
+
+For real Persona backend startup, use `npm.cmd run dev:backend`. It requires a
+valid DeepSeek bearer token in `OPENAI_API_KEY` when `LLM_PROVIDER=deepseek`.
+`TELEGRAM_TOKEN` may stay empty; in that case the API starts and Telegram is
+skipped.

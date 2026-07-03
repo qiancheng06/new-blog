@@ -1,4 +1,4 @@
-import { config } from "../config/index.js"
+import { assertRuntimeConfig, config } from "../config/index.js"
 
 const API_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -59,6 +59,8 @@ async function post(body: string, timeout: number): Promise<{ status: number; da
 }
 
 async function createChatCompletion(options: ChatCompletionOptions): Promise<string> {
+  assertRuntimeConfig(config, { requireLlm: true })
+
   const body = JSON.stringify({
     model: "deepseek-chat",
     messages: options.messages,
@@ -67,11 +69,24 @@ async function createChatCompletion(options: ChatCompletionOptions): Promise<str
     ...(options.jsonResponse ? { response_format: { type: "json_object" } } : {}),
   })
 
-  const { status, data } = await post(body, 20000)
+  let status: number
+  let data: string
+  try {
+    const result = await post(body, 20000)
+    status = result.status
+    data = result.data
+  } catch (err) {
+    throw new Error(`DeepSeek request failed: ${err instanceof Error ? err.message : String(err)}`)
+  }
 
-  if (status !== 200) throw new Error(`DeepSeek API ${status}: ${data.slice(0, 200)}`)
+  if (status !== 200) throw new Error(`DeepSeek API ${status}: ${sanitizeProviderError(data)}`)
 
-  const parsed = JSON.parse(data) as { choices: Array<{ message: { content: string } }> }
+  let parsed: { choices?: Array<{ message?: { content?: string } }> }
+  try {
+    parsed = JSON.parse(data) as { choices?: Array<{ message?: { content?: string } }> }
+  } catch {
+    throw new Error("DeepSeek returned non-JSON response")
+  }
   const content = parsed.choices?.[0]?.message?.content
   if (!content) throw new Error("LLM returned empty response")
 
@@ -114,7 +129,15 @@ export async function callAnalysis(systemPrompt: string, userMessage: string, hi
     jsonResponse: true,
   })
 
-  return JSON.parse(content) as AnalysisResult
+  try {
+    return JSON.parse(content) as AnalysisResult
+  } catch {
+    throw new Error("DeepSeek analysis response was not valid JSON")
+  }
+}
+
+function sanitizeProviderError(data: string): string {
+  return data.replace(config.openaiApiKey, "[redacted]").slice(0, 200)
 }
 
 function createMockAnalysisResult(userMessage: string, history?: string): AnalysisResult {
