@@ -44,6 +44,17 @@ Run the no-network infra contract before changing real-mode startup behavior:
 npm.cmd run check:infra
 ```
 
+Run the human-facing runtime diagnostic before starting real mode:
+
+```bash
+npm.cmd run diagnose:runtime
+```
+
+It prints redacted readiness status for provider config, Telegram config, local
+SQLite presence, schema presence, and Obsidian vault path shape. It does not
+call DeepSeek, call Telegram, start long-running services, import the DB pool,
+or initialize the database.
+
 Real DeepSeek mode uses `LLM_PROVIDER=deepseek` and requires `OPENAI_API_KEY`.
 The variable name is kept for compatibility, but the current adapter sends it as
 the bearer token to `https://api.deepseek.com/v1/chat/completions`.
@@ -92,6 +103,7 @@ The current fallback keeps the original local path for this machine, but new mac
 - Current backend storage is SQLite, not PostgreSQL.
 - `OPENAI_API_KEY` is currently used for DeepSeek API calls.
 - `npm.cmd run check:infra` must stay no-network; it validates config shape and real-mode preflight behavior only.
+- `npm.cmd run diagnose:runtime` must stay no-network and must not print raw secrets or private data.
 - Real DeepSeek and Telegram checks belong in `docs/07-product/real-mode-evaluation.md`, not the default AI gate.
 - Local Obsidian paths must be configured through `OBSIDIAN_VAULT_PATH`; do not add new hard-coded user paths to Workspace scripts or VitePress config.
 - Do not add new infrastructure dependencies unless the task explicitly requires them.

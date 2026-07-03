@@ -34,7 +34,16 @@ OBSIDIAN_VAULT_PATH=<local vault path>
 npm.cmd run verify:local
 ```
 
-5. Stop stale processes on ports `3001` and `5173`.
+5. Run the no-network runtime diagnostic:
+
+```bash
+npm.cmd run diagnose:runtime
+```
+
+This diagnostic only checks local readiness and redacts secrets. Passing it does
+not prove that DeepSeek or Telegram is reachable.
+
+6. Stop stale processes on ports `3001` and `5173`.
 
 ## DeepSeek Quality Check
 
