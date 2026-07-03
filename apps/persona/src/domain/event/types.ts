@@ -50,14 +50,19 @@ export function createSystemEvent(type: SystemEventType, payload: Record<string,
 export interface WorkspacePayload {
   text: string
   page?: string
+  evaluationRunId?: string
 }
 
 export function createWorkspaceEvent(payload: WorkspacePayload): Event {
+  const metadata = payload.evaluationRunId?.trim()
+    ? { purpose: "real_mode_evaluation", run_id: payload.evaluationRunId.trim() }
+    : {}
+
   return {
     source: "web",
     type: "message",
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
-    metadata: {},
+    metadata,
   }
 }

@@ -63,6 +63,10 @@ bot.on("message:text", async (ctx: Context) => {
 
   const eventType = cmd ? cmd.type : "message"
   const event = createTelegramEvent(payload, eventType)
+  const evaluationRunId = process.env.PERSONA_EVALUATION_RUN_ID?.trim()
+  if (evaluationRunId) {
+    event.metadata = { purpose: "real_mode_evaluation", run_id: evaluationRunId }
+  }
 
   if (cmd) {
     try {

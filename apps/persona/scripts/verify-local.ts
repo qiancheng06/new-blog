@@ -37,6 +37,10 @@ const steps: Step[] = [
     command: "npm.cmd run inspect:memory",
   },
   {
+    name: "Real-mode cleanup contract test",
+    command: "npm.cmd run contract:cleanup",
+  },
+  {
     name: "Workspace sync",
     command: "npm.cmd run sync",
   },
@@ -116,6 +120,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics-contract.ts",
     "apps/persona/src/domain/memory/inspect-memory.ts",
+    "apps/persona/src/domain/memory/cleanup-real-mode-tests.ts",
+    "apps/persona/src/domain/memory/cleanup-real-mode-tests-contract.ts",
     "docs/00-overview/README.md",
     "docs/00-overview/current-architecture.md",
     "docs/00-overview/AI_LOADING_GUIDE.md",

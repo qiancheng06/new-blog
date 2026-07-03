@@ -5,7 +5,7 @@ process.env.LLM_PROVIDER = "mock"
 process.env.API_PORT = String(port)
 process.env.TELEGRAM_TOKEN = ""
 
-const { initializeDb, run } = await import("../infra/db/pool.js")
+const { initializeDb, queryOne, run } = await import("../infra/db/pool.js")
 const { startApiServer, stopApiServer } = await import("../interface/api/server.js")
 
 initializeDb()
@@ -70,13 +70,20 @@ async function verifyInvalidChat(portNumber: number): Promise<void> {
 }
 
 async function verifyValidChat(portNumber: number): Promise<void> {
+  const evaluationRunId = `${contractTag}-eval`
   const body = await postJson<{
     reply?: string
     eventId?: string
-  }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract" })
+  }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract", evaluationRunId })
 
   assert(typeof body.reply === "string" && body.reply.includes(contractTag), "chat.reply must include mock tag")
   assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat.eventId must be non-empty string")
+
+  const event = queryOne<{ metadata: string }>("SELECT metadata FROM events WHERE id = ?", [body.eventId])
+  assert(event, "chat event should exist")
+  const metadata = JSON.parse(event.metadata) as { purpose?: string; run_id?: string }
+  assert(metadata.purpose === "real_mode_evaluation", "evaluation metadata purpose mismatch")
+  assert(metadata.run_id === evaluationRunId, "evaluation metadata run_id mismatch")
 }
 
 async function verifyEvents(portNumber: number): Promise<void> {

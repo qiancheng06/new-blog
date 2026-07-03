@@ -31,7 +31,7 @@ function readBody(req: IncomingMessage): Promise<string> {
 
 async function handleChat(req: IncomingMessage, res: ServerResponse) {
   const body = await readBody(req)
-  let parsed: { text?: string; page?: string }
+  let parsed: { text?: string; page?: string; evaluationRunId?: string }
   try {
     parsed = JSON.parse(body)
   } catch {
@@ -41,7 +41,7 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
   const text = parsed.text?.trim()
   if (!text) return json(res, 400, { error: "text is required" })
 
-  const event = createWorkspaceEvent({ text, page: parsed.page })
+  const event = createWorkspaceEvent({ text, page: parsed.page, evaluationRunId: parsed.evaluationRunId })
   console.log(`[web] ${text.slice(0, 60)}`)
 
   try {

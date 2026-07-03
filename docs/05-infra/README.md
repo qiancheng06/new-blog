@@ -74,6 +74,11 @@ For human-run real network verification, use
 It covers DeepSeek quality, Telegram end-to-end behavior, Workspace real-backend
 checks, rollback, and evidence capture.
 
+After human real-mode tests, use `npm.cmd run cleanup:real-mode -- --tag <id>`
+to preview tagged evaluation data. Add `--apply` only after review; automatic
+cleanup deletes source-linked timeline rows only and reports Events/Profile/Topics
+for manual governance review.
+
 ## Obsidian Vault Path
 
 Workspace sync and VitePress read the external Obsidian vault from `OBSIDIAN_VAULT_PATH`.

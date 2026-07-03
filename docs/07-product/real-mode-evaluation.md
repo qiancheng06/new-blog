@@ -161,3 +161,50 @@ Record these in the task notes or release checklist:
 
 Never paste real API keys, bot tokens, or private chat content into docs,
 commits, or issue comments.
+
+## Evaluation Run Labels
+
+Before a real-mode evaluation, choose a unique ASCII run id:
+
+```text
+eval-20260703-real-mode
+```
+
+Workspace/API checks should pass it as `evaluationRunId`:
+
+```bash
+curl -X POST http://127.0.0.1:3001/api/chat -H "Content-Type: application/json" -d "{\"text\":\"eval-20260703-real-mode real backend check\",\"evaluationRunId\":\"eval-20260703-real-mode\"}"
+```
+
+Telegram checks should start the backend with:
+
+```bash
+$env:PERSONA_EVALUATION_RUN_ID="eval-20260703-real-mode"
+npm.cmd run dev:backend
+```
+
+This label is stored in Event metadata. The cleanup tool also searches payloads
+for the same tag to support older manual test messages.
+
+## Cleanup After Evaluation
+
+Always preview first:
+
+```bash
+npm.cmd run cleanup:real-mode -- --tag eval-20260703-real-mode
+```
+
+Apply only after reviewing the preview:
+
+```bash
+npm.cmd run cleanup:real-mode -- --tag eval-20260703-real-mode --apply
+```
+
+The cleanup command only auto-deletes `timeline_events` rows whose
+`source_event_id` points to tagged Events. It does not auto-delete Events,
+Profile, or Topics:
+
+- Events are immutable facts and require governance/admin review.
+- Profile rows are upserts and may have overwritten earlier long-term facts.
+- Topics currently have no `source_event_id`, so they can only be reported for
+  manual review.

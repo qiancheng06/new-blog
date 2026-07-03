@@ -105,3 +105,34 @@ Run the no-network inspection contract from the repository root:
 ```bash
 npm.cmd run inspect:memory
 ```
+
+## Real-Mode Evaluation Cleanup Boundary
+
+Real-mode evaluation must use a unique `evaluationRunId` / tag before sending
+test messages. Workspace `/api/chat` accepts `evaluationRunId`; Telegram can use
+the local `PERSONA_EVALUATION_RUN_ID` environment variable before
+`npm.cmd run dev:backend`.
+
+Preview tagged test data:
+
+```bash
+npm.cmd run cleanup:real-mode -- --tag eval-20260703-real-mode
+```
+
+Apply the safe cleanup portion:
+
+```bash
+npm.cmd run cleanup:real-mode -- --tag eval-20260703-real-mode --apply
+```
+
+Automatic cleanup is intentionally narrow:
+
+- `timeline_events` with `source_event_id` pointing to tagged Events may be
+  deleted because they are append-only Memory rows.
+- `profile` rows are listed for review, not deleted automatically. Profile is an
+  upsert table, so deleting a row may remove a long-term fact that existed before
+  the test.
+- `topics` are listed for review, not deleted automatically. Topics currently do
+  not store `source_event_id`.
+- `events` are listed for review, not deleted automatically. Events remain the
+  immutable fact source unless a separate governance/admin cleanup is approved.

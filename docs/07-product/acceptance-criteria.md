@@ -21,6 +21,7 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
 - Infra config contract test for no-network real-mode preflight behavior.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
+- Real-mode cleanup contract test for tagged evaluation data preview and safe timeline-only cleanup.
 - Workspace entrypoint contract test for the served `http://127.0.0.1:5173/` primary UI path and legacy HTML boundaries.
 - Workspace sync script; `No changes detected` is an acceptable passing result.
 - Repository structure check for required app/docs directories, key moved files, allowed docs top-level domains, and stale root entries.
@@ -34,6 +35,8 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
 - `npm.cmd run check:infra` for `.env`, provider, API port, and real-mode preflight failures.
 - `npm.cmd run contract:runtime` for runtime diagnostics redaction and no-network contract failures.
+- `npm.cmd run contract:cleanup` for real-mode evaluation cleanup safety failures.
+- `npm.cmd run cleanup:real-mode -- --tag <evaluation-run-id>` for human dry-run cleanup review after real-mode evaluation.
 - `npm.cmd run diagnose:runtime` for a human-readable local readiness report before real-mode evaluation.
 - `npm.cmd run check:workspace` for Workspace entrypoint and legacy standalone HTML boundary failures.
 - `npm.cmd run sync` for Workspace data parsing and embedding failures.
