@@ -20,6 +20,11 @@ try {
   await verifyValidChat(port)
   await verifyEvents(port)
   await verifyStatus(port)
+  await verifyMemoryOverview(port)
+  await verifyMemoryTopics(port)
+  await verifyMemoryProfile(port)
+  await verifyMemoryTimeline(port)
+  await verifyMemorySources(port)
   console.log("api contract ok")
 } finally {
   cleanupContractRows(contractTag)
@@ -115,6 +120,81 @@ async function verifyStatus(portNumber: number): Promise<void> {
     assert(typeof event.timestamp === "string", "recent event timestamp must be string")
     assert(typeof event.preview === "string", "recent event preview must be string")
   }
+}
+
+async function verifyMemoryOverview(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    stats?: { topics?: number; profile?: number; timelineEvents?: number }
+    topics?: unknown[]
+    profile?: unknown[]
+    timelineEvents?: unknown[]
+  }>(`http://127.0.0.1:${portNumber}/api/memory?topicLimit=5&profileLimit=5&timelineLimit=5`)
+
+  assert(typeof body.stats?.topics === "number", "memory.stats.topics must be number")
+  assert(typeof body.stats.profile === "number", "memory.stats.profile must be number")
+  assert(typeof body.stats.timelineEvents === "number", "memory.stats.timelineEvents must be number")
+  assert(Array.isArray(body.topics), "memory.topics must be array")
+  assert(Array.isArray(body.profile), "memory.profile must be array")
+  assert(Array.isArray(body.timelineEvents), "memory.timelineEvents must be array")
+}
+
+async function verifyMemoryTopics(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    items?: Array<{ id?: string; name?: string; summary?: string; message_count?: number }>
+    limit?: number
+    offset?: number
+  }>(`http://127.0.0.1:${portNumber}/api/memory/topics?name=${encodeURIComponent(contractTag)}&limit=999&offset=-1`)
+
+  assert(body.limit === 100, "memory topics limit must be clamped to 100")
+  assert(body.offset === 0, "memory topics offset must normalize to 0")
+  assert(Array.isArray(body.items), "memory topics items must be array")
+  assert(body.items.some((item) => item.name === contractTag), "memory topics should include contract topic")
+}
+
+async function verifyMemoryProfile(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    items?: Array<{ id?: string; key?: string; value?: string; source_event_id?: string | null; updated_at?: string }>
+    limit?: number
+    offset?: number
+  }>(`http://127.0.0.1:${portNumber}/api/memory/profile?key=last_mock_message&limit=20&offset=0`)
+
+  assert(body.limit === 20, "memory profile limit mismatch")
+  assert(body.offset === 0, "memory profile offset mismatch")
+  assert(Array.isArray(body.items), "memory profile items must be array")
+  const item = body.items.find((row) => row.key === "last_mock_message" && typeof row.value === "string" && row.value.includes(contractTag))
+  assert(item, "memory profile should include last_mock_message contract row")
+  assert(typeof item.id === "string", "memory profile item id must be string")
+  assert(typeof item.updated_at === "string", "memory profile updated_at must be string")
+}
+
+async function verifyMemoryTimeline(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    items?: Array<{ id?: string; date?: string; type?: string; summary?: string; source_event_id?: string | null }>
+    limit?: number
+    offset?: number
+  }>(`http://127.0.0.1:${portNumber}/api/memory/timeline?type=insight&limit=20&offset=0`)
+
+  assert(body.limit === 20, "memory timeline limit mismatch")
+  assert(body.offset === 0, "memory timeline offset mismatch")
+  assert(Array.isArray(body.items), "memory timeline items must be array")
+  const item = body.items.find((row) => row.type === "insight" && typeof row.summary === "string" && row.summary.includes(contractTag))
+  assert(item, "memory timeline should include contract insight row")
+  assert(typeof item.id === "string", "memory timeline item id must be string")
+  assert(typeof item.date === "string", "memory timeline item date must be string")
+}
+
+async function verifyMemorySources(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    profileWithSource?: number
+    profileMissingSource?: number
+    timelineWithSource?: number
+    timelineMissingSource?: number
+  }>(`http://127.0.0.1:${portNumber}/api/memory/sources`)
+
+  assert(typeof body.profileWithSource === "number", "memory sources profileWithSource must be number")
+  assert(typeof body.profileMissingSource === "number", "memory sources profileMissingSource must be number")
+  assert(typeof body.timelineWithSource === "number", "memory sources timelineWithSource must be number")
+  assert(typeof body.timelineMissingSource === "number", "memory sources timelineMissingSource must be number")
 }
 
 async function getJson<T>(url: string): Promise<T> {

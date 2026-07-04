@@ -106,6 +106,22 @@ Run the no-network inspection contract from the repository root:
 npm.cmd run inspect:memory
 ```
 
+## Application read API
+
+Workspace and debug panels must read Memory through Application HTTP APIs, not
+through SQLite files or domain stores directly. The current read-only routes are:
+
+- `GET /api/memory`
+- `GET /api/memory/topics?limit=&offset=&name=`
+- `GET /api/memory/profile?limit=&offset=&key=`
+- `GET /api/memory/timeline?limit=&offset=&type=&date=&sourceEventId=`
+- `GET /api/memory/sources`
+
+These routes are implemented through `apps/persona/src/application/memory.ts`.
+They do not edit, archive, delete, merge, or rewrite Memory. `ProfileRow.value`
+is returned as the stored JSON string; UI parsing/editing belongs to a later
+governed management flow.
+
 ## Real-Mode Evaluation Cleanup Boundary
 
 Real-mode evaluation must use a unique `evaluationRunId` / tag before sending

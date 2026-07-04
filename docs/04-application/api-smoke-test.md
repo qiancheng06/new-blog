@@ -71,10 +71,124 @@ Response `200`:
 }
 ```
 
+### `GET /api/memory`
+
+Read-only Memory overview for trusted Workspace/debug panels. Query params:
+
+```ts
+{
+  topicLimit?: number,
+  profileLimit?: number,
+  timelineLimit?: number
+}
+```
+
+Response `200`:
+
+```ts
+{
+  stats: {
+    topics: number,
+    profile: number,
+    timelineEvents: number
+  },
+  topics: TopicRow[],
+  profile: ProfileRow[],
+  timelineEvents: TimelineEventRow[]
+}
+```
+
+### `GET /api/memory/topics`
+
+Query params:
+
+```ts
+{
+  limit?: number,
+  offset?: number,
+  name?: string
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: TopicRow[],
+  limit: number,
+  offset: number
+}
+```
+
+### `GET /api/memory/profile`
+
+Query params:
+
+```ts
+{
+  limit?: number,
+  offset?: number,
+  key?: string
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: ProfileRow[],
+  limit: number,
+  offset: number
+}
+```
+
+`ProfileRow.value` is returned as the stored JSON string. Parsing and editing are
+future UI/view-model concerns.
+
+### `GET /api/memory/timeline`
+
+Query params:
+
+```ts
+{
+  limit?: number,
+  offset?: number,
+  type?: "insight" | "shift" | "milestone",
+  date?: string,
+  sourceEventId?: string
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: TimelineEventRow[],
+  limit: number,
+  offset: number
+}
+```
+
+### `GET /api/memory/sources`
+
+Response `200`:
+
+```ts
+{
+  profileWithSource: number,
+  profileMissingSource: number,
+  timelineWithSource: number,
+  timelineMissingSource: number
+}
+```
+
 ### Shared behavior
 
 - `OPTIONS` returns `204` with CORS headers.
 - Unknown routes return `404 { error: "not found" }`.
+- Memory list limits are normalized by the Application layer and capped at 100.
+- Memory APIs are read-only and must not mutate Events, Profile, Topics, or
+  Timeline rows.
 
 ## Safe paths
 
@@ -121,4 +235,4 @@ Run the stricter HTTP contract test:
 npm.cmd run contract:api
 ```
 
-The contract test starts the API on `127.0.0.1:3103`, verifies `/health`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, `OPTIONS`, and `404`, then deletes its smoke rows and closes the server.
+The contract test starts the API on `127.0.0.1:3103`, verifies `/health`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only `/api/memory*` routes, `OPTIONS`, and `404`, then deletes its smoke rows and closes the server.
