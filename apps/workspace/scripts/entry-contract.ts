@@ -23,6 +23,18 @@ const syncScript = readFileSync(join(workspaceRoot, "scripts", "sync-projects.js
 assert(syncScript.includes("const LEGACY_DIR"), "sync script must write standalone HTML through LEGACY_DIR")
 assert(!syncScript.includes("join(ROOT, 'index.html')"), "sync script must not write root index.html")
 
+const layout = readFileSync(join(workspaceRoot, ".vitepress", "theme", "Layout.vue"), "utf-8")
+assert(layout.includes("MemoryProfilePanel"), "Workspace layout must expose the Memory/Profile panel")
+
+const personaApi = readFileSync(join(workspaceRoot, ".vitepress", "theme", "api", "personaApi.ts"), "utf-8")
+assert(personaApi.includes("http://127.0.0.1:3001"), "Persona API client must default to 127.0.0.1:3001")
+assert(!personaApi.includes("data/persona-os.db"), "Persona API client must not read SQLite directly")
+
+const memoryPanel = readFileSync(join(workspaceRoot, ".vitepress", "theme", "components", "MemoryProfilePanel.vue"), "utf-8")
+assert(memoryPanel.includes("/api/memory/profile"), "Memory/Profile panel must read the Application memory API")
+assert(!memoryPanel.includes("legacy/"), "Memory/Profile panel must not depend on legacy HTML")
+assert(!memoryPanel.includes("data/persona-os.db"), "Memory/Profile panel must not read SQLite directly")
+
 const staleEntrypointPatterns = [
   "apps/workspace/index.html",
   "file:// 可打开",

@@ -107,6 +107,8 @@ The current architecture stage is considered done when:
 - Memory write/read loop is covered by `smoke:api`.
 - LLM provider supports real DeepSeek mode and no-network mock mode.
 - Workspace status/chat UI uses Application APIs only.
+- Workspace Memory/Profile panel reads Application memory APIs only and does not
+  use legacy HTML or direct SQLite access.
 
 ## Not Yet Product Complete
 

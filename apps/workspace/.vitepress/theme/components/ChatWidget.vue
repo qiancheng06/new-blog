@@ -110,6 +110,7 @@
 
 <script setup lang="ts">
 import { ref, nextTick, onMounted } from 'vue'
+import { personaUrl } from '../api/personaApi'
 
 interface ChatMessage {
   role: 'user' | 'assistant'
@@ -117,8 +118,8 @@ interface ChatMessage {
   time: string
 }
 
-const API_URL = 'http://localhost:3001/api/chat'
-const HEALTH_URL = 'http://localhost:3001/health'
+const API_URL = personaUrl('/api/chat')
+const HEALTH_URL = personaUrl('/health')
 
 const isOpen = ref(false)
 const input = ref('')
