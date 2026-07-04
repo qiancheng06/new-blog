@@ -1,7 +1,7 @@
 @echo off
 set "ROOT=%~dp0..\.."
 cd /d "%ROOT%"
-echo Starting auto-sync + dev server...
+echo Starting Persona Workspace demo...
 
 :: Background services (minimized)
 start /min "workbench-demo" cmd /c "npm run dev:mock"
@@ -20,7 +20,8 @@ echo.
 echo Dev services are ready!
 start "" "http://127.0.0.1:5173"
 echo.
-echo VitePress: http://127.0.0.1:5173
+echo Workspace Next.js: http://127.0.0.1:5173
+echo Content site can be started separately: npm.cmd run dev:content
 echo Persona API: http://127.0.0.1:3001/api/status
 echo Press any key to stop all services.
 pause >nul

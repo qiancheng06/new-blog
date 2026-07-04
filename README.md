@@ -195,3 +195,13 @@ For real Persona backend startup, use `npm.cmd run dev:backend`. It requires a
 valid DeepSeek bearer token in `OPENAI_API_KEY` when `LLM_PROVIDER=deepseek`.
 `TELEGRAM_TOKEN` may stay empty; in that case the API starts and Telegram is
 skipped.
+# Current Frontend Entrypoints
+
+- Primary Workspace app: Next.js at `http://127.0.0.1:5173/` via `npm.cmd run dev`.
+- Content site: VitePress/Obsidian at `http://127.0.0.1:5174/` via `npm.cmd run dev:content`.
+- Persona API: local backend at `http://127.0.0.1:3001/` via `npm.cmd run dev:backend` or `npm.cmd run dev:backend:mock`.
+- Legacy HTML: `apps/workspace/legacy/*.html` remains as reference and migration fallback only.
+
+Workspace now treats Obsidian content and Persona DB memory as separate long-term
+sources behind a frontend middle layer. UI code must use `apps/workspace/src/shared/`
+adapters and must not directly read the vault or SQLite database.

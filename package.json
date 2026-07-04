@@ -7,10 +7,12 @@
     "sync": "node apps/workspace/scripts/sync-projects.js",
     "watch": "node apps/workspace/scripts/watch.js",
     "check:workspace": "tsx apps/workspace/scripts/entry-contract.ts",
-    "dev": "node apps/workspace/scripts/sync-projects.js && vitepress dev apps/workspace --host 127.0.0.1",
+    "dev": "next dev apps/workspace -H 127.0.0.1 -p 5173",
+    "dev:content": "node apps/workspace/scripts/sync-projects.js && vitepress dev apps/workspace --host 127.0.0.1 --port 5174",
     "dev:mock": "tsx apps/workspace/scripts/dev-demo.ts",
-    "build": "node apps/workspace/scripts/sync-projects.js && vitepress build apps/workspace",
-    "preview": "vitepress preview apps/workspace --host 127.0.0.1",
+    "build": "next build apps/workspace",
+    "build:content": "node apps/workspace/scripts/sync-projects.js && vitepress build apps/workspace",
+    "preview": "next start apps/workspace -H 127.0.0.1 -p 5173",
     "dev:backend": "tsx apps/persona/src/index.ts",
     "dev:backend:mock": "tsx apps/persona/scripts/dev-backend-mock.ts",
     "check:infra": "tsx apps/persona/src/infra/config/config-contract.ts",
@@ -29,6 +31,8 @@
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/node": "^22.0.0",
+    "@types/react": "^19.2.17",
+    "@types/react-dom": "^19.2.3",
     "tsx": "^4.19.0",
     "typescript": "^5.7.0",
     "vitepress": "^1.6.0"
@@ -37,6 +41,9 @@
     "better-sqlite3": "^12.10.0",
     "dotenv": "^16.4.0",
     "grammy": "^1.34.0",
+    "next": "^16.2.10",
+    "react": "^19.2.7",
+    "react-dom": "^19.2.7",
     "vue": "^3.5.35",
     "zod": "^3.24.0"
   }

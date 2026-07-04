@@ -1,0 +1,92 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { getWorkspaceProjects, type WorkspaceProject } from "@/shared/data/workspaceData"
+
+const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
+
+export function ProjectsPanel() {
+  const [projects, setProjects] = useState<WorkspaceProject[]>([])
+  const [status, setStatus] = useState("all")
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const data = await getWorkspaceProjects()
+      setProjects(data)
+      setLoading(false)
+    }
+
+    void load()
+  }, [])
+
+  const statuses = useMemo(() => {
+    const values = Array.from(new Set(projects.map((project) => project.status).filter(Boolean)))
+    return ["all", ...values]
+  }, [projects])
+
+  const visibleProjects = useMemo(() => {
+    return projects
+      .filter((project) => status === "all" || project.status === status)
+      .sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9) || a.name.localeCompare(b.name))
+  }, [projects, status])
+
+  return (
+    <section className="feature-panel" id="projects">
+      <div className="feature-heading">
+        <div>
+          <p className="eyebrow">Projects</p>
+          <h2>项目看板</h2>
+          <p>来自 Workspace JSON 中间层。源文件仍是 Markdown，Next 只消费同步结果。</p>
+        </div>
+        <div className="filter-row">
+          {statuses.map((item) => (
+            <button
+              key={item}
+              className={`compact-button ${status === item ? "active" : ""}`}
+              type="button"
+              onClick={() => setStatus(item)}
+            >
+              {item}
+            </button>
+          ))}
+        </div>
+      </div>
+
+      {loading ? <p className="empty-state">Loading projects...</p> : null}
+      {!loading && visibleProjects.length === 0 ? (
+        <p className="empty-state">当前 worktree 没有同步到项目数据。内容站和 legacy 入口仍保留。</p>
+      ) : null}
+
+      <div className="project-grid">
+        {visibleProjects.map((project) => {
+          const tasks = project.sections.flatMap((section) => section.tasks)
+          const done = tasks.filter((task) => task.done).length
+          const total = tasks.length
+          const percent = total > 0 ? Math.round((done / total) * 100) : 0
+
+          return (
+            <article key={project.id} className="project-card">
+              <div className="project-card-top">
+                <span className={`status-chip ${project.status}`}>{project.status}</span>
+                <span className="priority-chip">{project.priority}</span>
+              </div>
+              <h3>{project.name}</h3>
+              <div className="progress-track" aria-label={`${project.name} progress`}>
+                <span style={{ width: `${percent}%` }} />
+              </div>
+              <p className="progress-copy">
+                {done}/{total} tasks done · {percent}%
+              </p>
+              <div className="tag-row">
+                {project.tags.slice(0, 4).map((tag) => (
+                  <span key={tag}>{tag}</span>
+                ))}
+              </div>
+            </article>
+          )
+        })}
+      </div>
+    </section>
+  )
+}

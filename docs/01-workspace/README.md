@@ -1,5 +1,20 @@
 # Workspace
 
+Current frontend direction:
+
+- `apps/workspace/` is being migrated to a Next.js Workspace app.
+- `npm.cmd run dev` serves the primary app at `http://127.0.0.1:5173/`.
+- Obsidian remains the long-term content source and is served through the
+  VitePress content site with `npm.cmd run dev:content` on port `5174`.
+- Persona DB remains the long-term memory source and is accessed only through
+  Application APIs on port `3001`.
+- UI code must go through the middle layer in `apps/workspace/src/shared/`; it
+  must not directly read the Obsidian vault or SQLite database.
+- Projects, Todos, and Knowledge now have read-only Next.js modules backed by
+  synced JSON under `apps/workspace/public/data/`.
+
+See [frontend-modernization.md](frontend-modernization.md).
+
 Workspace 是用户主动管理内容的前台域。
 
 ## 本域职责
