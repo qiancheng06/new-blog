@@ -2,6 +2,24 @@
 
 本手册记录当前阶段的本地排错顺序。优先使用已有脚本，不新增调试框架。
 
+## Workspace 404 Quick Check
+
+- Primary Workspace URL is `http://127.0.0.1:5173/` after `npm.cmd run dev`
+  or `npm.cmd run dev:mock`.
+- Do not open `apps/workspace/index.html`; that file must not exist as an app
+  entrypoint.
+- Do not use `apps/workspace/legacy/*.html` as the current product entrypoint.
+  Legacy HTML is migration-compatible only.
+- `npm.cmd run preview` may use a different port, commonly `4173`; do not mix
+  preview URLs with dev-server URLs.
+- If `http://127.0.0.1:3001/api/status` returns 404, stop the stale process on
+  port `3001` and restart the Persona backend or mock backend.
+- If a Cloudflare Tunnel URL returns 404, check whether its service target
+  points to the actual running local port. A fallback `http_status:404` means
+  the tunnel is up but no matching route handled the request.
+- Repository `docs/` files are not automatically published into Workspace
+  routes. Open them in the repo unless a VitePress page explicitly links them.
+
 ## Current
 
 默认验证命令：

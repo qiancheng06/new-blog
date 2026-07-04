@@ -149,7 +149,8 @@ Expected rollback:
 
 ## Evidence To Record
 
-Record these in the task notes or release checklist:
+Record these in a dated result note using
+[`real-mode-evaluation-result-template.md`](real-mode-evaluation-result-template.md):
 
 - Date and operator.
 - Git commit being evaluated.
