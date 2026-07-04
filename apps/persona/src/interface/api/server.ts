@@ -14,8 +14,12 @@ import {
   getMemoryStatusStats,
   getMemoryTimelineEvents,
   getMemoryTopics,
+  changeMemoryProfileState,
+  changeMemoryTopicState,
   correctMemoryProfile,
   MemoryValidationError,
+  MemoryNotFoundError,
+  parseMemoryListState,
 } from "../../application/memory.js"
 
 const CORS_HEADERS = {
@@ -105,6 +109,7 @@ function handleMemoryTopics(url: URL, res: ServerResponse) {
     limit: readNumber(url, "limit"),
     offset: readNumber(url, "offset"),
     name: readText(url, "name"),
+    state: parseMemoryListState(readText(url, "state")),
   }))
 }
 
@@ -113,6 +118,7 @@ function handleMemoryProfile(url: URL, res: ServerResponse) {
     limit: readNumber(url, "limit"),
     offset: readNumber(url, "offset"),
     key: readText(url, "key"),
+    state: parseMemoryListState(readText(url, "state")),
   }))
 }
 
@@ -158,6 +164,38 @@ async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerRe
   }
 }
 
+async function handleMemoryProfileState(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonBody<{ id?: string; state?: string; reason?: string }>(req, res)
+  if (!parsed) return
+
+  try {
+    const result = changeMemoryProfileState({
+      id: parsed.id ?? "",
+      state: parsed.state as never,
+      reason: parsed.reason ?? "",
+    })
+    json(res, 200, { eventId: result.event.id, profile: result.profile })
+  } catch (err) {
+    handleMemoryWriteError(err, res)
+  }
+}
+
+async function handleMemoryTopicState(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonBody<{ id?: string; state?: string; reason?: string }>(req, res)
+  if (!parsed) return
+
+  try {
+    const result = changeMemoryTopicState({
+      id: parsed.id ?? "",
+      state: parsed.state as never,
+      reason: parsed.reason ?? "",
+    })
+    json(res, 200, { eventId: result.event.id, topic: result.topic })
+  } catch (err) {
+    handleMemoryWriteError(err, res)
+  }
+}
+
 async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS_HEADERS)
@@ -199,11 +237,39 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/memory/profile/corrections" && req.method === "POST") {
       return await handleMemoryProfileCorrection(req, res)
     }
+    if (url === "/api/memory/profile/state" && req.method === "POST") {
+      return await handleMemoryProfileState(req, res)
+    }
+    if (url === "/api/memory/topics/state" && req.method === "POST") {
+      return await handleMemoryTopicState(req, res)
+    }
     json(res, 404, { error: "not found" })
   } catch (err) {
     console.error("[api error]", err instanceof Error ? err.message : err)
     json(res, 500, { error: "internal error" })
   }
+}
+
+async function readJsonBody<T>(req: IncomingMessage, res: ServerResponse): Promise<T | null> {
+  const body = await readBody(req)
+  try {
+    return JSON.parse(body) as T
+  } catch {
+    json(res, 400, { error: "invalid json" })
+    return null
+  }
+}
+
+function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
+  if (err instanceof MemoryValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof MemoryNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  throw err
 }
 
 function readNumber(url: URL, key: string): number | undefined {

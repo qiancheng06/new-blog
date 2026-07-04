@@ -46,7 +46,29 @@ export function initializeDb(): void {
     _db.exec(stmt + ";")
   }
 
+  migrateProjectionState()
+
   console.log("database initialized")
+}
+
+function migrateProjectionState(): void {
+  ensureColumn("profile", "state", "TEXT NOT NULL DEFAULT 'active'")
+  ensureColumn("profile", "state_event_id", "TEXT REFERENCES events(id)")
+  ensureColumn("profile", "state_reason", "TEXT NOT NULL DEFAULT ''")
+  ensureColumn("profile", "state_updated_at", "TEXT")
+  ensureColumn("topics", "state", "TEXT NOT NULL DEFAULT 'active'")
+  ensureColumn("topics", "state_event_id", "TEXT REFERENCES events(id)")
+  ensureColumn("topics", "state_reason", "TEXT NOT NULL DEFAULT ''")
+  ensureColumn("topics", "state_updated_at", "TEXT")
+
+  _db.exec("CREATE INDEX IF NOT EXISTS idx_profile_state_updated ON profile(state, updated_at DESC);")
+  _db.exec("CREATE INDEX IF NOT EXISTS idx_topics_state_active ON topics(state, last_active_at DESC);")
+}
+
+function ensureColumn(tableName: "profile" | "topics", columnName: string, definition: string): void {
+  const columns = _db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
+  if (columns.some((column) => column.name === columnName)) return
+  _db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`)
 }
 
 function resolveSchemaPath(): string {

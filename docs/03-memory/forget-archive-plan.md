@@ -1,6 +1,7 @@
 # Profile And Topic Forget/Archive Plan
 
-Status: P13 design plan.
+Status: P13 design plan; P14 backend implementation exists for projection state
+migrations and Profile/Topic state APIs.
 
 This document defines the next governed step after Profile correction. It is a
 plan, not an implemented schema migration.
@@ -164,7 +165,7 @@ copy must distinguish archive from suppress:
 
 Do not expose `PATCH /api/memory/profile/:id` or `DELETE`.
 
-Proposed endpoints:
+Implemented backend endpoints:
 
 ```text
 POST /api/memory/profile/state
@@ -208,6 +209,9 @@ Response:
 
 The current Memory/Profile panel may add action controls only after backend
 state projection exists.
+
+Backend projection state now exists. Workspace suppress/archive/restore controls
+remain a later UI step and must require a reason before calling Application.
 
 Allowed controls:
 

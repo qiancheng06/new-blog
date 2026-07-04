@@ -82,3 +82,32 @@ export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrect
     metadata: { purpose: "memory_governance" },
   }
 }
+
+export type MemoryProjectionState = "active" | "archived" | "suppressed"
+
+export interface MemoryStateChangePayload {
+  target_id: string
+  target_key?: string
+  reason: string
+  mode: "archive" | "suppress" | "restore"
+}
+
+export function createMemoryProfileStateEvent(payload: MemoryStateChangePayload): Event {
+  return {
+    source: "web",
+    type: payload.mode === "restore" ? "memory_profile_restore" : "memory_profile_suppression",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "memory_governance" },
+  }
+}
+
+export function createMemoryTopicStateEvent(payload: MemoryStateChangePayload): Event {
+  return {
+    source: "web",
+    type: payload.mode === "restore" ? "memory_topic_restore" : "memory_topic_suppression",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "memory_governance" },
+  }
+}

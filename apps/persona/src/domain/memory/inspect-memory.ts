@@ -3,11 +3,14 @@ const tag = `codex-memory-inspect-${Date.now()}`
 const { initializeDb, run } = await import("../../infra/db/pool.js")
 const {
   applyMemoryPatch,
+  getMemoryContext,
   inspectMemory,
   inspectMemorySources,
   listMemoryProfile,
   listMemoryTimelineEvents,
   listMemoryTopics,
+  updateProfileState,
+  updateTopicState,
 } = await import("./store.js")
 
 initializeDb()
@@ -65,6 +68,62 @@ try {
   assert(profileValue.mode === "read-only", "profile value mode mismatch")
   assert(listMemoryProfile({ key: "inspection_test_profile", limit: 1 })[0]?.id === profile.id, "profile list filter mismatch")
 
+  const profileStateEventId = `${tag}-profile-state`
+  const topicStateEventId = `${tag}-topic-state`
+  run(
+    `INSERT INTO events (id, source, type, payload, "timestamp", metadata)
+     VALUES (?, 'system', 'memory_profile_suppression', ?, datetime('now'), ?)`,
+    [profileStateEventId, JSON.stringify({ tag, target_id: profile.id }), JSON.stringify({ purpose: "memory_governance" })]
+  )
+  run(
+    `INSERT INTO events (id, source, type, payload, "timestamp", metadata)
+     VALUES (?, 'system', 'memory_topic_suppression', ?, datetime('now'), ?)`,
+    [topicStateEventId, JSON.stringify({ tag, target_id: topic.id }), JSON.stringify({ purpose: "memory_governance" })]
+  )
+
+  const suppressedProfile = updateProfileState({
+    id: profile.id,
+    state: "suppressed",
+    eventId: profileStateEventId,
+    reason: "inspection suppression",
+  })
+  assert(suppressedProfile?.state === "suppressed", "profile suppression state mismatch")
+
+  const archivedTopic = updateTopicState({
+    id: topic.id,
+    state: "archived",
+    eventId: topicStateEventId,
+    reason: "inspection archive",
+  })
+  assert(archivedTopic?.state === "archived", "topic archive state mismatch")
+
+  const filteredContext = getMemoryContext({ topicLimit: 50, profileLimit: 50, timelineLimit: 50 })
+  assert(!filteredContext.profile.some((item) => item.id === profile.id), "suppressed profile must not enter memory context")
+  assert(!filteredContext.topics.some((item) => item.id === topic.id), "archived topic must not enter memory context")
+  assert(!listMemoryProfile({ key: "inspection_test_profile", limit: 20 }).some((item) => item.id === profile.id), "suppressed profile must not enter default profile list")
+  assert(listMemoryProfile({ key: "inspection_test_profile", state: "suppressed", limit: 20 }).some((item) => item.id === profile.id), "state=suppressed must include suppressed profile")
+  assert(!listMemoryTopics({ name: tag, limit: 20 }).some((item) => item.id === topic.id), "archived topic must not enter default topic list")
+  assert(listMemoryTopics({ name: tag, state: "archived", limit: 20 }).some((item) => item.id === topic.id), "state=archived must include archived topic")
+
+  applyMemoryPatch({
+    profile_updates: [
+      {
+        key: "inspection_test_profile",
+        value: { tag, mode: "updated while suppressed" },
+        confidence: 1,
+      },
+    ],
+    topic_updates: [
+      {
+        name: tag,
+        summary: "Updated while archived.",
+      },
+    ],
+    timeline_events: [],
+  })
+  assert(listMemoryProfile({ key: "inspection_test_profile", state: "suppressed", limit: 20 }).some((item) => item.id === profile.id), "profile upsert must not revive suppressed profile")
+  assert(listMemoryTopics({ name: tag, state: "archived", limit: 20 }).some((item) => item.id === topic.id), "topic upsert must not revive archived topic")
+
   const timeline = inspection.timelineEvents.find((item) => item.summary.startsWith("Memory inspection observed"))
   assert(timeline, "inspection missing test timeline event")
   assert(timeline.type === "insight", "timeline type mismatch")
@@ -83,6 +142,7 @@ function cleanupRows(testTag: string): void {
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${testTag}%`])
   run("DELETE FROM profile WHERE key = ?", ["inspection_test_profile"])
   run("DELETE FROM topics WHERE name = ?", [testTag])
+  run("DELETE FROM events WHERE payload LIKE ?", [`%${testTag}%`])
 }
 
 function assert(condition: unknown, message: string): asserts condition {

@@ -1,6 +1,9 @@
 import { randomUUID } from "crypto"
 import { query, queryOne, run } from "../../infra/db/pool.js"
 import type { MemoryPatch, MemoryPatchWriteOptions, ProfileUpdate, TimelineEventPatch, TopicUpdate } from "./types.js"
+import type { MemoryProjectionState } from "../event/types.js"
+
+export type MemoryListState = MemoryProjectionState | "all"
 
 export interface TopicRow {
   id: string
@@ -10,6 +13,10 @@ export interface TopicRow {
   message_count: number
   summary: string
   related_topics: string
+  state: MemoryProjectionState
+  state_event_id: string | null
+  state_reason: string
+  state_updated_at: string | null
 }
 
 export interface ProfileRow {
@@ -18,6 +25,10 @@ export interface ProfileRow {
   value: string
   source_event_id: string | null
   updated_at: string
+  state: MemoryProjectionState
+  state_event_id: string | null
+  state_reason: string
+  state_updated_at: string | null
 }
 
 export interface TimelineEventRow {
@@ -54,10 +65,12 @@ export interface MemoryListOptions {
 
 export interface TopicListOptions extends MemoryListOptions {
   name?: string
+  state?: MemoryListState
 }
 
 export interface ProfileListOptions extends MemoryListOptions {
   key?: string
+  state?: MemoryListState
 }
 
 export interface TimelineListOptions extends MemoryListOptions {
@@ -95,11 +108,15 @@ export function getMemoryContext(options: { topicLimit?: number; profileLimit?: 
 
   return {
     topics: query<TopicRow>(
-      `SELECT * FROM topics ORDER BY last_active_at DESC, message_count DESC LIMIT ?`,
+      `SELECT * FROM topics
+       WHERE state = 'active'
+       ORDER BY last_active_at DESC, message_count DESC LIMIT ?`,
       [topicLimit]
     ),
     profile: query<ProfileRow>(
-      `SELECT * FROM profile ORDER BY updated_at DESC LIMIT ?`,
+      `SELECT * FROM profile
+       WHERE state = 'active'
+       ORDER BY updated_at DESC LIMIT ?`,
       [profileLimit]
     ),
     timelineEvents: query<TimelineEventRow>(
@@ -139,6 +156,7 @@ export function listMemoryTopics(options: TopicListOptions = {}): TopicRow[] {
     where.push("name LIKE ?")
     params.push(`%${options.name.trim()}%`)
   }
+  applyStateFilter(where, params, options.state)
 
   params.push(normalizeLimit(options.limit ?? 20))
   params.push(normalizeOffset(options.offset ?? 0))
@@ -160,6 +178,7 @@ export function listMemoryProfile(options: ProfileListOptions = {}): ProfileRow[
     where.push("key LIKE ?")
     params.push(`%${options.key.trim()}%`)
   }
+  applyStateFilter(where, params, options.state)
 
   params.push(normalizeLimit(options.limit ?? 20))
   params.push(normalizeOffset(options.offset ?? 0))
@@ -202,6 +221,14 @@ export function listMemoryTimelineEvents(options: TimelineListOptions = {}): Tim
   )
 }
 
+export function getMemoryProfileById(id: string): ProfileRow | null {
+  return queryOne<ProfileRow>("SELECT * FROM profile WHERE id = ?", [id])
+}
+
+export function getMemoryTopicById(id: string): TopicRow | null {
+  return queryOne<TopicRow>("SELECT * FROM topics WHERE id = ?", [id])
+}
+
 export function inspectMemorySources(): MemorySourceInspection {
   return {
     profileWithSource: readSourceCount("profile", true),
@@ -209,6 +236,48 @@ export function inspectMemorySources(): MemorySourceInspection {
     timelineWithSource: readSourceCount("timeline_events", true),
     timelineMissingSource: readSourceCount("timeline_events", false),
   }
+}
+
+export function updateProfileState(options: {
+  id: string
+  state: MemoryProjectionState
+  eventId: string
+  reason: string
+}): ProfileRow | null {
+  const existing = queryOne<ProfileRow>("SELECT * FROM profile WHERE id = ?", [options.id])
+  if (!existing) return null
+
+  run(
+    `UPDATE profile
+     SET state = ?,
+         state_event_id = ?,
+         state_reason = ?,
+         state_updated_at = datetime('now')
+     WHERE id = ?`,
+    [options.state, options.eventId, options.reason, options.id]
+  )
+  return queryOne<ProfileRow>("SELECT * FROM profile WHERE id = ?", [options.id])
+}
+
+export function updateTopicState(options: {
+  id: string
+  state: MemoryProjectionState
+  eventId: string
+  reason: string
+}): TopicRow | null {
+  const existing = queryOne<TopicRow>("SELECT * FROM topics WHERE id = ?", [options.id])
+  if (!existing) return null
+
+  run(
+    `UPDATE topics
+     SET state = ?,
+         state_event_id = ?,
+         state_reason = ?,
+         state_updated_at = datetime('now')
+     WHERE id = ?`,
+    [options.state, options.eventId, options.reason, options.id]
+  )
+  return queryOne<TopicRow>("SELECT * FROM topics WHERE id = ?", [options.id])
 }
 
 export function buildMemoryContextText(context: MemoryContext = getMemoryContext()): string {
@@ -386,8 +455,16 @@ function normalizeOffset(offset: number): number {
   return Math.max(0, Math.floor(offset))
 }
 
+function applyStateFilter(where: string[], params: unknown[], state: MemoryListState | undefined): void {
+  const normalized = state ?? "active"
+  if (normalized === "all") return
+  where.push("state = ?")
+  params.push(normalized)
+}
+
 function readCount(tableName: "topics" | "profile" | "timeline_events"): number {
-  const row = queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM ${tableName}`)
+  const where = tableName === "timeline_events" ? "" : " WHERE state = 'active'"
+  const row = queryOne<{ count: number }>(`SELECT COUNT(*) as count FROM ${tableName}${where}`)
   return row ? Number(row.count) : 0
 }
 

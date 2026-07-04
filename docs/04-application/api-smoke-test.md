@@ -106,7 +106,8 @@ Query params:
 {
   limit?: number,
   offset?: number,
-  name?: string
+  name?: string,
+  state?: "active" | "archived" | "suppressed" | "all"
 }
 ```
 
@@ -128,7 +129,8 @@ Query params:
 {
   limit?: number,
   offset?: number,
-  key?: string
+  key?: string,
+  state?: "active" | "archived" | "suppressed" | "all"
 }
 ```
 
@@ -217,6 +219,48 @@ The resulting Event has `type = "memory_profile_correction"` and
 `metadata.purpose = "memory_governance"`. The returned Profile row must have
 `source_event_id === eventId`.
 
+### `POST /api/memory/profile/state`
+
+Governed Profile projection state transition. This hides, archives, or restores
+Profile rows without deleting source Events.
+
+Request:
+
+```ts
+{
+  id: string,
+  state: "active" | "archived" | "suppressed",
+  reason: string
+}
+```
+
+Success response `200`:
+
+```ts
+{
+  eventId: string,
+  profile: ProfileRow
+}
+```
+
+Errors:
+
+```ts
+{ error: "invalid json" }      // 400
+{ error: "id is required" }    // 400
+{ error: "state is invalid" }  // 400
+{ error: "reason is required" }// 400
+{ error: "profile not found" } // 404
+```
+
+### `POST /api/memory/topics/state`
+
+Governed Topic projection state transition. This hides, archives, or restores
+Topic projection rows without deleting source Events.
+
+Request and response match `POST /api/memory/profile/state`, but the success
+body returns `topic`.
+
 ### Shared behavior
 
 - `OPTIONS` returns `204` with CORS headers.
@@ -226,6 +270,9 @@ The resulting Event has `type = "memory_profile_correction"` and
   Timeline rows.
 - `POST /api/memory/profile/corrections` is the only exception; it is a governed
   Application write path and must first append an Event.
+- `POST /api/memory/profile/state` and `POST /api/memory/topics/state` are
+  governed projection-state write paths. They append governance Events before
+  changing row state.
 
 ## Safe paths
 

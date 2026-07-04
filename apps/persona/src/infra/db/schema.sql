@@ -18,7 +18,11 @@ CREATE TABLE IF NOT EXISTS topics (
   last_active_at TEXT NOT NULL DEFAULT (datetime('now')),
   message_count INTEGER NOT NULL DEFAULT 0,
   summary TEXT NOT NULL DEFAULT '',
-  related_topics TEXT NOT NULL DEFAULT '[]'
+  related_topics TEXT NOT NULL DEFAULT '[]',
+  state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'archived', 'suppressed')),
+  state_event_id TEXT REFERENCES events(id),
+  state_reason TEXT NOT NULL DEFAULT '',
+  state_updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_topics_last_active ON topics(last_active_at DESC);
@@ -37,7 +41,11 @@ CREATE TABLE IF NOT EXISTS profile (
   key TEXT NOT NULL UNIQUE,
   value TEXT NOT NULL,
   source_event_id TEXT REFERENCES events(id),
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  state TEXT NOT NULL DEFAULT 'active' CHECK (state IN ('active', 'archived', 'suppressed')),
+  state_event_id TEXT REFERENCES events(id),
+  state_reason TEXT NOT NULL DEFAULT '',
+  state_updated_at TEXT
 );
 
 CREATE INDEX IF NOT EXISTS idx_profile_updated_at ON profile(updated_at DESC);

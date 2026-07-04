@@ -24,6 +24,7 @@ try {
   await verifyMemoryTopics(port)
   await verifyMemoryProfile(port)
   await verifyMemoryProfileCorrection(port)
+  await verifyMemoryProjectionState(port)
   await verifyMemoryTimeline(port)
   await verifyMemorySources(port)
   console.log("api contract ok")
@@ -206,6 +207,123 @@ async function verifyMemoryProfileCorrection(portNumber: number): Promise<void> 
   assert(metadata.purpose === "memory_governance", "profile correction event metadata purpose mismatch")
 }
 
+async function verifyMemoryProjectionState(portNumber: number): Promise<void> {
+  const profileKey = `contract_state_profile_${contractTag}`
+  const correction = await postJson<{
+    eventId?: string
+    profile?: { id?: string; key?: string; state?: string; source_event_id?: string | null }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/profile/corrections`, {
+    key: profileKey,
+    value: { tag: contractTag, state: "active" },
+    reason: `state setup ${contractTag}`,
+  })
+
+  const profileId = correction.profile?.id
+  assert(typeof profileId === "string", "state correction profile id must be string")
+  assert(correction.profile?.state === "active", "new profile correction must be active")
+
+  const invalidProfileState = await fetch(`http://127.0.0.1:${portNumber}/api/memory/profile/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: profileId, state: "deleted", reason: "invalid" }),
+  })
+  assert(invalidProfileState.status === 400, `invalid profile state expected 400, got ${invalidProfileState.status}`)
+
+  const missingProfile = await fetch(`http://127.0.0.1:${portNumber}/api/memory/profile/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ id: "00000000-0000-4000-8000-000000000000", state: "suppressed", reason: "missing target" }),
+  })
+  assert(missingProfile.status === 404, `missing profile state target expected 404, got ${missingProfile.status}`)
+
+  const suppressedProfile = await postJson<{
+    eventId?: string
+    profile?: { id?: string; key?: string; state?: string; state_event_id?: string | null; state_reason?: string }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/profile/state`, {
+    id: profileId,
+    state: "suppressed",
+    reason: `contract suppress ${contractTag}`,
+  })
+
+  assert(typeof suppressedProfile.eventId === "string", "suppressed profile eventId must be string")
+  assert(suppressedProfile.profile?.state === "suppressed", "profile state should be suppressed")
+  assert(suppressedProfile.profile.state_event_id === suppressedProfile.eventId, "profile state_event_id mismatch")
+
+  const suppressedDefault = await getJson<{ items?: Array<{ id?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/profile?key=${encodeURIComponent(profileKey)}`
+  )
+  assert(Array.isArray(suppressedDefault.items), "suppressed default profile items must be array")
+  assert(!suppressedDefault.items.some((item) => item.id === profileId), "suppressed profile must be hidden from default list")
+
+  const suppressedList = await getJson<{ items?: Array<{ id?: string; state?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/profile?key=${encodeURIComponent(profileKey)}&state=suppressed`
+  )
+  assert(suppressedList.items?.some((item) => item.id === profileId && item.state === "suppressed"), "state=suppressed must include suppressed profile")
+
+  await postJson(`http://127.0.0.1:${portNumber}/api/memory/profile/corrections`, {
+    key: profileKey,
+    value: { tag: contractTag, state: "updated while suppressed" },
+    reason: `upsert should not revive ${contractTag}`,
+  })
+  const stillHidden = await getJson<{ items?: Array<{ id?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/profile?key=${encodeURIComponent(profileKey)}`
+  )
+  assert(!stillHidden.items?.some((item) => item.id === profileId), "profile correction must not revive suppressed profile")
+
+  const restoredProfile = await postJson<{
+    eventId?: string
+    profile?: { id?: string; state?: string; state_event_id?: string | null }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/profile/state`, {
+    id: profileId,
+    state: "active",
+    reason: `contract restore ${contractTag}`,
+  })
+  assert(restoredProfile.profile?.state === "active", "restored profile must be active")
+  assert(restoredProfile.profile.state_event_id === restoredProfile.eventId, "restored profile state_event_id mismatch")
+
+  const topicList = await getJson<{ items?: Array<{ id?: string; name?: string; state?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/topics?name=${encodeURIComponent(contractTag)}&state=all`
+  )
+  const topic = topicList.items?.find((item) => item.name === contractTag)
+  assert(typeof topic?.id === "string", "state contract topic id must be string")
+
+  const archivedTopic = await postJson<{
+    eventId?: string
+    topic?: { id?: string; state?: string; state_event_id?: string | null }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/topics/state`, {
+    id: topic.id,
+    state: "archived",
+    reason: `contract archive topic ${contractTag}`,
+  })
+  assert(archivedTopic.topic?.state === "archived", "topic state should be archived")
+  assert(archivedTopic.topic.state_event_id === archivedTopic.eventId, "topic state_event_id mismatch")
+
+  const hiddenTopic = await getJson<{ items?: Array<{ id?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/topics?name=${encodeURIComponent(contractTag)}`
+  )
+  assert(!hiddenTopic.items?.some((item) => item.id === topic.id), "archived topic must be hidden from default list")
+
+  const archivedTopicList = await getJson<{ items?: Array<{ id?: string; state?: string }> }>(
+    `http://127.0.0.1:${portNumber}/api/memory/topics?name=${encodeURIComponent(contractTag)}&state=archived`
+  )
+  assert(archivedTopicList.items?.some((item) => item.id === topic.id && item.state === "archived"), "state=archived must include archived topic")
+
+  await postJson(`http://127.0.0.1:${portNumber}/api/memory/topics/state`, {
+    id: topic.id,
+    state: "active",
+    reason: `contract restore topic ${contractTag}`,
+  })
+
+  const profileEvent = queryOne<{ type: string; metadata: string }>("SELECT type, metadata FROM events WHERE id = ?", [suppressedProfile.eventId])
+  assert(profileEvent?.type === "memory_profile_suppression", "profile suppression event type mismatch")
+  assert((JSON.parse(profileEvent.metadata) as { purpose?: string }).purpose === "memory_governance", "profile suppression metadata mismatch")
+
+  const topicEvent = queryOne<{ type: string; metadata: string }>("SELECT type, metadata FROM events WHERE id = ?", [archivedTopic.eventId])
+  assert(topicEvent?.type === "memory_topic_suppression", "topic archive event type mismatch")
+  assert((JSON.parse(topicEvent.metadata) as { purpose?: string }).purpose === "memory_governance", "topic archive metadata mismatch")
+}
+
+
 async function verifyMemoryTimeline(portNumber: number): Promise<void> {
   const body = await getJson<{
     items?: Array<{ id?: string; date?: string; type?: string; summary?: string; source_event_id?: string | null }>
@@ -273,6 +391,7 @@ function cleanupContractRows(tag: string): void {
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${tag}%`])
   run("DELETE FROM profile WHERE key = ? AND value LIKE ?", ["last_mock_message", `%${tag}%`])
   run("DELETE FROM profile WHERE key LIKE ?", [`contract_profile_correction_${tag}%`])
+  run("DELETE FROM profile WHERE key LIKE ?", [`contract_state_profile_${tag}%`])
   run("DELETE FROM topics WHERE name LIKE ? OR summary LIKE ?", [`%${tag}%`, `%${tag}%`])
   run("DELETE FROM events WHERE payload LIKE ?", [`%${tag}%`])
 }
