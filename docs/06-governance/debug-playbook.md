@@ -33,6 +33,7 @@ npm.cmd run verify:local
 ```bash
 npm.cmd run build:backend
 npm.cmd run smoke:api
+npm.cmd run contract:runtime-burst
 npm.cmd run sync
 npm.cmd run build
 ```
@@ -54,4 +55,5 @@ npm.cmd run build
 - 可以补充已验证过的命令和现象。
 - 不可以要求默认安装新工具或外部服务。
 - 不可以把 smoke/mock 结果描述成真实 LLM、真实 Telegram 或真实 Obsidian 全链路已验证。
+- 不可以把 `contract:runtime-burst` 描述成长期稳定性已验证；它只证明 mock API 在短请求 burst 下保持健康并完成 Memory patch。
 - 不可以修改 `apps/` 或 package scripts 来适配本文档；若命令不一致，应先报告。

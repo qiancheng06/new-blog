@@ -1,35 +1,15 @@
 import { Bot, Context } from "grammy"
 import { config } from "../../infra/config/index.js"
-import { createTelegramEvent, TelegramPayload, TelegramEventType } from "../../domain/event/types.js"
 import {
   CONVERSATION_FALLBACK_REPLY,
   countConversationEventsToday,
   handleConversationEvent,
 } from "../../application/conversation.js"
+import { buildTelegramEvent } from "./events.js"
 
 export const bot = new Bot(config.telegramToken)
 
 const knownChats = new Set<number>()
-
-const COMMAND_PREFIXES: Record<string, TelegramEventType> = {
-  "/n": "note",
-  "/t": "todo",
-  "/i": "idea",
-  "/j": "journal",
-  "/note": "note",
-  "/todo": "todo",
-  "/idea": "idea",
-  "/journal": "journal",
-}
-
-function parseCommand(text: string): { type: TelegramEventType; content: string } | null {
-  for (const [prefix, type] of Object.entries(COMMAND_PREFIXES)) {
-    const [command, ...restParts] = text.trim().split(/\s+/)
-    const rest = restParts.join(" ").trim()
-    if (command === prefix && rest) return { type, content: rest }
-  }
-  return null
-}
 
 bot.command("start", (ctx: Context) => {
   if (ctx.chat) knownChats.add(ctx.chat.id)
@@ -52,26 +32,19 @@ bot.on("message:text", async (ctx: Context) => {
   knownChats.add(chatId)
   console.log(`[chat:${chatId}] [user:${userId}] ${text}`)
 
-  const cmd = parseCommand(text)
+  const { event, shouldReply } = buildTelegramEvent({
+    chatId,
+    userId,
+    text,
+    messageId: msgId,
+    replyTo: ctx.message.reply_to_message?.message_id,
+    evaluationRunId: process.env.PERSONA_EVALUATION_RUN_ID,
+  })
 
-  const payload: TelegramPayload = {
-    chat_id: chatId,
-    user_id: userId,
-    text: cmd ? cmd.content : text,
-    message_id: msgId,
-  }
-
-  const eventType = cmd ? cmd.type : "message"
-  const event = createTelegramEvent(payload, eventType)
-  const evaluationRunId = process.env.PERSONA_EVALUATION_RUN_ID?.trim()
-  if (evaluationRunId) {
-    event.metadata = { purpose: "real_mode_evaluation", run_id: evaluationRunId }
-  }
-
-  if (cmd) {
+  if (!shouldReply) {
     try {
       const result = await handleConversationEvent(event, { shouldReply: false })
-      console.log(`  -> event:${eventType} id:${result.event.id.slice(0, 8)}`)
+      console.log(`  -> event:${event.type} id:${result.event.id.slice(0, 8)}`)
     } catch (err) {
       console.error("  -> command error:", err instanceof Error ? err.message : err)
       await ctx.reply(CONVERSATION_FALLBACK_REPLY, { reply_to_message_id: msgId })
@@ -81,7 +54,7 @@ bot.on("message:text", async (ctx: Context) => {
 
   try {
     const result = await handleConversationEvent(event)
-    console.log(`  -> event:${eventType} id:${result.event.id.slice(0, 8)}`)
+    console.log(`  -> event:${event.type} id:${result.event.id.slice(0, 8)}`)
     console.log(`  -> companion: ${result.companionReply?.slice(0, 60)}...`)
     await ctx.reply(result.companionReply ?? CONVERSATION_FALLBACK_REPLY, { reply_to_message_id: msgId })
   } catch (err) {

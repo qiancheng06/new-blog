@@ -35,6 +35,15 @@ Result:
 - Ports `3001` / `5173` clear before start: yes/no
 - `data/persona-os.db` backed up if needed: yes/no/not needed
 
+## Obsidian Scope
+
+- Included in this run: yes/no
+- Decision reason:
+- `OBSIDIAN_VAULT_PATH` diagnostic status: ok/warn/fail
+- Path is outside repository: yes/no/not checked
+- Write-back behavior tested: yes/no/not in scope
+- If descoped, follow-up owner/task:
+
 ## DeepSeek Quality Check
 
 Backend command:

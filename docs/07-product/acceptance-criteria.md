@@ -18,6 +18,10 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - Persona backend TypeScript build.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
 - No-network API contract test for `/health`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
+- No-network Telegram contract test for command text-to-Event mapping, command
+  no-reply boundaries, and real-mode evaluation metadata labeling.
+- No-network runtime burst contract test for repeated mock `/api/chat` requests,
+  health/status availability, and async Memory patch completion.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
 - Infra config contract test for no-network real-mode preflight behavior.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
@@ -32,6 +36,10 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run build:backend` for Persona backend type/build failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
 - `npm.cmd run contract:api` for Application API request/response shape failures.
+- `npm.cmd run contract:telegram` for Telegram command mapping, no-reply boundary,
+  and evaluation run labeling failures.
+- `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
+  health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
 - `npm.cmd run check:infra` for `.env`, provider, API port, and real-mode preflight failures.
 - `npm.cmd run contract:runtime` for runtime diagnostics redaction and no-network contract failures.
@@ -93,6 +101,10 @@ Run these only when the task explicitly needs the user's machine state:
 
 When these are not run, record them as residual risk instead of blocking the
 default gate.
+
+`contract:runtime-burst` is a no-network preflight for runtime reliability. It
+does not replace a long-running real-mode soak test because it uses the mock LLM
+provider, a short local request burst, and no Telegram polling.
 
 ## Current Stage Done
 

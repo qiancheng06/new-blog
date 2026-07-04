@@ -34,6 +34,10 @@ OBSIDIAN_VAULT_PATH=<local vault path>
 npm.cmd run verify:local
 ```
 
+The offline gate includes `npm.cmd run contract:telegram`, which proves the
+local Telegram text-to-Event mapping, command no-reply boundary, and evaluation
+run metadata labeling without calling Telegram.
+
 5. Run the no-network runtime diagnostic:
 
 ```bash
@@ -42,6 +46,11 @@ npm.cmd run diagnose:runtime
 
 This diagnostic only checks local readiness and redacts secrets. Passing it does
 not prove that DeepSeek or Telegram is reachable.
+
+Record whether Obsidian is included or explicitly descoped for the run. If it is
+included, `OBSIDIAN_VAULT_PATH` should resolve to an existing path outside this
+repository. A missing path or a path inside the repository is a warning that must
+be recorded in the result note before running real-mode checks.
 
 6. Stop stale processes on ports `3001` and `5173`.
 

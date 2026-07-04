@@ -17,6 +17,8 @@
     "diagnose:runtime": "tsx apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
     "contract:runtime": "tsx apps/persona/src/infra/diagnostics/runtime-diagnostics-contract.ts",
     "contract:api": "tsx apps/persona/src/application/api-contract.ts",
+    "contract:telegram": "tsx apps/persona/src/interface/telegram/telegram-contract.ts",
+    "contract:runtime-burst": "tsx apps/persona/src/application/runtime-burst-contract.ts",
     "cleanup:real-mode": "tsx apps/persona/src/domain/memory/cleanup-real-mode-tests.ts",
     "contract:cleanup": "tsx apps/persona/src/domain/memory/cleanup-real-mode-tests-contract.ts",
     "fixture:persona": "tsx apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",

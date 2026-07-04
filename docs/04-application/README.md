@@ -52,6 +52,8 @@ Application 是 Workspace 与 Persona OS 之间的编排层。
 
 Conversation Flow 已抽到 `apps/persona/src/application/conversation.ts`。Web API 和 Telegram 的事件写入与事件查询统一从 Application 出口进入。普通消息共用 `handleConversationEvent`，会先保存 Event 再调用 `processMessage`。命令类 Telegram 事件通过 `shouldReply: false` 只记录 Event，不触发 Companion，也不发送确认回复。
 
+Telegram 文本到 Event 的纯转换逻辑位于 `apps/persona/src/interface/telegram/events.ts`，由 `npm.cmd run contract:telegram` 离线验证。该 contract 覆盖 `/n`、`/t`、`/i`、`/j` 命令映射、命令内容清洗、普通消息应回复，以及 `PERSONA_EVALUATION_RUN_ID` 写入 Event metadata 的真实模式标记。
+
 本地 Workspace 的 Companion chat 入口默认连接 Application API `http://127.0.0.1:3001`。在线检查使用 `GET /health`，聊天请求使用 `POST /api/chat`；`/api/chat` 会进入 Conversation Flow，并可能按当前 LLM 配置触发真实模型调用。
 
 Workspace 可观测面板如果需要展示后端在线状态、事件概览或运行摘要，应通过 Application 的只读接口读取：`GET /health` 用于进程与计数健康检查，`GET /api/events` 用于最近事件列表，`GET /api/status` 用于状态摘要。Application 负责收敛查询边界，不让 Workspace 直接读取 Memory、DB 或 Infra 适配器。

@@ -65,6 +65,35 @@ assert(failingOutput.includes("[FAIL] API_PORT"), "invalid API_PORT should fail"
 assert(failingOutput.includes("[FAIL] OPENAI_API_KEY"), "placeholder DeepSeek key should fail")
 assert(!failingOutput.includes("sk-your_deepseek_key_here"), "placeholder key should not be printed")
 
+const insideRepoVault = "docs"
+const insideRepo = spawnSync(
+  process.execPath,
+  [
+    "--import",
+    "tsx",
+    "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      LLM_PROVIDER: "mock",
+      OPENAI_API_KEY: "",
+      TELEGRAM_TOKEN: "",
+      API_PORT: "3001",
+      OBSIDIAN_VAULT_PATH: insideRepoVault,
+    },
+  },
+)
+
+const insideRepoOutput = `${insideRepo.stdout}\n${insideRepo.stderr}`
+assert(insideRepo.status === 0, `inside-repo vault warning should not fail diagnostics: ${insideRepoOutput}`)
+assert(insideRepoOutput.includes("[WARN] Obsidian vault"), "inside-repo vault should warn")
+assert(insideRepoOutput.includes("appears inside repository"), "inside-repo vault warning should explain boundary")
+assert(insideRepoOutput.includes("leaf: docs"), "inside-repo vault should only print leaf name")
+assert(!insideRepoOutput.includes(process.cwd()), "inside-repo vault should not leak absolute project path")
+
 console.log("runtime diagnostics contract ok")
 
 function assert(condition: unknown, message: string): asserts condition {
