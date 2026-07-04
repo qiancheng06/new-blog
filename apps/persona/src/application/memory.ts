@@ -5,6 +5,7 @@ import {
   listMemoryProfile,
   listMemoryTimelineEvents,
   listMemoryTopics,
+  upsertProfileUpdates,
   type MemoryInspection,
   type MemorySourceInspection,
   type ProfileListOptions,
@@ -14,6 +15,8 @@ import {
   type TopicListOptions,
   type TopicRow,
 } from "../domain/memory/index.js"
+import { insertEvent, type EventRow } from "../domain/event/store.js"
+import { createMemoryProfileCorrectionEvent } from "../domain/event/types.js"
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -22,6 +25,17 @@ export interface PagedMemoryResult<T> {
   items: T[]
   limit: number
   offset: number
+}
+
+export interface ProfileCorrectionInput {
+  key: string
+  value: unknown
+  reason?: string
+}
+
+export interface ProfileCorrectionResult {
+  event: EventRow
+  profile: ProfileRow
 }
 
 export function getMemoryOverview(options: {
@@ -66,6 +80,33 @@ export function getMemoryTimelineEvents(options: TimelineListOptions = {}): Page
 
 export function getMemorySourceInspection(): MemorySourceInspection {
   return inspectMemorySources()
+}
+
+export function correctMemoryProfile(input: ProfileCorrectionInput): ProfileCorrectionResult {
+  const key = input.key.trim()
+  if (!key) throw new MemoryValidationError("key is required")
+
+  const event = insertEvent(createMemoryProfileCorrectionEvent({
+    key,
+    value: input.value,
+    reason: input.reason?.trim() || undefined,
+  }))
+
+  const [profile] = upsertProfileUpdates(
+    [{ key, value: input.value, confidence: 1 }],
+    { sourceEventId: event.id }
+  )
+
+  if (!profile) throw new Error("profile correction did not write a row")
+
+  return { event, profile }
+}
+
+export class MemoryValidationError extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = "MemoryValidationError"
+  }
 }
 
 function normalizePaging(options: { limit?: number; offset?: number }): { limit: number; offset: number } {

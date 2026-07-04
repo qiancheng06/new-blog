@@ -23,6 +23,7 @@ try {
   await verifyMemoryOverview(port)
   await verifyMemoryTopics(port)
   await verifyMemoryProfile(port)
+  await verifyMemoryProfileCorrection(port)
   await verifyMemoryTimeline(port)
   await verifyMemorySources(port)
   console.log("api contract ok")
@@ -167,6 +168,44 @@ async function verifyMemoryProfile(portNumber: number): Promise<void> {
   assert(typeof item.updated_at === "string", "memory profile updated_at must be string")
 }
 
+async function verifyMemoryProfileCorrection(portNumber: number): Promise<void> {
+  const invalidJson = await fetch(`http://127.0.0.1:${portNumber}/api/memory/profile/corrections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{",
+  })
+  assert(invalidJson.status === 400, `invalid profile correction JSON expected 400, got ${invalidJson.status}`)
+
+  const missingKey = await fetch(`http://127.0.0.1:${portNumber}/api/memory/profile/corrections`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ key: "   ", value: "ignored" }),
+  })
+  assert(missingKey.status === 400, `missing profile correction key expected 400, got ${missingKey.status}`)
+
+  const key = `contract_profile_correction_${contractTag}`
+  const body = await postJson<{
+    eventId?: string
+    profile?: { id?: string; key?: string; value?: string; source_event_id?: string | null }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/profile/corrections`, {
+    key,
+    value: { mode: "correction", tag: contractTag },
+    reason: "api contract correction",
+  })
+
+  assert(typeof body.eventId === "string" && body.eventId.length > 0, "profile correction eventId must be string")
+  assert(body.profile?.key === key, "profile correction key mismatch")
+  assert(typeof body.profile.value === "string" && body.profile.value.includes(contractTag), "profile correction value mismatch")
+  assert(body.profile.source_event_id === body.eventId, "profile correction source_event_id must point to correction event")
+
+  const event = queryOne<{ type: string; payload: string; metadata: string }>("SELECT type, payload, metadata FROM events WHERE id = ?", [body.eventId])
+  assert(event, "profile correction event should exist")
+  assert(event.type === "memory_profile_correction", "profile correction event type mismatch")
+  assert(event.payload.includes(key), "profile correction event payload should include key")
+  const metadata = JSON.parse(event.metadata) as { purpose?: string }
+  assert(metadata.purpose === "memory_governance", "profile correction event metadata purpose mismatch")
+}
+
 async function verifyMemoryTimeline(portNumber: number): Promise<void> {
   const body = await getJson<{
     items?: Array<{ id?: string; date?: string; type?: string; summary?: string; source_event_id?: string | null }>
@@ -233,6 +272,7 @@ async function waitForHealth(portNumber: number): Promise<void> {
 function cleanupContractRows(tag: string): void {
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${tag}%`])
   run("DELETE FROM profile WHERE key = ? AND value LIKE ?", ["last_mock_message", `%${tag}%`])
+  run("DELETE FROM profile WHERE key LIKE ?", [`contract_profile_correction_${tag}%`])
   run("DELETE FROM topics WHERE name LIKE ? OR summary LIKE ?", [`%${tag}%`, `%${tag}%`])
   run("DELETE FROM events WHERE payload LIKE ?", [`%${tag}%`])
 }

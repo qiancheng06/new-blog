@@ -32,8 +32,11 @@ assert(!personaApi.includes("data/persona-os.db"), "Persona API client must not 
 
 const memoryPanel = readFileSync(join(workspaceRoot, ".vitepress", "theme", "components", "MemoryProfilePanel.vue"), "utf-8")
 assert(memoryPanel.includes("/api/memory/profile"), "Memory/Profile panel must read the Application memory API")
+assert(memoryPanel.includes("/api/memory/profile/corrections"), "Memory/Profile panel must use governed profile corrections")
 assert(!memoryPanel.includes("legacy/"), "Memory/Profile panel must not depend on legacy HTML")
 assert(!memoryPanel.includes("data/persona-os.db"), "Memory/Profile panel must not read SQLite directly")
+assert(!memoryPanel.includes("DELETE"), "Memory/Profile panel must not expose delete operations")
+assert(!memoryPanel.includes("/api/memory/patch"), "Memory/Profile panel must not write raw memory patches")
 
 const staleEntrypointPatterns = [
   "apps/workspace/index.html",

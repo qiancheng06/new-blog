@@ -182,6 +182,41 @@ Response `200`:
 }
 ```
 
+### `POST /api/memory/profile/corrections`
+
+Governed Profile correction. This is the only current Memory management write
+operation exposed to Workspace. It records an Event before updating Profile.
+
+Request:
+
+```ts
+{
+  key: string,
+  value: unknown,
+  reason?: string
+}
+```
+
+Success response `200`:
+
+```ts
+{
+  eventId: string,
+  profile: ProfileRow
+}
+```
+
+Error responses:
+
+```ts
+{ error: "invalid json" }      // 400
+{ error: "key is required" }   // 400
+```
+
+The resulting Event has `type = "memory_profile_correction"` and
+`metadata.purpose = "memory_governance"`. The returned Profile row must have
+`source_event_id === eventId`.
+
 ### Shared behavior
 
 - `OPTIONS` returns `204` with CORS headers.
@@ -189,6 +224,8 @@ Response `200`:
 - Memory list limits are normalized by the Application layer and capped at 100.
 - Memory APIs are read-only and must not mutate Events, Profile, Topics, or
   Timeline rows.
+- `POST /api/memory/profile/corrections` is the only exception; it is a governed
+  Application write path and must first append an Event.
 
 ## Safe paths
 

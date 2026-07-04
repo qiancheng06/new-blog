@@ -14,6 +14,8 @@ import {
   getMemoryStatusStats,
   getMemoryTimelineEvents,
   getMemoryTopics,
+  correctMemoryProfile,
+  MemoryValidationError,
 } from "../../application/memory.js"
 
 const CORS_HEADERS = {
@@ -129,6 +131,33 @@ function handleMemorySources(_url: URL, res: ServerResponse) {
   json(res, 200, getMemorySourceInspection())
 }
 
+async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerResponse) {
+  const body = await readBody(req)
+  let parsed: { key?: string; value?: unknown; reason?: string }
+  try {
+    parsed = JSON.parse(body)
+  } catch {
+    return json(res, 400, { error: "invalid json" })
+  }
+
+  try {
+    const result = correctMemoryProfile({
+      key: parsed.key ?? "",
+      value: parsed.value,
+      reason: parsed.reason,
+    })
+    json(res, 200, {
+      eventId: result.event.id,
+      profile: result.profile,
+    })
+  } catch (err) {
+    if (err instanceof MemoryValidationError) {
+      return json(res, 400, { error: err.message })
+    }
+    throw err
+  }
+}
+
 async function handler(req: IncomingMessage, res: ServerResponse) {
   if (req.method === "OPTIONS") {
     res.writeHead(204, CORS_HEADERS)
@@ -166,6 +195,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/api/memory/sources" && req.method === "GET") {
       return handleMemorySources(requestUrl, res)
+    }
+    if (url === "/api/memory/profile/corrections" && req.method === "POST") {
+      return await handleMemoryProfileCorrection(req, res)
     }
     json(res, 404, { error: "not found" })
   } catch (err) {

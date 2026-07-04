@@ -37,19 +37,29 @@
         <div><span>{{ stats.timelineEvents }}</span><small>Timeline</small></div>
       </div>
 
-      <div v-if="loading" class="memory-state">Loading memory...</div>
-      <div v-else-if="error" class="memory-state error">{{ error }}</div>
-      <div v-else-if="profile.length === 0" class="memory-state">No profile memory yet.</div>
-      <div v-else class="memory-list">
-        <article v-for="item in profile" :key="item.id" class="memory-item">
-          <div class="memory-key">{{ item.key }}</div>
-          <div class="memory-value">{{ formatValue(item.value) }}</div>
-          <div class="memory-meta">
-            <span>{{ formatDate(item.updated_at) }}</span>
-            <span v-if="item.source_event_id">source linked</span>
-            <span v-else>no source</span>
-          </div>
-        </article>
+      <div class="memory-body">
+        <form class="memory-correction" @submit.prevent="submitCorrection">
+          <input v-model="correctionKey" class="memory-input" placeholder="profile key" />
+          <textarea v-model="correctionValue" class="memory-textarea" rows="2" placeholder="corrected value" />
+          <input v-model="correctionReason" class="memory-input" placeholder="reason, optional" />
+          <button class="memory-submit" type="submit" :disabled="saving || !correctionKey.trim()">Apply correction</button>
+          <div v-if="saveMessage" class="memory-save">{{ saveMessage }}</div>
+        </form>
+
+        <div v-if="loading" class="memory-state">Loading memory...</div>
+        <div v-else-if="error" class="memory-state error">{{ error }}</div>
+        <div v-else-if="profile.length === 0" class="memory-state">No profile memory yet.</div>
+        <div v-else class="memory-list">
+          <article v-for="item in profile" :key="item.id" class="memory-item">
+            <button class="memory-key" type="button" @click="useProfileKey(item.key)">{{ item.key }}</button>
+            <div class="memory-value">{{ formatValue(item.value) }}</div>
+            <div class="memory-meta">
+              <span>{{ formatDate(item.updated_at) }}</span>
+              <span v-if="item.source_event_id">source linked</span>
+              <span v-else>no source</span>
+            </div>
+          </article>
+        </div>
       </div>
     </section>
   </div>
@@ -57,7 +67,7 @@
 
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { getPersonaJson } from '../api/personaApi'
+import { getPersonaJson, postPersonaJson } from '../api/personaApi'
 
 interface MemoryStats {
   topics: number
@@ -86,6 +96,11 @@ interface StatusResponse {
 const open = ref(false)
 const loading = ref(false)
 const error = ref('')
+const saving = ref(false)
+const saveMessage = ref('')
+const correctionKey = ref('')
+const correctionValue = ref('')
+const correctionReason = ref('')
 const profile = ref<ProfileRow[]>([])
 const stats = ref<MemoryStats>({ topics: 0, profile: 0, timelineEvents: 0 })
 
@@ -118,6 +133,43 @@ async function load() {
     error.value = 'Persona API offline. Start npm.cmd run dev:backend:mock or dev:backend.'
   } finally {
     loading.value = false
+  }
+}
+
+async function submitCorrection() {
+  const key = correctionKey.value.trim()
+  if (!key || saving.value) return
+
+  saving.value = true
+  saveMessage.value = ''
+  try {
+    await postPersonaJson('/api/memory/profile/corrections', {
+      key,
+      value: parseCorrectionValue(correctionValue.value),
+      reason: correctionReason.value.trim() || undefined,
+    })
+    saveMessage.value = 'Correction recorded as a memory governance event.'
+    correctionValue.value = ''
+    correctionReason.value = ''
+    await load()
+  } catch {
+    saveMessage.value = 'Correction failed. Check Persona API status.'
+  } finally {
+    saving.value = false
+  }
+}
+
+function useProfileKey(key: string) {
+  correctionKey.value = key
+}
+
+function parseCorrectionValue(value: string): unknown {
+  const trimmed = value.trim()
+  if (!trimmed) return ''
+  try {
+    return JSON.parse(trimmed) as unknown
+  } catch {
+    return trimmed
   }
 }
 
@@ -241,6 +293,61 @@ function formatDate(value: string): string {
   font-size: 0.64rem;
 }
 
+.memory-body {
+  max-height: 430px;
+  overflow-y: auto;
+}
+
+.memory-correction {
+  padding: 12px 10px 10px;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.memory-input,
+.memory-textarea {
+  width: 100%;
+  border-radius: 8px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.86);
+  padding: 8px 10px;
+  font: inherit;
+  font-size: 0.76rem;
+  outline: none;
+  box-sizing: border-box;
+}
+
+.memory-textarea {
+  resize: vertical;
+  min-height: 58px;
+  max-height: 120px;
+}
+
+.memory-submit {
+  height: 32px;
+  border-radius: 8px;
+  border: 1px solid rgba(125, 211, 167, 0.25);
+  background: rgba(22, 163, 74, 0.18);
+  color: #a7f3d0;
+  cursor: pointer;
+  font-weight: 650;
+  font-size: 0.74rem;
+}
+
+.memory-submit:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.memory-save {
+  color: rgba(255, 255, 255, 0.52);
+  font-size: 0.68rem;
+  line-height: 1.35;
+}
+
 .memory-state {
   padding: 28px 18px;
   color: rgba(255, 255, 255, 0.55);
@@ -253,8 +360,6 @@ function formatDate(value: string): string {
 }
 
 .memory-list {
-  max-height: 360px;
-  overflow-y: auto;
   padding: 10px;
 }
 
@@ -270,10 +375,16 @@ function formatDate(value: string): string {
 }
 
 .memory-key {
+  appearance: none;
+  border: 0;
+  padding: 0;
+  background: transparent;
   font-size: 0.76rem;
   font-weight: 700;
   color: #93c5fd;
   overflow-wrap: anywhere;
+  cursor: pointer;
+  text-align: left;
 }
 
 .memory-value {

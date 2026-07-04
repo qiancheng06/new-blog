@@ -66,3 +66,19 @@ export function createWorkspaceEvent(payload: WorkspacePayload): Event {
     metadata,
   }
 }
+
+export interface MemoryProfileCorrectionPayload {
+  key: string
+  value: unknown
+  reason?: string
+}
+
+export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrectionPayload): Event {
+  return {
+    source: "web",
+    type: "memory_profile_correction",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "memory_governance" },
+  }
+}

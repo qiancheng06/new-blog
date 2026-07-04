@@ -134,6 +134,33 @@ This prevents provider output such as `decision` from violating the SQLite
 constraint. The no-network `npm.cmd run inspect:memory` contract covers this
 normalization.
 
+## Governed Profile Corrections
+
+P12 introduces one governed write operation:
+
+```text
+POST /api/memory/profile/corrections
+```
+
+Request:
+
+```json
+{
+  "key": "communication_style",
+  "value": ["prefers concise planning"],
+  "reason": "manual correction from Workspace"
+}
+```
+
+This is not a generic edit/delete API. The Application layer first appends a
+`memory_profile_correction` Event with `metadata.purpose = "memory_governance"`.
+Memory then updates the Profile row through the normal domain write path and
+sets `source_event_id` to the correction Event id.
+
+Do not add profile delete, raw Memory patch, or SQL/admin cleanup routes without
+a separate schema/projection design. Forgetting or hiding profile facts requires
+a later governed flow; physical deletion must not be used as a shortcut.
+
 ## Real-Mode Evaluation Cleanup Boundary
 
 Real-mode evaluation must use a unique `evaluationRunId` / tag before sending
