@@ -210,8 +210,10 @@ Response:
 The current Memory/Profile panel may add action controls only after backend
 state projection exists.
 
-Backend projection state now exists. Workspace suppress/archive/restore controls
-remain a later UI step and must require a reason before calling Application.
+Backend projection state exists. Workspace suppress/archive/restore controls are
+available in the Memory/Profile panel and must require a reason before calling
+Application. The UI must refresh after API success instead of pretending local
+state changed.
 
 Allowed controls:
 

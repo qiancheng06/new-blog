@@ -38,6 +38,19 @@
       </div>
 
       <div class="memory-body">
+        <div class="memory-filter">
+          <button
+            v-for="option in stateOptions"
+            :key="option"
+            class="filter-button"
+            :class="{ active: profileState === option }"
+            type="button"
+            @click="setProfileStateFilter(option)"
+          >
+            {{ option }}
+          </button>
+        </div>
+
         <form class="memory-correction" @submit.prevent="submitCorrection">
           <input v-model="correctionKey" class="memory-input" placeholder="profile key" />
           <textarea v-model="correctionValue" class="memory-textarea" rows="2" placeholder="corrected value" />
@@ -55,9 +68,16 @@
             <div class="memory-value">{{ formatValue(item.value) }}</div>
             <div class="memory-meta">
               <span>{{ formatDate(item.updated_at) }}</span>
-              <span v-if="item.source_event_id">source linked</span>
-              <span v-else>no source</span>
+              <span>{{ item.state }}</span>
             </div>
+            <form class="state-form" @submit.prevent="submitStateChange(item)">
+              <input v-model="stateReasons[item.id]" class="memory-input compact" placeholder="reason required" />
+              <div class="state-actions">
+                <button class="state-button" type="button" :disabled="stateBusy === item.id || !stateReasons[item.id]?.trim()" @click="submitStateChange(item, 'archived')">Archive</button>
+                <button class="state-button warn" type="button" :disabled="stateBusy === item.id || !stateReasons[item.id]?.trim()" @click="submitStateChange(item, 'suppressed')">Suppress</button>
+                <button v-if="item.state !== 'active'" class="state-button good" type="button" :disabled="stateBusy === item.id || !stateReasons[item.id]?.trim()" @click="submitStateChange(item, 'active')">Restore</button>
+              </div>
+            </form>
           </article>
         </div>
       </div>
@@ -81,7 +101,11 @@ interface ProfileRow {
   value: string
   source_event_id: string | null
   updated_at: string
+  state: ProjectionState
 }
+
+type ProjectionState = 'active' | 'archived' | 'suppressed'
+type ProfileStateFilter = ProjectionState | 'all'
 
 interface MemoryProfileResponse {
   items: ProfileRow[]
@@ -101,13 +125,17 @@ const saveMessage = ref('')
 const correctionKey = ref('')
 const correctionValue = ref('')
 const correctionReason = ref('')
+const stateBusy = ref('')
+const stateReasons = ref<Record<string, string>>({})
+const profileState = ref<ProfileStateFilter>('active')
+const stateOptions: ProfileStateFilter[] = ['active', 'archived', 'suppressed', 'all']
 const profile = ref<ProfileRow[]>([])
 const stats = ref<MemoryStats>({ topics: 0, profile: 0, timelineEvents: 0 })
 
 const subtitle = computed(() => {
   if (error.value) return 'offline'
   if (loading.value) return 'refreshing'
-  return 'read-only profile'
+  return `profile ${profileState.value}`
 })
 
 async function toggle() {
@@ -121,7 +149,7 @@ async function load() {
   try {
     const [status, memory] = await Promise.all([
       getPersonaJson<StatusResponse>('/api/status'),
-      getPersonaJson<MemoryProfileResponse>('/api/memory/profile?limit=8&offset=0'),
+      getPersonaJson<MemoryProfileResponse>(`/api/memory/profile?limit=8&offset=0&state=${profileState.value}`),
     ])
     stats.value = {
       topics: Number(status.memory?.topics ?? 0),
@@ -134,6 +162,11 @@ async function load() {
   } finally {
     loading.value = false
   }
+}
+
+async function setProfileStateFilter(state: ProfileStateFilter) {
+  profileState.value = state
+  await load()
 }
 
 async function submitCorrection() {
@@ -161,6 +194,29 @@ async function submitCorrection() {
 
 function useProfileKey(key: string) {
   correctionKey.value = key
+}
+
+async function submitStateChange(item: ProfileRow, nextState?: ProjectionState) {
+  const state = nextState ?? item.state
+  const reason = stateReasons.value[item.id]?.trim()
+  if (!reason || stateBusy.value) return
+
+  stateBusy.value = item.id
+  saveMessage.value = ''
+  try {
+    await postPersonaJson('/api/memory/profile/state', {
+      id: item.id,
+      state,
+      reason,
+    })
+    saveMessage.value = `Profile ${state} recorded as a governance event.`
+    stateReasons.value[item.id] = ''
+    await load()
+  } catch {
+    saveMessage.value = 'State change failed. Check Persona API status.'
+  } finally {
+    stateBusy.value = ''
+  }
 }
 
 function parseCorrectionValue(value: string): unknown {
@@ -306,6 +362,28 @@ function formatDate(value: string): string {
   gap: 8px;
 }
 
+.memory-filter {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 1px;
+  background: rgba(255, 255, 255, 0.06);
+}
+
+.filter-button {
+  border: 0;
+  padding: 9px 4px;
+  background: rgba(255, 255, 255, 0.035);
+  color: rgba(255, 255, 255, 0.48);
+  cursor: pointer;
+  font-size: 0.68rem;
+  font-weight: 650;
+}
+
+.filter-button.active {
+  color: #a7f3d0;
+  background: rgba(22, 163, 74, 0.16);
+}
+
 .memory-input,
 .memory-textarea {
   width: 100%;
@@ -318,6 +396,11 @@ function formatDate(value: string): string {
   font-size: 0.76rem;
   outline: none;
   box-sizing: border-box;
+}
+
+.memory-input.compact {
+  padding: 7px 9px;
+  font-size: 0.7rem;
 }
 
 .memory-textarea {
@@ -402,6 +485,45 @@ function formatDate(value: string): string {
   margin-top: 8px;
   font-size: 0.64rem;
   color: rgba(255, 255, 255, 0.38);
+}
+
+.state-form {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 7px;
+}
+
+.state-actions {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 6px;
+}
+
+.state-button {
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: 7px;
+  background: rgba(255, 255, 255, 0.045);
+  color: rgba(255, 255, 255, 0.68);
+  cursor: pointer;
+  font-size: 0.66rem;
+  font-weight: 650;
+  min-height: 28px;
+}
+
+.state-button.warn {
+  color: #fca5a5;
+  border-color: rgba(248, 113, 113, 0.18);
+}
+
+.state-button.good {
+  color: #a7f3d0;
+  border-color: rgba(74, 222, 128, 0.18);
+}
+
+.state-button:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
 }
 
 @media (max-width: 480px) {
