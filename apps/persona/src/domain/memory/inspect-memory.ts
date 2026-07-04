@@ -33,6 +33,11 @@ try {
         type: "insight",
         summary: `Memory inspection observed ${tag}`,
       },
+      {
+        date: "2026-07-04",
+        type: "decision",
+        summary: `Memory inspection normalized invalid timeline type ${tag}`,
+      } as never,
     ],
   })
 
@@ -60,10 +65,14 @@ try {
   assert(profileValue.mode === "read-only", "profile value mode mismatch")
   assert(listMemoryProfile({ key: "inspection_test_profile", limit: 1 })[0]?.id === profile.id, "profile list filter mismatch")
 
-  const timeline = inspection.timelineEvents.find((item) => item.summary.includes(tag))
+  const timeline = inspection.timelineEvents.find((item) => item.summary.startsWith("Memory inspection observed"))
   assert(timeline, "inspection missing test timeline event")
   assert(timeline.type === "insight", "timeline type mismatch")
-  assert(listMemoryTimelineEvents({ type: "insight", date: "2026-07-03", limit: 20 }).some((item) => item.id === timeline.id), "timeline list filter mismatch")
+  assert(listMemoryTimelineEvents({ type: "insight", date: "2026-07-03", limit: 100 }).some((item) => item.id === timeline.id), "timeline list filter mismatch")
+
+  const normalizedTimeline = inspection.timelineEvents.find((item) => item.summary.includes("normalized invalid timeline type"))
+  assert(normalizedTimeline, "inspection missing normalized timeline event")
+  assert(normalizedTimeline.type === "insight", "invalid timeline type should normalize to insight")
 
   console.log("memory inspection ok")
 } finally {

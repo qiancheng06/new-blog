@@ -122,6 +122,18 @@ They do not edit, archive, delete, merge, or rewrite Memory. `ProfileRow.value`
 is returned as the stored JSON string; UI parsing/editing belongs to a later
 governed management flow.
 
+## Timeline type normalization
+
+LLM analysis is runtime JSON, so Memory must validate it even when TypeScript
+types are narrower. `timeline_events.type` is normalized before insert:
+
+- accepted values: `insight`, `shift`, `milestone`
+- unknown values from a provider are stored as `insight`
+
+This prevents provider output such as `decision` from violating the SQLite
+constraint. The no-network `npm.cmd run inspect:memory` contract covers this
+normalization.
+
 ## Real-Mode Evaluation Cleanup Boundary
 
 Real-mode evaluation must use a unique `evaluationRunId` / tag before sending

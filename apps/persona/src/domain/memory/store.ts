@@ -351,12 +351,18 @@ function normalizeTimelineEvent(event: TimelineEventPatch): TimelineEventPatch |
   const date = event.date.trim()
   const summary = event.summary.trim()
   if (!date || !summary) return null
+  const type = normalizeTimelineType((event as { type?: unknown }).type)
 
   return {
     date,
-    type: event.type,
+    type,
     summary,
   }
+}
+
+function normalizeTimelineType(type: unknown): TimelineEventPatch["type"] {
+  if (type === "insight" || type === "shift" || type === "milestone") return type
+  return "insight"
 }
 
 function formatProfileValue(value: string): string {
