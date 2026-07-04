@@ -97,6 +97,7 @@ default gate.
 
 The current architecture stage is considered done when:
 
+- The P8 checkpoint review exists at `docs/06-governance/checkpoint-review-packet.md`.
 - `docs/00-overview/README.md` remains the AI loading entry.
 - Workspace code lives under `apps/workspace/`.
 - Persona backend code lives under `apps/persona/src/`.

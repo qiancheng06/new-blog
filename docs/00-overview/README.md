@@ -23,6 +23,7 @@
 - [AI_LOADING_GUIDE.md](AI_LOADING_GUIDE.md)
 - [agent-work-allocation.md](agent-work-allocation.md)
 - [next-agent-task-queue.md](next-agent-task-queue.md)
+- [../06-governance/checkpoint-review-packet.md](../06-governance/checkpoint-review-packet.md)
 - [../06-governance/architecture-invariants.md](../06-governance/architecture-invariants.md)
 
 ## 相关代码位置
