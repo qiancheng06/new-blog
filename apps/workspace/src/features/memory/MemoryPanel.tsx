@@ -35,9 +35,9 @@ export function MemoryPanel() {
   const [stateBusy, setStateBusy] = useState("")
 
   const subtitle = useMemo(() => {
-    if (loading) return "正在刷新"
-    if (error) return "后端离线"
-    return `当前筛选：${profileState}`
+    if (loading) return "refreshing"
+    if (error) return "backend offline"
+    return `filter: ${profileState}`
   }, [error, loading, profileState])
 
   async function load() {
@@ -47,7 +47,7 @@ export function MemoryPanel() {
       const data = await getPersonaJson<MemoryProfileResponse>(`/api/memory/profile?limit=12&offset=0&state=${profileState}`)
       setProfile(data.items)
     } catch {
-      setError("无法读取 Memory Profile。请确认 Persona 后端正在运行。")
+      setError("Cannot read Memory Profile. Confirm the Persona backend is running.")
     } finally {
       setLoading(false)
     }
@@ -71,12 +71,12 @@ export function MemoryPanel() {
         value: parseCorrectionValue(correctionValue),
         reason: correctionReason.trim() || undefined,
       })
-      setMessage("已记录为 Memory governance event。")
+      setMessage("Correction recorded as a Memory governance event.")
       setCorrectionValue("")
       setCorrectionReason("")
       await load()
     } catch {
-      setMessage("修正失败。请检查 Persona API 状态。")
+      setMessage("Correction failed. Check Persona API status.")
     } finally {
       setSaving(false)
     }
@@ -94,11 +94,11 @@ export function MemoryPanel() {
         state,
         reason,
       })
-      setMessage(`已将 ${item.key} 标记为 ${state}。`)
+      setMessage(`${item.key} marked as ${state}.`)
       setStateReasons((current) => ({ ...current, [item.id]: "" }))
       await load()
     } catch {
-      setMessage("状态变更失败。请检查 Persona API 状态。")
+      setMessage("State change failed. Check Persona API status.")
     } finally {
       setStateBusy("")
     }
@@ -111,8 +111,8 @@ export function MemoryPanel() {
           <h2>Memory Profile</h2>
           <p>{subtitle}</p>
         </div>
-        <button className="icon-button" type="button" title="刷新 Memory" disabled={loading} onClick={() => void load()}>
-          ↻
+        <button className="icon-button" type="button" title="Refresh Memory" disabled={loading} onClick={() => void load()}>
+          Refresh
         </button>
       </header>
 

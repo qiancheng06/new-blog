@@ -59,7 +59,7 @@ export function ChatDock() {
       setOnline(true)
       setMessages((current) => [
         ...current,
-        { role: "assistant", text: data.reply || "我在。", time: formatTime(new Date()) },
+        { role: "assistant", text: data.reply || "I am here.", time: formatTime(new Date()) },
       ])
     } catch {
       setOnline(false)
@@ -67,7 +67,7 @@ export function ChatDock() {
         ...current,
         {
           role: "assistant",
-          text: "连接失败。请确认 Persona 后端正在运行：npm.cmd run dev:backend 或 npm.cmd run dev:backend:mock。",
+          text: "Connection failed. Start Persona with npm.cmd run dev:backend or npm.cmd run dev:backend:mock.",
           time: formatTime(new Date()),
         },
       ])
@@ -79,8 +79,8 @@ export function ChatDock() {
   if (!open) {
     return (
       <div className="chat-dock">
-        <button className="chat-fab" type="button" title="打开 Companion" onClick={() => setOpen(true)}>
-          {online ? "●" : "○"}
+        <button className="chat-fab" type="button" title="Open Companion" onClick={() => setOpen(true)}>
+          {online ? "on" : "off"}
         </button>
       </div>
     )
@@ -91,16 +91,16 @@ export function ChatDock() {
       <header className="chat-header">
         <div>
           <strong>Companion</strong>
-          <span>{online ? "Persona API 在线" : "Persona API 离线"}</span>
+          <span>{online ? "Persona API online" : "Persona API offline"}</span>
         </div>
-        <button className="icon-button" type="button" title="关闭聊天" onClick={() => setOpen(false)}>
-          ×
+        <button className="icon-button" type="button" title="Close chat" onClick={() => setOpen(false)}>
+          x
         </button>
       </header>
 
       <div className="chat-messages" ref={scrollRef}>
         {messages.length === 0 ? (
-          <p className="empty-state">输入一句话，Companion 会通过本地 Application API 回复。</p>
+          <p className="empty-state">Send a message. Companion replies through the local Application API.</p>
         ) : null}
         {messages.map((message, index) => (
           <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
@@ -108,7 +108,7 @@ export function ChatDock() {
             <span className="chat-time">{message.time}</span>
           </div>
         ))}
-        {loading ? <div className="chat-message assistant">正在思考...</div> : null}
+        {loading ? <div className="chat-message assistant">Thinking...</div> : null}
       </div>
 
       <form className="chat-input-row" onSubmit={send}>
@@ -116,7 +116,7 @@ export function ChatDock() {
           className="input chat-input"
           value={input}
           rows={1}
-          placeholder="说点什么..."
+          placeholder="Type a message..."
           onChange={(event) => setInput(event.target.value)}
           onKeyDown={(event) => {
             if (event.key === "Enter" && !event.shiftKey) {
@@ -125,8 +125,8 @@ export function ChatDock() {
             }
           }}
         />
-        <button className="chat-send" type="submit" disabled={!input.trim() || loading} title="发送">
-          →
+        <button className="chat-send" type="submit" disabled={!input.trim() || loading} title="Send">
+          Send
         </button>
       </form>
     </section>

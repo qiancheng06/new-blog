@@ -72,7 +72,7 @@ export function StatusStrip() {
       </div>
 
       <p className="status-note">
-        工作台通过 Application API 读取运行态，不直接读取 `.env`、SQLite、日志或 LLM Provider。
+        Runtime data comes from Application APIs only. The UI does not read env files, SQLite, logs, or LLM providers.
       </p>
     </aside>
   )
