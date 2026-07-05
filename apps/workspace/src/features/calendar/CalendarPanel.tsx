@@ -38,18 +38,18 @@ export function CalendarPanel() {
       <div className="feature-heading">
         <div>
           <p className="eyebrow">Calendar</p>
-          <h2>待办日历</h2>
-          <p>按日期查看 Obsidian todo 同步结果。当前是只读视图，编辑能力继续保留在 legacy 入口。</p>
+          <h2>Todo Calendar</h2>
+          <p>Dated todo items from the synced JSON layer. Editing remains available through the legacy fallback.</p>
         </div>
         <div className="calendar-actions">
-          <button className="compact-button" type="button" onClick={() => shiftMonth(-1)}>
-            ←
+          <button className="compact-button" type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
+            &lt;
           </button>
           <strong>
             {year}-{String(month + 1).padStart(2, "0")}
           </strong>
-          <button className="compact-button" type="button" onClick={() => shiftMonth(1)}>
-            →
+          <button className="compact-button" type="button" onClick={() => shiftMonth(1)} aria-label="Next month">
+            &gt;
           </button>
         </div>
       </div>

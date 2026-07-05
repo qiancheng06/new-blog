@@ -36,8 +36,8 @@ export function ProjectsPanel() {
       <div className="feature-heading">
         <div>
           <p className="eyebrow">Projects</p>
-          <h2>项目看板</h2>
-          <p>来自 Workspace JSON 中间层。源文件仍是 Markdown，Next 只消费同步结果。</p>
+          <h2>Project Board</h2>
+          <p>Read-only project state from the Workspace JSON middle layer. Markdown remains the source.</p>
         </div>
         <div className="filter-row">
           {statuses.map((item) => (
@@ -55,7 +55,7 @@ export function ProjectsPanel() {
 
       {loading ? <p className="empty-state">Loading projects...</p> : null}
       {!loading && visibleProjects.length === 0 ? (
-        <p className="empty-state">当前 worktree 没有同步到项目数据。内容站和 legacy 入口仍保留。</p>
+        <p className="empty-state">No synced project data in this worktree. Content-site and legacy fallbacks remain available.</p>
       ) : null}
 
       <div className="project-grid">
@@ -76,7 +76,7 @@ export function ProjectsPanel() {
                 <span style={{ width: `${percent}%` }} />
               </div>
               <p className="progress-copy">
-                {done}/{total} tasks done · {percent}%
+                {done}/{total} tasks done - {percent}%
               </p>
               <div className="tag-row">
                 {project.tags.slice(0, 4).map((tag) => (

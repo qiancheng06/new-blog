@@ -1,8 +1,8 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
-import { contentUrl } from "@/shared/data/workspaceSources"
 import { getWorkspaceKnowledge, type KnowledgeCategory } from "@/shared/data/workspaceData"
+import { contentUrl } from "@/shared/data/workspaceSources"
 
 export function KnowledgePanel() {
   const [categories, setCategories] = useState<KnowledgeCategory[]>([])
@@ -25,16 +25,16 @@ export function KnowledgePanel() {
       <div className="feature-heading">
         <div>
           <p className="eyebrow">Knowledge</p>
-          <h2>内容站索引</h2>
-          <p>Obsidian 长期作为内容站。Workspace 只展示索引和入口，不直接扫描 vault。</p>
+          <h2>Content Index</h2>
+          <p>Obsidian remains the content site. Workspace shows index and entry points without scanning the vault.</p>
         </div>
         <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
-          打开 VitePress 内容站
+          Open VitePress site
         </a>
       </div>
 
       {loading ? <p className="empty-state">Loading content index...</p> : null}
-      {!loading && totalPages === 0 ? <p className="empty-state">当前没有同步到知识库索引。</p> : null}
+      {!loading && totalPages === 0 ? <p className="empty-state">No synced knowledge index yet.</p> : null}
 
       <div className="knowledge-grid">
         {categories.map((category) => (

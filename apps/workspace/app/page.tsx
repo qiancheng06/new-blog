@@ -1,5 +1,5 @@
-import { ChatDock } from "@/features/chat/ChatDock"
 import { CalendarPanel } from "@/features/calendar/CalendarPanel"
+import { ChatDock } from "@/features/chat/ChatDock"
 import { KnowledgePanel } from "@/features/knowledge/KnowledgePanel"
 import { MemoryPanel } from "@/features/memory/MemoryPanel"
 import { ProjectsPanel } from "@/features/projects/ProjectsPanel"
@@ -10,26 +10,26 @@ import { contentUrl, workspaceSources } from "@/shared/data/workspaceSources"
 const focusItems = [
   {
     label: "Projects",
-    title: "项目推进",
-    text: "从 Markdown 项目源同步到 JSON 中间层，再由 Next.js 工作台展示。",
+    title: "Project Flow",
+    text: "Markdown project files sync into a JSON middle layer, then render inside the Next.js workspace.",
     href: "#projects",
   },
   {
     label: "Todos",
-    title: "待办流",
-    text: "保留 Obsidian todo 作为源，前端读取同步后的结构化数据。",
+    title: "Todo Stream",
+    text: "Obsidian todo notes remain the source. The workspace reads structured synced data.",
     href: "#todos",
   },
   {
     label: "Calendar",
-    title: "日历",
-    text: "按月查看带日期的 todo，同步链路仍由中间层负责。",
+    title: "Month View",
+    text: "Dated todo items are shown by month. Sync remains owned by the middle layer.",
     href: "#calendar",
   },
   {
     label: "Knowledge",
-    title: "内容站",
-    text: "知识库和博客长期由 Obsidian + VitePress 承载，Workspace 提供入口和索引。",
+    title: "Content Site",
+    text: "Knowledge and blog content stay in Obsidian plus VitePress. Workspace provides index and entry points.",
     href: "#knowledge",
   },
 ]
@@ -42,15 +42,15 @@ export default function WorkspaceHome() {
           <p className="eyebrow">Local AI Workspace</p>
           <h1>Persona Workspace</h1>
           <p className="hero-lede">
-            Next.js 负责工作台体验，Obsidian 作为长期内容站，Persona DB 作为长期个人记忆库。
-            前端只通过中间层和 Application API 访问数据源。
+            Next.js owns the interactive workspace. Obsidian remains the long-term content site, and Persona DB remains
+            the long-term memory store. The UI reads through adapters and Application APIs only.
           </p>
           <div className="hero-actions">
             <a className="primary-action" href="#projects">
-              查看工作台
+              Open workspace
             </a>
             <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
-              打开内容站
+              Open content site
             </a>
           </div>
         </div>

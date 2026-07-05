@@ -33,13 +33,13 @@ export function TodosPanel() {
       <div className="feature-heading">
         <div>
           <p className="eyebrow">Todos</p>
-          <h2>待办流</h2>
-          <p>Obsidian todo Markdown 仍是源，Next 通过同步 JSON 读取。</p>
+          <h2>Todo Stream</h2>
+          <p>Obsidian todo Markdown remains the source. Next.js reads the synced JSON projection.</p>
         </div>
       </div>
 
       {loading ? <p className="empty-state">Loading todos...</p> : null}
-      {!loading && todos.length === 0 ? <p className="empty-state">当前没有同步到待办数据。</p> : null}
+      {!loading && todos.length === 0 ? <p className="empty-state">No synced todo data yet.</p> : null}
 
       <div className="todo-columns">
         <TodoColumn title="Today" items={grouped.today} />
@@ -58,7 +58,7 @@ function TodoColumn({ title, items }: { title: string; items: WorkspaceTodo[] })
       {items.length === 0 ? <p className="empty-state compact">None</p> : null}
       {items.map((todo, index) => (
         <div key={`${todo.source}-${todo.text}-${index}`} className={`todo-item ${todo.done ? "done" : ""}`}>
-          <span>{todo.done ? "✓" : "□"}</span>
+          <span>{todo.done ? "[x]" : "[ ]"}</span>
           <p>{todo.text}</p>
           {todo.date ? <small>{todo.date}</small> : null}
         </div>
