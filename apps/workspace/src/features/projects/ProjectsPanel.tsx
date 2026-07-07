@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { getWorkspaceProjects, type WorkspaceProject } from "@/shared/data/workspaceData"
+import { contentUrl } from "@/shared/data/workspaceSources"
 
 const priorityRank: Record<string, number> = { high: 0, medium: 1, low: 2 }
 
@@ -39,23 +40,34 @@ export function ProjectsPanel() {
           <h2>Project Board</h2>
           <p>Read-only project state from the Workspace JSON middle layer. Markdown remains the source.</p>
         </div>
-        <div className="filter-row">
-          {statuses.map((item) => (
-            <button
-              key={item}
-              className={`compact-button ${status === item ? "active" : ""}`}
-              type="button"
-              onClick={() => setStatus(item)}
-            >
-              {item}
-            </button>
-          ))}
+        <div className="feature-heading-tools">
+          <div className="feature-actions">
+            <a className="compact-link" href={contentUrl("/projects/")} target="_blank" rel="noreferrer">
+              Content source
+            </a>
+            <span className="compact-note">Legacy detail stays in apps/workspace/legacy/detail.html</span>
+          </div>
+          <div className="filter-row">
+            {statuses.map((item) => (
+              <button
+                key={item}
+                className={`compact-button ${status === item ? "active" : ""}`}
+                type="button"
+                onClick={() => setStatus(item)}
+              >
+                {item}
+              </button>
+            ))}
+          </div>
         </div>
       </div>
 
       {loading ? <p className="empty-state">Loading projects...</p> : null}
       {!loading && visibleProjects.length === 0 ? (
-        <p className="empty-state">No synced project data in this worktree. Content-site and legacy fallbacks remain available.</p>
+        <div className="empty-box">
+          <strong>No synced project data in this worktree.</strong>
+          <p>Run sync with local project Markdown available, or use the content-site and legacy fallbacks.</p>
+        </div>
       ) : null}
 
       <div className="project-grid">

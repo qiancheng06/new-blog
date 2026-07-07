@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { getWorkspaceTodos, type WorkspaceTodo } from "@/shared/data/workspaceData"
+import { contentUrl } from "@/shared/data/workspaceSources"
 
 export function TodosPanel() {
   const [todos, setTodos] = useState<WorkspaceTodo[]>([])
@@ -36,10 +37,21 @@ export function TodosPanel() {
           <h2>Todo Stream</h2>
           <p>Obsidian todo Markdown remains the source. Next.js reads the synced JSON projection.</p>
         </div>
+        <div className="feature-actions">
+          <a className="compact-link" href={contentUrl("/todo/")} target="_blank" rel="noreferrer">
+            Content source
+          </a>
+          <span className="compact-note">Legacy calendar stays in apps/workspace/legacy/calendar.html</span>
+        </div>
       </div>
 
       {loading ? <p className="empty-state">Loading todos...</p> : null}
-      {!loading && todos.length === 0 ? <p className="empty-state">No synced todo data yet.</p> : null}
+      {!loading && todos.length === 0 ? (
+        <div className="empty-box">
+          <strong>No synced todo data yet.</strong>
+          <p>When Obsidian todo files are available, sync will project them into the Workspace JSON layer.</p>
+        </div>
+      ) : null}
 
       <div className="todo-columns">
         <TodoColumn title="Today" items={grouped.today} />

@@ -2,6 +2,7 @@
 
 import { useEffect, useMemo, useState } from "react"
 import { getWorkspaceTodos, type WorkspaceTodo } from "@/shared/data/workspaceData"
+import { contentUrl } from "@/shared/data/workspaceSources"
 
 export function CalendarPanel() {
   const [todos, setTodos] = useState<WorkspaceTodo[]>([])
@@ -42,6 +43,9 @@ export function CalendarPanel() {
           <p>Dated todo items from the synced JSON layer. Editing remains available through the legacy fallback.</p>
         </div>
         <div className="calendar-actions">
+          <a className="compact-link" href={contentUrl("/todo/")} target="_blank" rel="noreferrer">
+            Source
+          </a>
           <button className="compact-button" type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
             &lt;
           </button>

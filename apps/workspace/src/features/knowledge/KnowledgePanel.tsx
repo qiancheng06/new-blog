@@ -34,7 +34,12 @@ export function KnowledgePanel() {
       </div>
 
       {loading ? <p className="empty-state">Loading content index...</p> : null}
-      {!loading && totalPages === 0 ? <p className="empty-state">No synced knowledge index yet.</p> : null}
+      {!loading && totalPages === 0 ? (
+        <div className="empty-box">
+          <strong>No synced knowledge index yet.</strong>
+          <p>The content site remains available; the index appears here when the vault is present during sync.</p>
+        </div>
+      ) : null}
 
       <div className="knowledge-grid">
         {categories.map((category) => (
