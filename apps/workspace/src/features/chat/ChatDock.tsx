@@ -13,6 +13,12 @@ interface ChatResponse {
   reply?: string
 }
 
+const quickPrompts = [
+  "Summarize today's workspace state",
+  "Review active project risks",
+  "Help me turn notes into next actions",
+]
+
 function formatTime(date: Date): string {
   return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
 }
@@ -101,7 +107,16 @@ export function ChatDock() {
 
       <div className="chat-messages" ref={scrollRef}>
         {messages.length === 0 ? (
-          <p className="empty-state">Send a message. Companion replies through the local Application API.</p>
+          <div className="chat-empty">
+            <p className="empty-state">Send a message. Companion replies through the local Application API.</p>
+            <div className="quick-prompt-row" aria-label="Quick prompts">
+              {quickPrompts.map((prompt) => (
+                <button key={prompt} type="button" onClick={() => setInput(prompt)}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
         ) : null}
         {messages.map((message, index) => (
           <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>

@@ -40,6 +40,14 @@ export function MemoryPanel() {
     return `filter: ${profileState}`
   }, [error, loading, profileState])
 
+  const profileSummary = useMemo(() => {
+    return {
+      visible: profile.length,
+      active: profile.filter((item) => item.state === "active").length,
+      governed: profile.filter((item) => item.state !== "active").length,
+    }
+  }, [profile])
+
   async function load() {
     setLoading(true)
     setError("")
@@ -110,14 +118,20 @@ export function MemoryPanel() {
         <div>
           <h2>Memory Profile</h2>
           <p>{subtitle}</p>
+          <div className="inline-stats" aria-label="Memory profile summary">
+            <span>{profileSummary.visible} visible</span>
+            <span>{profileSummary.active} active</span>
+            <span>{profileSummary.governed} governed</span>
+          </div>
         </div>
-        <button className="icon-button" type="button" title="Refresh Memory" disabled={loading} onClick={() => void load()}>
+        <button className="icon-button wide" type="button" title="Refresh Memory" disabled={loading} onClick={() => void load()}>
           Refresh
         </button>
       </header>
 
       <div className="memory-controls">
-        <div>
+        <div className="memory-filter-card">
+          <span className="control-label">Profile state</span>
           <div className="filter-row" aria-label="Memory state filter">
             {stateOptions.map((option) => (
               <button
@@ -134,6 +148,7 @@ export function MemoryPanel() {
         </div>
 
         <form className="correction-form" onSubmit={submitCorrection}>
+          <span className="control-label">Record correction</span>
           <input
             className="input"
             value={correctionKey}
@@ -171,7 +186,7 @@ export function MemoryPanel() {
               </button>
               <div className="memory-meta">
                 <span>{formatDate(item.updated_at)}</span>
-                <span>{item.state}</span>
+                <span className={`state-badge ${item.state}`}>{item.state}</span>
               </div>
             </div>
             <div className="memory-value">{formatValue(item.value)}</div>
