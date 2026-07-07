@@ -1,11 +1,11 @@
 # Workspace Frontend Modernization
 
-This note records the current frontend direction after the Next.js migration
-started.
+This note records the current frontend direction after the first Next.js
+Workspace migration slice landed.
 
 ## Current Direction
 
-- `apps/workspace/` is becoming the primary Next.js Workspace app.
+- `apps/workspace/` is the primary Next.js Workspace app.
 - `npm.cmd run dev` serves the Workspace app at `http://127.0.0.1:5173/`.
 - VitePress remains as the long-term Obsidian/Markdown content site.
 - `npm.cmd run dev:content` serves the content site at `http://127.0.0.1:5174/`.
