@@ -27,6 +27,10 @@ export function KnowledgePanel() {
           <p className="eyebrow">Knowledge</p>
           <h2>Content Index</h2>
           <p>Obsidian remains the content site. Workspace shows index and entry points without scanning the vault.</p>
+          <div className="inline-stats" aria-label="Knowledge summary">
+            <span>{categories.length} categories</span>
+            <span>{totalPages} pages</span>
+          </div>
         </div>
         <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
           Open VitePress site
@@ -44,11 +48,13 @@ export function KnowledgePanel() {
       <div className="knowledge-grid">
         {categories.map((category) => (
           <article key={category.category} className="knowledge-card">
-            <h3>{category.label}</h3>
-            <p>{category.pages.length} pages</p>
+            <div className="knowledge-card-head">
+              <h3>{category.label}</h3>
+              <span>{category.pages.length}</span>
+            </div>
             <div className="knowledge-links">
               {category.pages.slice(0, 5).map((page) => (
-                <a key={`${category.category}-${page.name}`} href={contentUrl("/knowledge/")} target="_blank" rel="noreferrer">
+                <a key={`${category.category}-${page.name}`} href={contentUrl(page.link || "/knowledge/")} target="_blank" rel="noreferrer">
                   {page.name}
                 </a>
               ))}

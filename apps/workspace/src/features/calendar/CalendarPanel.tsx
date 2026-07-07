@@ -34,6 +34,10 @@ export function CalendarPanel() {
     setCursor(new Date(year, month + offset, 1))
   }
 
+  function jumpToday() {
+    setCursor(new Date())
+  }
+
   return (
     <section className="feature-panel" id="calendar">
       <div className="feature-heading">
@@ -41,11 +45,18 @@ export function CalendarPanel() {
           <p className="eyebrow">Calendar</p>
           <h2>Todo Calendar</h2>
           <p>Dated todo items from the synced JSON layer. Editing remains available through the legacy fallback.</p>
+          <div className="inline-stats" aria-label="Calendar summary">
+            <span>{todos.filter((todo) => todo.date?.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length} this month</span>
+            <span>{todos.filter((todo) => !todo.done).length} open</span>
+          </div>
         </div>
         <div className="calendar-actions">
           <a className="compact-link" href={contentUrl("/todo/")} target="_blank" rel="noreferrer">
             Source
           </a>
+          <button className="compact-button" type="button" onClick={jumpToday}>
+            Today
+          </button>
           <button className="compact-button" type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
             &lt;
           </button>
@@ -67,8 +78,9 @@ export function CalendarPanel() {
         {cells.map((cell) => {
           const dateKey = toDateKey(cell.date)
           const items = byDate.get(dateKey) ?? []
+          const today = dateKey === toDateKey(new Date())
           return (
-            <article key={dateKey} className={`calendar-cell ${cell.inMonth ? "" : "muted"}`}>
+            <article key={dateKey} className={`calendar-cell ${cell.inMonth ? "" : "muted"} ${today ? "today" : ""}`}>
               <strong>{cell.date.getDate()}</strong>
               <div>
                 {items.slice(0, 3).map((todo, index) => (

@@ -1,15 +1,18 @@
 :root {
-  --bg: #0e1116;
-  --panel: #161b22;
-  --panel-strong: #1f2630;
+  --bg: #101214;
+  --panel: #171b1f;
+  --panel-strong: #22272d;
   --line: rgba(255, 255, 255, 0.09);
   --text: #eef2f7;
-  --muted: #9aa7b6;
-  --muted-2: #697586;
-  --blue: #5aa7ff;
-  --green: #72d6a0;
+  --muted: #a5adba;
+  --muted-2: #747d89;
+  --blue: #63b3ff;
+  --green: #84d69b;
   --red: #ff8a8a;
   --amber: #f5bd5f;
+  --violet: #b7a3ff;
+  --surface: rgba(255, 255, 255, 0.045);
+  --surface-strong: rgba(255, 255, 255, 0.075);
   --shadow: 0 24px 70px rgba(0, 0, 0, 0.42);
 }
 
@@ -30,8 +33,9 @@ body {
     Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", "Microsoft YaHei",
     sans-serif;
   background:
-    linear-gradient(180deg, rgba(30, 40, 54, 0.72) 0%, rgba(14, 17, 22, 0) 34rem),
-    radial-gradient(circle at 15% 0%, rgba(90, 167, 255, 0.13), transparent 28rem),
+    linear-gradient(180deg, rgba(40, 46, 42, 0.76) 0%, rgba(16, 18, 20, 0) 32rem),
+    radial-gradient(circle at 12% 0%, rgba(132, 214, 155, 0.13), transparent 26rem),
+    radial-gradient(circle at 88% 8%, rgba(245, 189, 95, 0.08), transparent 22rem),
     var(--bg);
 }
 
@@ -68,7 +72,7 @@ button {
   justify-content: space-between;
   gap: 14px;
   border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: 14px;
+  border-radius: 12px;
   background: rgba(14, 17, 22, 0.78);
   box-shadow: 0 14px 40px rgba(0, 0, 0, 0.28);
   backdrop-filter: blur(16px);
@@ -109,7 +113,7 @@ button {
 }
 
 .hero-panel {
-  min-height: 360px;
+  min-height: 420px;
   display: grid;
   grid-template-columns: minmax(0, 1.1fr) minmax(320px, 0.9fr);
   align-items: stretch;
@@ -127,14 +131,34 @@ button {
 
 .hero-copy {
   padding: clamp(28px, 5vw, 56px);
-  border-radius: 18px;
+  border-radius: 16px;
   display: flex;
   flex-direction: column;
   justify-content: center;
+  background:
+    linear-gradient(140deg, rgba(255, 255, 255, 0.055), rgba(255, 255, 255, 0.02)),
+    rgba(22, 27, 34, 0.78);
+}
+
+.hero-kicker {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.hero-kicker span {
+  border: 1px solid rgba(245, 189, 95, 0.26);
+  border-radius: 999px;
+  padding: 5px 10px;
+  color: var(--amber);
+  background: rgba(245, 189, 95, 0.08);
+  font-size: 0.74rem;
+  font-weight: 760;
 }
 
 .eyebrow {
-  margin: 0 0 14px;
+  margin: 0;
   color: var(--green);
   font-size: 0.78rem;
   font-weight: 750;
@@ -164,6 +188,37 @@ h1 {
   margin-top: 30px;
 }
 
+.hero-stats {
+  width: min(100%, 680px);
+  margin-top: 30px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.hero-stats div {
+  min-height: 72px;
+  padding: 13px;
+  border: 1px solid rgba(255, 255, 255, 0.075);
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.15);
+}
+
+.hero-stats strong,
+.hero-stats span {
+  display: block;
+}
+
+.hero-stats strong {
+  font-size: 0.92rem;
+}
+
+.hero-stats span {
+  margin-top: 6px;
+  color: var(--muted-2);
+  font-size: 0.76rem;
+}
+
 .primary-action,
 .secondary-action {
   min-height: 42px;
@@ -188,7 +243,7 @@ h1 {
 }
 
 .status-strip {
-  border-radius: 18px;
+  border-radius: 16px;
   padding: 24px;
   display: flex;
   flex-direction: column;
@@ -239,7 +294,7 @@ h1 {
 .metric {
   padding: 14px;
   border-radius: 10px;
-  background: rgba(255, 255, 255, 0.045);
+  background: var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.06);
 }
 
@@ -272,12 +327,15 @@ h1 {
 
 .source-grid {
   grid-template-columns: repeat(2, minmax(0, 1fr));
+  margin-bottom: 24px;
 }
 
 .module-card {
   min-height: 190px;
-  border-radius: 14px;
+  border-radius: 12px;
   padding: 22px;
+  display: flex;
+  flex-direction: column;
   transition:
     transform 0.18s ease,
     border-color 0.18s ease,
@@ -286,9 +344,9 @@ h1 {
 
 .source-card {
   padding: 20px;
-  border-radius: 14px;
+  border-radius: 12px;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.035);
+  background: rgba(255, 255, 255, 0.032);
 }
 
 .source-card h2 {
@@ -323,7 +381,7 @@ h1 {
 }
 
 .module-card h2 {
-  margin-top: 44px;
+  margin-top: 40px;
 }
 
 .module-card p {
@@ -333,6 +391,13 @@ h1 {
   font-size: 0.9rem;
 }
 
+.module-card small {
+  margin-top: auto;
+  color: var(--amber);
+  font-size: 0.72rem;
+  font-weight: 760;
+}
+
 .workspace-band {
   margin-top: 18px;
 }
@@ -340,7 +405,7 @@ h1 {
 .feature-panel {
   margin-top: 18px;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(22, 27, 34, 0.76);
   box-shadow: var(--shadow);
   overflow: hidden;
@@ -365,6 +430,23 @@ h1 {
   margin: 7px 0 0;
   color: var(--muted);
   line-height: 1.6;
+}
+
+.inline-stats {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.inline-stats span {
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  border-radius: 999px;
+  padding: 5px 9px;
+  color: var(--muted);
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.74rem;
+  font-weight: 760;
 }
 
 .feature-heading-tools,
@@ -406,7 +488,7 @@ h1 {
   padding: 18px;
   border: 1px solid rgba(255, 255, 255, 0.065);
   border-radius: 13px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface);
   color: var(--muted);
 }
 
@@ -432,8 +514,10 @@ h1 {
   min-height: 210px;
   padding: 16px;
   border: 1px solid rgba(255, 255, 255, 0.065);
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.035);
+  border-radius: 12px;
+  background: var(--surface);
+  display: flex;
+  flex-direction: column;
 }
 
 .project-card-top,
@@ -461,6 +545,23 @@ h1 {
   font-weight: 780;
   color: var(--muted);
   background: rgba(255, 255, 255, 0.055);
+}
+
+.project-foot {
+  margin-top: auto;
+  padding-top: 14px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+  color: var(--muted-2);
+  font-size: 0.7rem;
+}
+
+.project-foot span:last-child {
+  max-width: 58%;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .status-chip.in-progress {
@@ -500,21 +601,34 @@ h1 {
 .todo-columns {
   padding: 18px 22px 22px;
   display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
+  grid-template-columns: repeat(5, minmax(0, 1fr));
   gap: 12px;
 }
 
 .todo-column {
   min-height: 180px;
   padding: 14px;
-  border-radius: 13px;
-  background: rgba(255, 255, 255, 0.035);
+  border-radius: 12px;
+  background: var(--surface);
   border: 1px solid rgba(255, 255, 255, 0.065);
+}
+
+.todo-column.warn {
+  border-color: rgba(255, 138, 138, 0.18);
+  background: rgba(255, 138, 138, 0.045);
 }
 
 .todo-column h3 {
   margin: 0 0 12px;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
   font-size: 0.9rem;
+}
+
+.todo-column h3 strong {
+  color: var(--muted-2);
+  font-size: 0.78rem;
 }
 
 .todo-item {
@@ -523,6 +637,26 @@ h1 {
   gap: 8px;
   padding: 9px 0;
   border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.todo-check {
+  width: 17px;
+  height: 17px;
+  margin-top: 2px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid rgba(255, 255, 255, 0.18);
+  border-radius: 5px;
+  color: #06140c;
+  background: rgba(255, 255, 255, 0.04);
+  font-size: 0.7rem;
+  font-weight: 850;
+}
+
+.todo-item.done .todo-check {
+  border-color: transparent;
+  background: var(--green);
 }
 
 .todo-item:first-of-type {
@@ -556,6 +690,8 @@ h1 {
   display: flex;
   align-items: center;
   gap: 10px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
 }
 
 .calendar-actions strong {
@@ -583,12 +719,17 @@ h1 {
   padding: 10px;
   border: 1px solid rgba(255, 255, 255, 0.065);
   border-radius: 11px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface);
   overflow: hidden;
 }
 
 .calendar-cell.muted {
   opacity: 0.42;
+}
+
+.calendar-cell.today {
+  border-color: rgba(132, 214, 155, 0.42);
+  box-shadow: inset 0 0 0 1px rgba(132, 214, 155, 0.12);
 }
 
 .calendar-cell strong {
@@ -622,22 +763,38 @@ h1 {
 
 .knowledge-card {
   padding: 16px;
-  border-radius: 13px;
+  border-radius: 12px;
   border: 1px solid rgba(255, 255, 255, 0.065);
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface);
 }
 
-.knowledge-card h3 {
+.knowledge-card-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.knowledge-card-head h3 {
   margin: 0;
   font-size: 0.98rem;
 }
 
-.knowledge-card p {
-  margin: 8px 0 12px;
-  color: var(--muted);
+.knowledge-card-head span {
+  min-width: 28px;
+  min-height: 24px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 999px;
+  color: var(--green);
+  background: rgba(132, 214, 155, 0.09);
+  font-size: 0.76rem;
+  font-weight: 800;
 }
 
 .knowledge-links {
+  margin-top: 14px;
   display: grid;
   gap: 7px;
 }
@@ -649,7 +806,7 @@ h1 {
 }
 
 .memory-panel {
-  border-radius: 18px;
+  border-radius: 16px;
   overflow: hidden;
 }
 
@@ -672,7 +829,7 @@ h1 {
 .compact-button,
 .chat-send {
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.055);
+  background: var(--surface);
   border-radius: 8px;
   cursor: pointer;
 }
@@ -731,7 +888,7 @@ h1 {
 .textarea {
   width: 100%;
   border: 1px solid var(--line);
-  background: rgba(255, 255, 255, 0.045);
+  background: rgba(255, 255, 255, 0.04);
   color: var(--text);
   border-radius: 8px;
   padding: 10px 11px;
@@ -757,7 +914,7 @@ h1 {
   padding: 14px;
   border: 1px solid rgba(255, 255, 255, 0.065);
   border-radius: 12px;
-  background: rgba(255, 255, 255, 0.035);
+  background: var(--surface);
 }
 
 .memory-key {
@@ -839,7 +996,7 @@ h1 {
   height: 54px;
   border: 1px solid rgba(90, 167, 255, 0.32);
   border-radius: 16px;
-  background: #172334;
+  background: #18222c;
   color: var(--blue);
   box-shadow: var(--shadow);
   cursor: pointer;
@@ -868,7 +1025,7 @@ h1 {
   flex-direction: column;
   overflow: hidden;
   border: 1px solid var(--line);
-  border-radius: 18px;
+  border-radius: 16px;
   background: rgba(18, 23, 31, 0.98);
   box-shadow: var(--shadow);
 }
@@ -922,7 +1079,7 @@ h1 {
 
 .chat-message.assistant {
   align-self: flex-start;
-  background: rgba(255, 255, 255, 0.06);
+  background: var(--surface-strong);
   border: 1px solid rgba(255, 255, 255, 0.07);
 }
 
@@ -968,6 +1125,12 @@ h1 {
   font-size: 0.78rem;
 }
 
+@media (max-width: 1080px) {
+  .todo-columns {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
 @media (max-width: 860px) {
   .hero-panel,
   .module-grid,
@@ -989,9 +1152,18 @@ h1 {
     align-items: stretch;
     flex-direction: column;
   }
+
+  .calendar-actions {
+    justify-content: flex-start;
+  }
 }
 
 @media (max-width: 680px) {
+  .hero-stats,
+  .todo-columns {
+    grid-template-columns: 1fr;
+  }
+
   .calendar-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }

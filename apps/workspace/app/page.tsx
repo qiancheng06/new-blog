@@ -12,24 +12,28 @@ const focusItems = [
     label: "Projects",
     title: "Project Flow",
     text: "Markdown project files sync into a JSON middle layer, then render inside the Next.js workspace.",
+    meta: "Markdown -> JSON",
     href: "#projects",
   },
   {
     label: "Todos",
     title: "Todo Stream",
     text: "Obsidian todo notes remain the source. The workspace reads structured synced data.",
+    meta: "Obsidian source",
     href: "#todos",
   },
   {
     label: "Calendar",
     title: "Month View",
     text: "Dated todo items are shown by month. Sync remains owned by the middle layer.",
+    meta: "Date projection",
     href: "#calendar",
   },
   {
     label: "Knowledge",
     title: "Content Site",
     text: "Knowledge and blog content stay in Obsidian plus VitePress. Workspace provides index and entry points.",
+    meta: "VitePress handoff",
     href: "#knowledge",
   },
 ]
@@ -60,11 +64,14 @@ export default function WorkspaceHome() {
 
       <section className="hero-panel">
         <div className="hero-copy">
-          <p className="eyebrow">Local AI Workspace</p>
+          <div className="hero-kicker">
+            <p className="eyebrow">Local AI Workspace</p>
+            <span>Modular monolith</span>
+          </div>
           <h1>Persona Workspace</h1>
           <p className="hero-lede">
-            Next.js owns the interactive workspace. Obsidian remains the long-term content site, and Persona DB remains
-            the long-term memory store. The UI reads through adapters and Application APIs only.
+            A focused workbench for projects, todos, content, memory, and companion chat. Obsidian and Persona memory
+            stay as long-term sources behind a small middle layer.
           </p>
           <div className="hero-actions">
             <a className="primary-action" href="#projects">
@@ -73,6 +80,20 @@ export default function WorkspaceHome() {
             <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
               Open content site
             </a>
+          </div>
+          <div className="hero-stats" aria-label="Workspace architecture summary">
+            <div>
+              <strong>Next.js</strong>
+              <span>interactive shell</span>
+            </div>
+            <div>
+              <strong>VitePress</strong>
+              <span>content site</span>
+            </div>
+            <div>
+              <strong>API</strong>
+              <span>memory bridge</span>
+            </div>
           </div>
         </div>
         <StatusStrip />
@@ -84,6 +105,7 @@ export default function WorkspaceHome() {
             <span>{item.label}</span>
             <h2>{item.title}</h2>
             <p>{item.text}</p>
+            <small>{item.meta}</small>
           </a>
         ))}
       </section>

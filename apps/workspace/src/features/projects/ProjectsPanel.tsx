@@ -32,6 +32,16 @@ export function ProjectsPanel() {
       .sort((a, b) => (priorityRank[a.priority] ?? 9) - (priorityRank[b.priority] ?? 9) || a.name.localeCompare(b.name))
   }, [projects, status])
 
+  const totals = useMemo(() => {
+    const tasks = projects.flatMap((project) => project.sections.flatMap((section) => section.tasks))
+    return {
+      projects: projects.length,
+      active: projects.filter((project) => project.status === "in-progress").length,
+      done: tasks.filter((task) => task.done).length,
+      tasks: tasks.length,
+    }
+  }, [projects])
+
   return (
     <section className="feature-panel" id="projects">
       <div className="feature-heading">
@@ -39,6 +49,13 @@ export function ProjectsPanel() {
           <p className="eyebrow">Projects</p>
           <h2>Project Board</h2>
           <p>Read-only project state from the Workspace JSON middle layer. Markdown remains the source.</p>
+          <div className="inline-stats" aria-label="Project summary">
+            <span>{totals.projects} projects</span>
+            <span>{totals.active} active</span>
+            <span>
+              {totals.done}/{totals.tasks} tasks
+            </span>
+          </div>
         </div>
         <div className="feature-heading-tools">
           <div className="feature-actions">
@@ -94,6 +111,10 @@ export function ProjectsPanel() {
                 {project.tags.slice(0, 4).map((tag) => (
                   <span key={tag}>{tag}</span>
                 ))}
+              </div>
+              <div className="project-foot">
+                <span>{project.sections.length} sections</span>
+                <span>{project.filePath || "workspace source"}</span>
               </div>
             </article>
           )
