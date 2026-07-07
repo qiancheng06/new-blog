@@ -80,7 +80,8 @@ export function ChatDock() {
     return (
       <div className="chat-dock">
         <button className="chat-fab" type="button" title="Open Companion" onClick={() => setOpen(true)}>
-          {online ? "on" : "off"}
+          <span className={`chat-fab-dot ${online ? "online" : "offline"}`} />
+          C
         </button>
       </div>
     )
@@ -126,7 +127,7 @@ export function ChatDock() {
           }}
         />
         <button className="chat-send" type="submit" disabled={!input.trim() || loading} title="Send">
-          Send
+          &gt;
         </button>
       </form>
     </section>

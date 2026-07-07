@@ -34,9 +34,30 @@ const focusItems = [
   },
 ]
 
+const navItems = [
+  { label: "Projects", href: "#projects" },
+  { label: "Todos", href: "#todos" },
+  { label: "Calendar", href: "#calendar" },
+  { label: "Knowledge", href: "#knowledge" },
+  { label: "Memory", href: "#memory" },
+]
+
 export default function WorkspaceHome() {
   return (
     <main className="workspace-shell">
+      <nav className="workspace-nav" aria-label="Workspace navigation">
+        <a className="workspace-mark" href="#">
+          Persona
+        </a>
+        <div className="workspace-nav-links">
+          {navItems.map((item) => (
+            <a key={item.href} href={item.href}>
+              {item.label}
+            </a>
+          ))}
+        </div>
+      </nav>
+
       <section className="hero-panel">
         <div className="hero-copy">
           <p className="eyebrow">Local AI Workspace</p>
@@ -85,6 +106,11 @@ export default function WorkspaceHome() {
       <section id="memory" className="workspace-band">
         <MemoryPanel />
       </section>
+
+      <footer className="workspace-footer">
+        <span>Next.js Workspace</span>
+        <span>Obsidian content and Persona memory stay behind adapters.</span>
+      </footer>
 
       <ChatDock />
     </main>
