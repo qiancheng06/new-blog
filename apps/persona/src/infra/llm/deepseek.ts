@@ -44,6 +44,18 @@ export interface AnalysisResult {
   }
 }
 
+export interface DailySummaryResult {
+  summary: string
+  highlights: string[]
+  topic_distribution: Record<string, number>
+}
+
+export interface DailySummaryRequest {
+  date: string
+  eventCount: number
+  context: string
+}
+
 const jsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([
   z.string(),
   z.number().finite(),
@@ -83,6 +95,12 @@ const analysisResultSchema = z.object({
       summary: z.string().trim().min(1).max(4_000),
     })).max(50),
   }),
+})
+
+const dailySummaryResultSchema = z.object({
+  summary: z.string().trim().min(1).max(16_000),
+  highlights: z.array(z.string().trim().min(1).max(4_000)).max(50),
+  topic_distribution: z.record(z.number().int().nonnegative().max(10_000)),
 })
 
 async function post(body: string, timeout: number): Promise<{ status: number; data: string }> {
@@ -180,12 +198,56 @@ export async function callAnalysis(systemPrompt: string, userMessage: string, hi
   return parseAnalysisResult(parsed)
 }
 
+export async function callDailySummary(
+  systemPrompt: string,
+  request: DailySummaryRequest,
+): Promise<DailySummaryResult> {
+  if (config.llmProvider === "mock") {
+    return createMockDailySummaryResult(request)
+  }
+
+  const content = await createChatCompletion({
+    messages: [
+      { role: "system", content: systemPrompt },
+      {
+        role: "user",
+        content: [
+          `Daily Note date: ${request.date}`,
+          `Summarizable event count: ${request.eventCount}`,
+          "<daily_context>",
+          request.context,
+          "</daily_context>",
+        ].join("\n"),
+      },
+    ],
+    temperature: 0.2,
+    maxTokens: 1600,
+    jsonResponse: true,
+  })
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(content) as unknown
+  } catch {
+    throw new Error("DeepSeek daily summary response was not valid JSON")
+  }
+  return parseDailySummaryResult(parsed)
+}
+
 export function parseAnalysisResult(input: unknown): AnalysisResult {
   const result = analysisResultSchema.safeParse(input)
   if (result.success) return result.data as AnalysisResult
 
   const paths = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "root"))]
   throw new Error(`DeepSeek analysis response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
+}
+
+export function parseDailySummaryResult(input: unknown): DailySummaryResult {
+  const result = dailySummaryResultSchema.safeParse(input)
+  if (result.success) return result.data
+
+  const paths = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "root"))]
+  throw new Error(`DeepSeek daily summary response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
 }
 
 function sanitizeProviderError(data: string): string {
@@ -229,5 +291,22 @@ function createMockAnalysisResult(userMessage: string, history?: string): Analys
         },
       ],
     },
+  }
+}
+
+function createMockDailySummaryResult(request: DailySummaryRequest): DailySummaryResult {
+  const userLines = request.context
+    .split(/\r?\n/)
+    .filter((line) => line.includes(" User "))
+    .map((line) => line.replace(/^\[[^\]]+\]\s+User\s+\([^)]*\):\s*/, "").trim())
+    .filter(Boolean)
+
+  const highlights = userLines.slice(-3)
+  const detail = highlights.at(-1) ?? "No user activity recorded."
+
+  return {
+    summary: `[mock daily summary ${request.date}] ${request.eventCount} events. ${detail}`,
+    highlights,
+    topic_distribution: request.eventCount > 0 ? { conversation: request.eventCount } : {},
   }
 }

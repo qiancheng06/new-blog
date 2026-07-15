@@ -22,6 +22,13 @@ import {
   parseMemoryListState,
 } from "../../application/memory.js"
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
+import {
+  DailySummaryNotFoundError,
+  DailySummaryValidationError,
+  generateDailySummary,
+  getDailySummaries,
+  getDailySummary,
+} from "../../application/daily-summary.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -267,6 +274,16 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/memory/topics/state" && req.method === "POST") {
       return await handleMemoryTopicState(req, res)
     }
+    if (url === "/api/daily-summaries" && req.method === "POST") {
+      return await handleDailySummaryGeneration(req, res)
+    }
+    if (url === "/api/daily-summaries" && req.method === "GET") {
+      return handleDailySummaries(requestUrl, res)
+    }
+    const dailySummaryMatch = /^\/api\/daily-summaries\/(\d{4}-\d{2}-\d{2})$/.exec(url)
+    if (dailySummaryMatch && req.method === "GET") {
+      return handleDailySummaryByDate(dailySummaryMatch[1], res)
+    }
     json(res, 404, { error: "not found" })
   } catch (err) {
     console.error("[api error]", err instanceof Error ? err.message : err)
@@ -337,6 +354,18 @@ function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
   throw err
 }
 
+function handleDailySummaryError(err: unknown, res: ServerResponse): void {
+  if (err instanceof DailySummaryValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof DailySummaryNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  throw err
+}
+
 function readNumber(url: URL, key: string): number | undefined {
   const value = url.searchParams.get(key)
   if (value === null || value.trim() === "") return undefined
@@ -372,6 +401,34 @@ function applyCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
   if (origin && config.allowedOrigins.includes(origin)) {
     res.setHeader("Access-Control-Allow-Origin", origin)
     res.setHeader("Vary", "Origin")
+  }
+}
+
+async function handleDailySummaryGeneration(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{ date?: string }>(req, res)
+  if (!parsed) return
+
+  try {
+    json(res, 200, await generateDailySummary({ date: parsed.date }))
+  } catch (err) {
+    handleDailySummaryError(err, res)
+  }
+}
+
+function handleDailySummaries(url: URL, res: ServerResponse) {
+  json(res, 200, {
+    items: getDailySummaries({
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }),
+  })
+}
+
+function handleDailySummaryByDate(date: string, res: ServerResponse) {
+  try {
+    json(res, 200, { note: getDailySummary(date) })
+  } catch (err) {
+    handleDailySummaryError(err, res)
   }
 }
 

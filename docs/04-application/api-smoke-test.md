@@ -44,6 +44,48 @@ Success response `200`:
 linked `system/companion_reply` output Event whose `in_reply_to` points back to the
 input Event.
 
+### `POST /api/daily-summaries`
+
+Generate or refresh one Daily Note. The date is interpreted in
+`PERSONA_TIME_ZONE`; when omitted it defaults to the current date in that zone.
+
+```ts
+{ date?: "YYYY-MM-DD" }
+```
+
+Success response `200`:
+
+```ts
+{
+  note: {
+    id: string,
+    date: string,
+    summary: string,
+    highlights: string[],
+    topicDistribution: Record<string, number>,
+    sourceEventId: string,
+    createdAt: string,
+    updatedAt: string
+  },
+  summaryEventId: string,
+  eventCount: number
+}
+```
+
+Generation reads only the bounded user/Companion event window for that local
+date. It atomically appends a `system/summary_ready` Event and upserts the unique
+Daily Note. Refreshing a date preserves the Note id and appends a new audit Event.
+
+### `GET /api/daily-summaries`
+
+Returns `{ items: DailyNote[] }` ordered by date descending. Optional query
+parameters are `limit` and `offset`.
+
+### `GET /api/daily-summaries/:date`
+
+Returns `{ note: DailyNote }` for an exact `YYYY-MM-DD` date, or `404` when no
+Daily Note exists.
+
 Error responses:
 
 ```ts

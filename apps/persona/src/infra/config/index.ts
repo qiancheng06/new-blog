@@ -10,6 +10,7 @@ export interface RuntimeConfig {
   apiPort: number
   apiHost: string
   allowedOrigins: string[]
+  timeZone: string
   obsidianVaultPath: string
 }
 
@@ -34,6 +35,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
       "http://127.0.0.1:5173",
       "http://127.0.0.1:5174",
     ]),
+    timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
     obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
   }
 }
@@ -59,6 +61,10 @@ export function validateRuntimeConfig(
   const invalidOrigin = runtimeConfig.allowedOrigins.find((origin) => !isHttpOrigin(origin))
   if (invalidOrigin) {
     errors.push(`PERSONA_ALLOWED_ORIGINS contains an invalid HTTP(S) origin: ${invalidOrigin}`)
+  }
+
+  if (!isValidTimeZone(runtimeConfig.timeZone)) {
+    errors.push(`PERSONA_TIME_ZONE must be a valid IANA time zone. Current: ${runtimeConfig.timeZone || "(empty)"}`)
   }
 
   if (options.requireLlm && runtimeConfig.llmProvider !== "mock" && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
@@ -118,6 +124,15 @@ function isHttpOrigin(value: string): boolean {
   try {
     const parsed = new URL(value)
     return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin === value
+  } catch {
+    return false
+  }
+}
+
+function isValidTimeZone(value: string): boolean {
+  try {
+    new Intl.DateTimeFormat("en-US", { timeZone: value }).format()
+    return true
   } catch {
     return false
   }

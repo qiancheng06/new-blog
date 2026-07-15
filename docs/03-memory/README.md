@@ -71,6 +71,22 @@ inserted.
 This API does not mutate Events. The caller is responsible for inserting the
 Event first and passing the saved Event id as `sourceEventId`.
 
+## Daily Note projection
+
+`apps/persona/src/domain/daily-note/store.ts` owns the SQLite projection for one
+Daily Note per local calendar date. Application generation follows these rules:
+
+- source Events remain immutable
+- user messages, notes, todos, ideas, journals, and linked Companion replies form
+  a bounded private summary context
+- each generation appends a `system/summary_ready` Event
+- the Daily Note upsert and audit Event are committed in one transaction
+- regenerating a date preserves the Daily Note id and updates its
+  `source_event_id` to the latest `summary_ready` Event
+
+The public read shape parses `highlights` and `topic_distribution` into arrays
+and objects; their SQLite columns remain JSON text.
+
 ## Current read loop
 
 `apps/persona/src/ai-runtime/operators/process-message.ts` now reads memory before

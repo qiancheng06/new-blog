@@ -2,7 +2,13 @@ import type { EventRow } from "../../domain/event/store.js"
 
 process.env.LLM_PROVIDER = "mock"
 
-const { callAnalysis, callCompanion, parseAnalysisResult } = await import("../../infra/llm/deepseek.js")
+const {
+  callAnalysis,
+  callCompanion,
+  callDailySummary,
+  parseAnalysisResult,
+  parseDailySummaryResult,
+} = await import("../../infra/llm/deepseek.js")
 const {
   buildAnalysisContextText,
   buildCompanionSystemPrompt,
@@ -91,7 +97,17 @@ assert(typeof analysis.memory_patch.profile_updates[0]?.confidence === "number",
 assert(analysis.memory_patch.topic_updates[0]?.name === "fixture user message", "mock topic name mismatch")
 assert(analysis.memory_patch.timeline_events[0]?.type === "insight", "mock timeline type mismatch")
 
+const dailySummary = await callDailySummary("daily summary fixture", {
+  date: "2026-07-15",
+  eventCount: 2,
+  context: "[09:00] User (message): fixture daily message\n[09:01] Companion (companion_reply): fixture reply",
+})
+assert(dailySummary.summary.includes("fixture daily message"), "mock Daily Summary must include user context")
+assert(dailySummary.highlights[0] === "fixture daily message", "mock Daily Summary highlight mismatch")
+assert(dailySummary.topic_distribution.conversation === 2, "mock Daily Summary distribution mismatch")
+
 verifyAnalysisSchema()
+verifyDailySummarySchema()
 
 console.log("persona prompt fixture ok")
 
@@ -132,6 +148,26 @@ function verifyAnalysisSchema(): void {
   }, "memory_patch.timeline_events.0.type", "private-schema-marker")
 }
 
+function verifyDailySummarySchema(): void {
+  const parsed = parseDailySummaryResult({
+    summary: "A concise day.",
+    highlights: ["Completed the fixture."],
+    topic_distribution: { architecture: 2 },
+  })
+  assert(parsed.topic_distribution.architecture === 2, "valid Daily Summary schema should parse")
+
+  assertDailySummarySchemaRejected({
+    summary: "A concise day.",
+    highlights: [],
+    topic_distribution: { architecture: -1 },
+  }, "topic_distribution.architecture")
+  assertDailySummarySchemaRejected({
+    summary: "private-daily-summary-marker",
+    highlights: null,
+    topic_distribution: {},
+  }, "highlights", "private-daily-summary-marker")
+}
+
 function assertSchemaRejected(input: unknown, expectedPath: string, privateMarker?: string): void {
   let message = ""
   try {
@@ -141,6 +177,17 @@ function assertSchemaRejected(input: unknown, expectedPath: string, privateMarke
   }
   assert(message.includes(expectedPath), `analysis schema should reject ${expectedPath}`)
   if (privateMarker) assert(!message.includes(privateMarker), "analysis schema error must not leak provider content")
+}
+
+function assertDailySummarySchemaRejected(input: unknown, expectedPath: string, privateMarker?: string): void {
+  let message = ""
+  try {
+    parseDailySummaryResult(input)
+  } catch (err) {
+    message = err instanceof Error ? err.message : String(err)
+  }
+  assert(message.includes(expectedPath), `Daily Summary schema should reject ${expectedPath}`)
+  if (privateMarker) assert(!message.includes(privateMarker), "Daily Summary schema error must not leak provider content")
 }
 
 function assert(condition: unknown, message: string): asserts condition {

@@ -15,6 +15,7 @@ assert(mockConfig.llmProvider === "mock", "mock provider should be preserved")
 assert(mockConfig.apiPort === 3100, "API_PORT should parse as a number")
 assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback")
 assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
+assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
@@ -106,6 +107,16 @@ const invalidOrigin = loadRuntimeConfig({
 assert(
   validateRuntimeConfig(invalidOrigin).some((error) => error.includes("PERSONA_ALLOWED_ORIGINS")),
   "allowed origins should reject paths",
+)
+
+const invalidTimeZone = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  PERSONA_TIME_ZONE: "Mars/Olympus_Mons",
+})
+assert(
+  validateRuntimeConfig(invalidTimeZone).some((error) => error.includes("PERSONA_TIME_ZONE")),
+  "invalid IANA time zones should fail validation",
 )
 
 console.log("infra config contract ok")

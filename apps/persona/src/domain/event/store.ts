@@ -43,6 +43,16 @@ export function getEventsSince(since: string, limit = 100): EventRow[] {
   )
 }
 
+export function getEventsBetween(start: string, end: string, limit = 200): EventRow[] {
+  return query<EventRow>(
+    `SELECT * FROM events
+     WHERE "timestamp" >= ? AND "timestamp" < ?
+     ORDER BY "timestamp" ASC
+     LIMIT ?`,
+    [start, end, limit]
+  )
+}
+
 export function countEventsToday(): number {
   const row = queryOne<{ count: number }>(
     `SELECT COUNT(*) as count FROM events WHERE date(created_at) = date('now')`

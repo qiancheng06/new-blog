@@ -32,6 +32,11 @@ schema paths; provider output and user content are not included in errors.
 
 Set `LLM_PROVIDER=mock` for no-network smoke tests. The mock provider returns a deterministic Companion reply and Memory patch while preserving the same `callCompanion` / `callAnalysis` interface used by the real DeepSeek provider.
 
+Daily Summary date boundaries use `PERSONA_TIME_ZONE`, an IANA time zone that
+defaults to `Asia/Shanghai`. The provider receives only the bounded context for
+the selected local date. Mock mode returns a deterministic Daily Note without a
+network call.
+
 ## Local Backend Entrypoints
 
 - `npm run dev:backend` starts the real local Persona runtime on port 3001, including API and Telegram bot wiring.

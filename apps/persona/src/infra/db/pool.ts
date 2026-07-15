@@ -51,6 +51,7 @@ export function initializeDb(): void {
   }
 
   migrateProjectionState()
+  migrateDailyNotes()
 
   console.log("database initialized")
 }
@@ -69,7 +70,14 @@ function migrateProjectionState(): void {
   _db.exec("CREATE INDEX IF NOT EXISTS idx_topics_state_active ON topics(state, last_active_at DESC);")
 }
 
-function ensureColumn(tableName: "profile" | "topics", columnName: string, definition: string): void {
+function migrateDailyNotes(): void {
+  ensureColumn("daily_notes", "source_event_id", "TEXT REFERENCES events(id)")
+  ensureColumn("daily_notes", "updated_at", "TEXT NOT NULL DEFAULT ''")
+  _db.exec("UPDATE daily_notes SET updated_at = created_at WHERE updated_at = '';")
+  _db.exec("CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);")
+}
+
+function ensureColumn(tableName: "profile" | "topics" | "daily_notes", columnName: string, definition: string): void {
   const columns = _db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
   if (columns.some((column) => column.name === columnName)) return
   _db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`)

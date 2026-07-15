@@ -47,6 +47,25 @@ export function createSystemEvent(type: SystemEventType, payload: Record<string,
   }
 }
 
+export interface DailySummaryReadyPayload {
+  daily_note_id: string
+  date: string
+  event_count: number
+}
+
+export function createDailySummaryReadyEvent(payload: DailySummaryReadyPayload): Event {
+  return {
+    source: "system",
+    type: "summary_ready",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "daily_summary",
+      visibility: "user",
+    },
+  }
+}
+
 export interface CompanionReplyPayload {
   text: string
   in_reply_to: string

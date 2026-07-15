@@ -67,5 +67,9 @@ CREATE TABLE IF NOT EXISTS daily_notes (
   summary TEXT NOT NULL DEFAULT '',
   highlights TEXT NOT NULL DEFAULT '[]',
   topic_distribution TEXT NOT NULL DEFAULT '{}',
-  created_at TEXT NOT NULL DEFAULT (datetime('now'))
+  source_event_id TEXT REFERENCES events(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
+
+CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);
