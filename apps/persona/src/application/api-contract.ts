@@ -72,6 +72,18 @@ async function verifyNotFound(portNumber: number): Promise<void> {
 }
 
 async function verifyInvalidChat(portNumber: number): Promise<void> {
+  const rejectedTag = `${contractTag}-rejected-body`
+
+  const wrongContentType = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    body: JSON.stringify({ text: rejectedTag }),
+  })
+  assert(wrongContentType.status === 415, `wrong content type expected 415, got ${wrongContentType.status}`)
+  assert(
+    (await wrongContentType.json() as { error?: string }).error === "content-type must be application/json",
+    "wrong content type error mismatch",
+  )
+
   const invalidJson = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -80,6 +92,24 @@ async function verifyInvalidChat(portNumber: number): Promise<void> {
   assert(invalidJson.status === 400, `invalid JSON expected 400, got ${invalidJson.status}`)
   assert((await invalidJson.json() as { error?: string }).error === "invalid json", "invalid JSON error mismatch")
 
+  for (const invalidShape of [null, [], "text", 42]) {
+    const response = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(invalidShape),
+    })
+    assert(response.status === 400, `non-object JSON expected 400, got ${response.status}`)
+    assert((await response.json() as { error?: string }).error === "json object required", "JSON object error mismatch")
+  }
+
+  const oversized = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `${rejectedTag}${"x".repeat(70 * 1024)}` }),
+  })
+  assert(oversized.status === 413, `oversized JSON expected 413, got ${oversized.status}`)
+  assert((await oversized.json() as { error?: string }).error === "request body too large", "oversized body error mismatch")
+
   const missingText = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -87,6 +117,9 @@ async function verifyInvalidChat(portNumber: number): Promise<void> {
   })
   assert(missingText.status === 400, `missing text expected 400, got ${missingText.status}`)
   assert((await missingText.json() as { error?: string }).error === "text is required", "missing text error mismatch")
+
+  const rejectedEvent = queryOne<{ id: string }>("SELECT id FROM events WHERE payload LIKE ?", [`%${rejectedTag}%`])
+  assert(!rejectedEvent, "rejected request bodies must not create Events")
 }
 
 async function verifyValidChat(portNumber: number): Promise<void> {

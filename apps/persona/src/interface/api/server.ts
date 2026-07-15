@@ -28,28 +28,45 @@ const CORS_HEADERS = {
   "Access-Control-Allow-Headers": "Content-Type",
 }
 
+const MAX_JSON_BODY_BYTES = 64 * 1024
+
 function json(res: ServerResponse, status: number, data: unknown) {
   res.writeHead(status, { "Content-Type": "application/json", ...CORS_HEADERS })
   res.end(JSON.stringify(data))
 }
 
-function readBody(req: IncomingMessage): Promise<string> {
+function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
   return new Promise((resolve, reject) => {
-    let body = ""
-    req.on("data", (chunk: Buffer) => { body += chunk.toString() })
-    req.on("end", () => resolve(body))
-    req.on("error", reject)
+    const chunks: Buffer[] = []
+    let size = 0
+    let settled = false
+
+    req.on("data", (chunk: Buffer) => {
+      if (settled) return
+      size += chunk.length
+      if (size > maxBytes) {
+        settled = true
+        reject(new RequestBodyTooLargeError())
+        return
+      }
+      chunks.push(chunk)
+    })
+    req.on("end", () => {
+      if (settled) return
+      settled = true
+      resolve(Buffer.concat(chunks).toString("utf-8"))
+    })
+    req.on("error", (err) => {
+      if (settled) return
+      settled = true
+      reject(err)
+    })
   })
 }
 
 async function handleChat(req: IncomingMessage, res: ServerResponse) {
-  const body = await readBody(req)
-  let parsed: { text?: string; page?: string; evaluationRunId?: string }
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    return json(res, 400, { error: "invalid json" })
-  }
+  const parsed = await readJsonObject<{ text?: string; page?: string; evaluationRunId?: string }>(req, res)
+  if (!parsed) return
 
   const text = parsed.text?.trim()
   if (!text) return json(res, 400, { error: "text is required" })
@@ -140,13 +157,8 @@ function handleMemorySources(_url: URL, res: ServerResponse) {
 }
 
 async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerResponse) {
-  const body = await readBody(req)
-  let parsed: { key?: string; value?: unknown; reason?: string }
-  try {
-    parsed = JSON.parse(body)
-  } catch {
-    return json(res, 400, { error: "invalid json" })
-  }
+  const parsed = await readJsonObject<{ key?: string; value?: unknown; reason?: string }>(req, res)
+  if (!parsed) return
 
   try {
     const result = correctMemoryProfile({
@@ -167,7 +179,7 @@ async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerRe
 }
 
 async function handleMemoryProfileState(req: IncomingMessage, res: ServerResponse) {
-  const parsed = await readJsonBody<{ id?: string; state?: string; reason?: string }>(req, res)
+  const parsed = await readJsonObject<{ id?: string; state?: string; reason?: string }>(req, res)
   if (!parsed) return
 
   try {
@@ -183,7 +195,7 @@ async function handleMemoryProfileState(req: IncomingMessage, res: ServerRespons
 }
 
 async function handleMemoryTopicState(req: IncomingMessage, res: ServerResponse) {
-  const parsed = await readJsonBody<{ id?: string; state?: string; reason?: string }>(req, res)
+  const parsed = await readJsonObject<{ id?: string; state?: string; reason?: string }>(req, res)
   if (!parsed) return
 
   try {
@@ -258,15 +270,56 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
   }
 }
 
-async function readJsonBody<T>(req: IncomingMessage, res: ServerResponse): Promise<T | null> {
-  const body = await readBody(req)
+async function readJsonObject<T extends Record<string, unknown>>(
+  req: IncomingMessage,
+  res: ServerResponse,
+): Promise<T | null> {
+  if (readMediaType(req) !== "application/json") {
+    json(res, 415, { error: "content-type must be application/json" })
+    return null
+  }
+
+  const contentLength = Number(req.headers["content-length"])
+  if (Number.isFinite(contentLength) && contentLength > MAX_JSON_BODY_BYTES) {
+    req.resume()
+    json(res, 413, { error: "request body too large" })
+    return null
+  }
+
+  let body: string
   try {
-    return JSON.parse(body) as T
+    body = await readBody(req, MAX_JSON_BODY_BYTES)
+  } catch (err) {
+    if (err instanceof RequestBodyTooLargeError) {
+      json(res, 413, { error: "request body too large" })
+      return null
+    }
+    throw err
+  }
+
+  let parsed: unknown
+  try {
+    parsed = JSON.parse(body) as unknown
   } catch {
     json(res, 400, { error: "invalid json" })
     return null
   }
+
+  if (!parsed || typeof parsed !== "object" || Array.isArray(parsed)) {
+    json(res, 400, { error: "json object required" })
+    return null
+  }
+
+  return parsed as T
 }
+
+function readMediaType(req: IncomingMessage): string {
+  const contentType = req.headers["content-type"]
+  const value = Array.isArray(contentType) ? contentType[0] : contentType
+  return value?.split(";", 1)[0].trim().toLowerCase() ?? ""
+}
+
+class RequestBodyTooLargeError extends Error {}
 
 function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
   if (err instanceof MemoryValidationError) {

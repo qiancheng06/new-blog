@@ -43,7 +43,10 @@ Error responses:
 
 ```ts
 { error: "invalid json" }      // 400
+{ error: "json object required" } // 400
 { error: "text is required" }  // 400
+{ error: "request body too large" } // 413
+{ error: "content-type must be application/json" } // 415
 {
   reply: string,
   error: "processing failed"
@@ -273,6 +276,8 @@ body returns `topic`.
 - `OPTIONS` returns `204` only for configured `PERSONA_ALLOWED_ORIGINS` and
   returns `403` for an unknown browser origin.
 - Unknown routes return `404 { error: "not found" }`.
+- POST bodies must be JSON objects with `Content-Type: application/json` and
+  may not exceed 64 KiB.
 - Memory list limits are normalized by the Application layer and capped at 100.
 - Memory APIs are read-only and must not mutate Events, Profile, Topics, or
   Timeline rows.

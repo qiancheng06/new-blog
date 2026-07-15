@@ -31,6 +31,8 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - Infra config contract test for no-network real-mode preflight behavior.
 - API loopback/CORS and Telegram trusted-chat boundaries are fail-closed by
   default and covered by no-network contracts.
+- JSON write routes reject unsupported media types, non-object JSON, and bodies
+  larger than 64 KiB before creating Events or changing Memory.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
 - Real-mode cleanup contract test for tagged evaluation data preview and safe timeline-only cleanup.
 - Workspace entrypoint contract test for the served `http://127.0.0.1:5173/` primary UI path and legacy HTML boundaries.
