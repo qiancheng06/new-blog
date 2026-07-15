@@ -17,6 +17,7 @@ export function personaUrl(path: string): string {
 export async function getPersonaJson<T>(path: string, init?: RequestInit): Promise<T> {
   const response = await fetch(personaUrl(path), {
     ...init,
+    cache: init?.cache ?? "no-store",
     headers: {
       Accept: "application/json",
       ...init?.headers,

@@ -52,6 +52,14 @@ assert(workspaceData.includes("/data/knowledge.json"), "Workspace data layer mus
 const nextPersonaApi = readFileSync(join(workspaceRoot, "src", "shared", "api", "personaApi.ts"), "utf-8")
 assert(nextPersonaApi.includes("http://127.0.0.1:3001"), "Next Persona API client must default to 127.0.0.1:3001")
 assert(!nextPersonaApi.includes("data/persona-os.db"), "Next Persona API client must not read SQLite directly")
+assert(nextPersonaApi.includes('cache: init?.cache ?? "no-store"'), "Persona runtime reads must bypass browser caches")
+
+const dailySummaryPanel = readFileSync(
+  join(workspaceRoot, "src", "features", "daily-summary", "DailySummaryPanel.tsx"),
+  "utf-8",
+)
+assert(dailySummaryPanel.includes("/api/daily-summaries"), "Daily Note panel must use the Application summary API")
+assert(dailySummaryPanel.includes("Generate"), "Daily Note panel must expose summary generation")
 
 const layout = readFileSync(join(workspaceRoot, ".vitepress", "theme", "Layout.vue"), "utf-8")
 assert(layout.includes("MemoryProfilePanel"), "Workspace layout must expose the Memory/Profile panel")

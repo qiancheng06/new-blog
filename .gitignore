@@ -12,5 +12,5 @@ Thumbs.db
 # Persona OS backend
 dist/
 .env
-data/
+/data/
 *.log

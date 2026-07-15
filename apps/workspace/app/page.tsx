@@ -1,5 +1,6 @@
 import { CalendarPanel } from "@/features/calendar/CalendarPanel"
 import { ChatDock } from "@/features/chat/ChatDock"
+import { DailySummaryPanel } from "@/features/daily-summary/DailySummaryPanel"
 import { KnowledgePanel } from "@/features/knowledge/KnowledgePanel"
 import { MemoryPanel } from "@/features/memory/MemoryPanel"
 import { ProjectsPanel } from "@/features/projects/ProjectsPanel"
@@ -44,6 +45,7 @@ const navItems = [
   { label: "Calendar", href: "#calendar" },
   { label: "Knowledge", href: "#knowledge" },
   { label: "Memory", href: "#memory" },
+  { label: "Daily Note", href: "#daily-note" },
 ]
 
 export default function WorkspaceHome() {
@@ -127,6 +129,10 @@ export default function WorkspaceHome() {
 
       <section id="memory" className="workspace-band">
         <MemoryPanel />
+      </section>
+
+      <section id="daily-note" className="workspace-band">
+        <DailySummaryPanel />
       </section>
 
       <footer className="workspace-footer">

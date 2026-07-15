@@ -49,6 +49,13 @@ middle layer:
 - Knowledge: read-only content-site index and VitePress entrypoint.
 - Memory/Profile: governed Application API read/correction/state controls.
 - Companion Chat: Application API chat dock.
+- Daily Note: date selection, generation/refresh, highlights, topics, and recent
+  summaries through `/api/daily-summaries`.
+
+Persona API GET requests use `cache: "no-store"` so Memory and runtime panels
+reflect writes immediately. The TypeScript data adapters under
+`apps/workspace/src/shared/data/` are tracked source files; only generated JSON
+under `apps/workspace/public/data/` is ignored.
 
 Do not remove VitePress or legacy HTML until replacement feature coverage is
 verified.

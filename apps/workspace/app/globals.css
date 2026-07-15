@@ -123,6 +123,7 @@ button {
 .hero-copy,
 .status-strip,
 .memory-panel,
+.daily-note-panel,
 .module-card {
   border: 1px solid var(--line);
   background: rgba(22, 27, 34, 0.78);
@@ -400,6 +401,11 @@ h1 {
 
 .workspace-band {
   margin-top: 18px;
+  scroll-margin-top: 76px;
+}
+
+.feature-panel {
+  scroll-margin-top: 76px;
 }
 
 .feature-panel {
@@ -808,6 +814,173 @@ h1 {
 .memory-panel {
   border-radius: 16px;
   overflow: hidden;
+}
+
+.daily-note-panel {
+  border-radius: 16px;
+  overflow: hidden;
+}
+
+.daily-note-heading {
+  min-height: 76px;
+  padding: 18px 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  border-bottom: 1px solid var(--line);
+}
+
+.daily-note-heading h2,
+.daily-note-archive h3,
+.daily-note-section h3 {
+  margin: 0;
+}
+
+.daily-note-heading p {
+  margin: 5px 0 0;
+  color: var(--muted);
+  font-size: 0.84rem;
+}
+
+.daily-note-generate {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.daily-note-date {
+  width: 154px;
+  min-height: 36px;
+  padding-block: 7px;
+  color-scheme: dark;
+}
+
+.daily-note-alert {
+  margin: 0;
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--line);
+}
+
+.daily-note-body {
+  min-height: 320px;
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 280px;
+}
+
+.daily-note-content {
+  min-width: 0;
+  padding: 24px 22px 28px;
+}
+
+.daily-note-title-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.daily-note-title-row strong {
+  color: var(--green);
+  font-size: 0.92rem;
+}
+
+.daily-note-title-row span {
+  color: var(--muted-2);
+  font-size: 0.74rem;
+}
+
+.daily-note-summary {
+  max-width: 72ch;
+  margin: 18px 0 0;
+  color: var(--text);
+  line-height: 1.75;
+  overflow-wrap: anywhere;
+}
+
+.daily-note-section {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--line);
+}
+
+.daily-note-section h3,
+.daily-note-archive h3 {
+  color: var(--muted);
+  font-size: 0.76rem;
+  text-transform: uppercase;
+}
+
+.daily-note-section ul {
+  margin: 12px 0 0;
+  padding-left: 20px;
+  display: grid;
+  gap: 8px;
+  color: var(--muted);
+  line-height: 1.6;
+}
+
+.daily-note-topics {
+  margin-top: 12px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.daily-note-topics span {
+  padding: 5px 8px;
+  border: 1px solid rgba(99, 179, 255, 0.18);
+  border-radius: 6px;
+  color: var(--blue);
+  background: rgba(99, 179, 255, 0.06);
+  font-size: 0.74rem;
+}
+
+.daily-note-archive {
+  padding: 18px;
+  border-left: 1px solid var(--line);
+}
+
+.daily-note-archive-heading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.daily-note-list {
+  margin-top: 14px;
+  display: grid;
+  gap: 6px;
+}
+
+.daily-note-list button {
+  min-width: 0;
+  padding: 10px;
+  display: grid;
+  gap: 5px;
+  border: 1px solid transparent;
+  border-radius: 7px;
+  background: transparent;
+  color: var(--muted);
+  text-align: left;
+  cursor: pointer;
+}
+
+.daily-note-list button:hover,
+.daily-note-list button.active {
+  border-color: var(--line);
+  background: var(--surface);
+}
+
+.daily-note-list button.active span {
+  color: var(--green);
+}
+
+.daily-note-list small {
+  color: var(--muted-2);
+  line-height: 1.4;
+  overflow-wrap: anywhere;
 }
 
 .memory-heading {
@@ -1221,8 +1394,14 @@ h1 {
   .todo-columns,
   .knowledge-grid,
   .memory-controls,
-  .memory-item {
+  .memory-item,
+  .daily-note-body {
     grid-template-columns: 1fr;
+  }
+
+  .daily-note-archive {
+    border-top: 1px solid var(--line);
+    border-left: 0;
   }
 
   .hero-panel {
@@ -1277,8 +1456,29 @@ h1 {
     flex-direction: column;
   }
 
+  .workspace-nav-links {
+    width: 100%;
+    min-width: 0;
+    max-width: 100%;
+  }
+
+  .feature-panel,
+  .workspace-band {
+    scroll-margin-top: 130px;
+  }
+
   .workspace-footer {
     flex-direction: column;
+  }
+
+  .daily-note-heading,
+  .daily-note-generate {
+    align-items: stretch;
+    flex-direction: column;
+  }
+
+  .daily-note-date {
+    width: 100%;
   }
 
   .metric-grid {
