@@ -21,6 +21,7 @@
     "contract:runtime-burst": "tsx apps/persona/src/application/runtime-burst-contract.ts",
     "contract:runtime-startup": "tsx apps/persona/src/main/runtime-startup-contract.ts",
     "contract:real-mode-docs": "tsx apps/persona/src/application/real-mode-docs-contract.ts",
+    "contract:memory-transaction": "tsx apps/persona/src/application/memory-transaction-contract.ts",
     "cleanup:real-mode": "tsx apps/persona/src/domain/memory/cleanup-real-mode-tests.ts",
     "contract:cleanup": "tsx apps/persona/src/domain/memory/cleanup-real-mode-tests-contract.ts",
     "fixture:persona": "tsx apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",

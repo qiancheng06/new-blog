@@ -34,6 +34,10 @@ export function run(sql: string, params?: unknown[]): void {
   else stmt.run()
 }
 
+export function withTransaction<T>(work: () => T): T {
+  return _db.transaction(work)()
+}
+
 export function initializeDb(): void {
   const sql = readFileSync(schemaPath, "utf-8")
 

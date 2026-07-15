@@ -1,5 +1,5 @@
 import { randomUUID } from "crypto"
-import { query, queryOne, run } from "../../infra/db/pool.js"
+import { query, queryOne, run, withTransaction } from "../../infra/db/pool.js"
 import type { MemoryPatch, MemoryPatchWriteOptions, ProfileUpdate, TimelineEventPatch, TopicUpdate } from "./types.js"
 import type { MemoryProjectionState } from "../event/types.js"
 
@@ -94,11 +94,11 @@ export interface MemorySourceInspection {
 }
 
 export function applyMemoryPatch(patch: MemoryPatch, options: MemoryPatchWriteOptions = {}): MemoryPatchWriteResult {
-  return {
+  return withTransaction(() => ({
     topics: upsertTopicUpdates(patch.topic_updates),
     profile: upsertProfileUpdates(patch.profile_updates, options),
     timelineEvents: appendTimelineEvents(patch.timeline_events, options),
-  }
+  }))
 }
 
 export function getMemoryContext(options: { topicLimit?: number; profileLimit?: number; timelineLimit?: number } = {}): MemoryContext {

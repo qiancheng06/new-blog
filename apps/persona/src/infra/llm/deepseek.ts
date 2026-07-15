@@ -1,4 +1,5 @@
 import { assertRuntimeConfig, config } from "../config/index.js"
+import { z } from "zod"
 
 const API_URL = "https://api.deepseek.com/v1/chat/completions"
 
@@ -42,6 +43,47 @@ export interface AnalysisResult {
     }>
   }
 }
+
+const jsonValueSchema: z.ZodType<unknown> = z.lazy(() => z.union([
+  z.string(),
+  z.number().finite(),
+  z.boolean(),
+  z.null(),
+  z.array(jsonValueSchema),
+  z.record(jsonValueSchema),
+]))
+
+const textArraySchema = z.array(z.string().max(16_000)).max(100)
+
+const analysisResultSchema = z.object({
+  research: z.object({
+    core_points: textArraySchema,
+    hidden_assumptions: textArraySchema,
+    open_questions: textArraySchema,
+  }),
+  critic: z.object({
+    confidence: z.number().finite().min(0).max(1),
+    counter_examples: textArraySchema,
+    evidence_gaps: textArraySchema,
+  }),
+  memory_patch: z.object({
+    profile_updates: z.array(z.object({
+      key: z.string().trim().min(1).max(255),
+      value: jsonValueSchema,
+      confidence: z.number().finite().min(0).max(1),
+      cooling_required: z.boolean().optional(),
+    })).max(50),
+    topic_updates: z.array(z.object({
+      name: z.string().trim().min(1).max(255),
+      summary: z.string().trim().min(1).max(4_000).optional(),
+    })).max(50),
+    timeline_events: z.array(z.object({
+      date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
+      type: z.enum(["insight", "shift", "milestone"]),
+      summary: z.string().trim().min(1).max(4_000),
+    })).max(50),
+  }),
+})
 
 async function post(body: string, timeout: number): Promise<{ status: number; data: string }> {
   const response = await fetch(API_URL, {
@@ -129,11 +171,21 @@ export async function callAnalysis(systemPrompt: string, userMessage: string, hi
     jsonResponse: true,
   })
 
+  let parsed: unknown
   try {
-    return JSON.parse(content) as AnalysisResult
+    parsed = JSON.parse(content) as unknown
   } catch {
     throw new Error("DeepSeek analysis response was not valid JSON")
   }
+  return parseAnalysisResult(parsed)
+}
+
+export function parseAnalysisResult(input: unknown): AnalysisResult {
+  const result = analysisResultSchema.safeParse(input)
+  if (result.success) return result.data as AnalysisResult
+
+  const paths = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "root"))]
+  throw new Error(`DeepSeek analysis response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
 }
 
 function sanitizeProviderError(data: string): string {

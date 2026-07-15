@@ -21,6 +21,7 @@ import {
   type TopicRow,
 } from "../domain/memory/index.js"
 import { insertEvent, type EventRow } from "../domain/event/store.js"
+import { withTransaction } from "../infra/db/pool.js"
 import {
   createMemoryProfileCorrectionEvent,
   createMemoryProfileStateEvent,
@@ -112,20 +113,22 @@ export function correctMemoryProfile(input: ProfileCorrectionInput): ProfileCorr
   const key = input.key.trim()
   if (!key) throw new MemoryValidationError("key is required")
 
-  const event = insertEvent(createMemoryProfileCorrectionEvent({
-    key,
-    value: input.value,
-    reason: input.reason?.trim() || undefined,
-  }))
+  return withTransaction(() => {
+    const event = insertEvent(createMemoryProfileCorrectionEvent({
+      key,
+      value: input.value,
+      reason: input.reason?.trim() || undefined,
+    }))
 
-  const [profile] = upsertProfileUpdates(
-    [{ key, value: input.value, confidence: 1 }],
-    { sourceEventId: event.id }
-  )
+    const [profile] = upsertProfileUpdates(
+      [{ key, value: input.value, confidence: 1 }],
+      { sourceEventId: event.id }
+    )
 
-  if (!profile) throw new Error("profile correction did not write a row")
+    if (!profile) throw new Error("profile correction did not write a row")
 
-  return { event, profile }
+    return { event, profile }
+  })
 }
 
 export function changeMemoryProfileState(input: MemoryStateChangeInput): ProfileStateChangeResult {
@@ -133,15 +136,17 @@ export function changeMemoryProfileState(input: MemoryStateChangeInput): Profile
   const current = getMemoryProfileById(normalized.id)
   if (!current) throw new MemoryNotFoundError("profile not found")
 
-  const event = insertEvent(createMemoryProfileStateEvent({
-    target_id: current.id,
-    target_key: current.key,
-    reason: normalized.reason,
-    mode: stateToMode(normalized.state),
-  }))
-  const profile = updateProfileState({ ...normalized, eventId: event.id })
-  if (!profile) throw new MemoryNotFoundError("profile not found")
-  return { event, profile }
+  return withTransaction(() => {
+    const event = insertEvent(createMemoryProfileStateEvent({
+      target_id: current.id,
+      target_key: current.key,
+      reason: normalized.reason,
+      mode: stateToMode(normalized.state),
+    }))
+    const profile = updateProfileState({ ...normalized, eventId: event.id })
+    if (!profile) throw new MemoryNotFoundError("profile not found")
+    return { event, profile }
+  })
 }
 
 export function changeMemoryTopicState(input: MemoryStateChangeInput): TopicStateChangeResult {
@@ -149,15 +154,17 @@ export function changeMemoryTopicState(input: MemoryStateChangeInput): TopicStat
   const current = getMemoryTopicById(normalized.id)
   if (!current) throw new MemoryNotFoundError("topic not found")
 
-  const event = insertEvent(createMemoryTopicStateEvent({
-    target_id: current.id,
-    target_key: current.name,
-    reason: normalized.reason,
-    mode: stateToMode(normalized.state),
-  }))
-  const topic = updateTopicState({ ...normalized, eventId: event.id })
-  if (!topic) throw new MemoryNotFoundError("topic not found")
-  return { event, topic }
+  return withTransaction(() => {
+    const event = insertEvent(createMemoryTopicStateEvent({
+      target_id: current.id,
+      target_key: current.name,
+      reason: normalized.reason,
+      mode: stateToMode(normalized.state),
+    }))
+    const topic = updateTopicState({ ...normalized, eventId: event.id })
+    if (!topic) throw new MemoryNotFoundError("topic not found")
+    return { event, topic }
+  })
 }
 
 export class MemoryValidationError extends Error {

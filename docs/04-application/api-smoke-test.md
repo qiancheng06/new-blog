@@ -285,7 +285,7 @@ body returns `topic`.
   Application write path and must first append an Event.
 - `POST /api/memory/profile/state` and `POST /api/memory/topics/state` are
   governed projection-state write paths. They append governance Events before
-  changing row state.
+  changing row state. The Event and projection change commit atomically.
 
 ## Safe paths
 

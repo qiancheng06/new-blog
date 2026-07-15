@@ -2,7 +2,7 @@ import type { EventRow } from "../../domain/event/store.js"
 
 process.env.LLM_PROVIDER = "mock"
 
-const { callAnalysis, callCompanion } = await import("../../infra/llm/deepseek.js")
+const { callAnalysis, callCompanion, parseAnalysisResult } = await import("../../infra/llm/deepseek.js")
 const {
   buildAnalysisContextText,
   buildCompanionSystemPrompt,
@@ -84,6 +84,8 @@ assert(typeof analysis.memory_patch.profile_updates[0]?.confidence === "number",
 assert(analysis.memory_patch.topic_updates[0]?.name === "fixture user message", "mock topic name mismatch")
 assert(analysis.memory_patch.timeline_events[0]?.type === "insight", "mock timeline type mismatch")
 
+verifyAnalysisSchema()
+
 console.log("persona prompt fixture ok")
 
 function createEvent(id: string, type: string, text: string): EventRow {
@@ -96,6 +98,42 @@ function createEvent(id: string, type: string, text: string): EventRow {
     metadata: "{}",
     created_at: "2026-07-03T00:00:00.000Z",
   }
+}
+
+function verifyAnalysisSchema(): void {
+  const valid = {
+    research: { core_points: [], hidden_assumptions: [], open_questions: [] },
+    critic: { confidence: 0.5, counter_examples: [], evidence_gaps: [] },
+    memory_patch: {
+      profile_updates: [{ key: "preference", value: { concise: true }, confidence: 0.8 }],
+      topic_updates: [{ name: "architecture", summary: "Modular monolith" }],
+      timeline_events: [{ date: "2026-07-15", type: "insight", summary: "Schema fixture" }],
+    },
+  }
+
+  const parsed = parseAnalysisResult(valid)
+  assert(parsed.memory_patch.profile_updates[0]?.key === "preference", "valid analysis schema should parse")
+
+  assertSchemaRejected({ ...valid, critic: { ...valid.critic, confidence: 2 } }, "critic.confidence")
+  assertSchemaRejected({ ...valid, memory_patch: { ...valid.memory_patch, topic_updates: null } }, "memory_patch.topic_updates")
+  assertSchemaRejected({
+    ...valid,
+    memory_patch: {
+      ...valid.memory_patch,
+      timeline_events: [{ date: "2026-07-15", type: "reflection", summary: "private-schema-marker" }],
+    },
+  }, "memory_patch.timeline_events.0.type", "private-schema-marker")
+}
+
+function assertSchemaRejected(input: unknown, expectedPath: string, privateMarker?: string): void {
+  let message = ""
+  try {
+    parseAnalysisResult(input)
+  } catch (err) {
+    message = err instanceof Error ? err.message : String(err)
+  }
+  assert(message.includes(expectedPath), `analysis schema should reject ${expectedPath}`)
+  if (privateMarker) assert(!message.includes(privateMarker), "analysis schema error must not leak provider content")
 }
 
 function assert(condition: unknown, message: string): asserts condition {

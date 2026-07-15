@@ -13,6 +13,8 @@
 - The fixture must stay no-network and must force mock mode before importing provider adapters.
 - Companion output remains the only user-visible channel. It must not request JSON, expose `memory_patch`, or reveal private Memory context internals.
 - Analysis output stays hidden and structured. Mock analysis must keep deterministic `research`, `critic`, and `memory_patch` shapes.
+- Runtime schema validation rejects malformed Analysis fields before Memory
+  writes and reports field paths without echoing provider or user content.
 - History context must filter non-message events and keep only the latest bounded conversation window.
 
 Persona 是认知表达域，负责系统如何理解、分析和回应用户。

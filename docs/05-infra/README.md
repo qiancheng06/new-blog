@@ -26,6 +26,10 @@ Infra covers external dependencies, runtime environment, and adapters.
 
 Prompt and context assembly belongs to the AI runtime prompt layer, currently `apps/persona/src/ai-runtime/prompts/prompt-builder.ts`. The provider must not add domain labels such as recent conversation, memory context, user intent, or analysis instructions.
 
+The DeepSeek adapter parses Analysis responses as JSON and validates the full
+runtime shape before returning it to AI Runtime. Validation failures report only
+schema paths; provider output and user content are not included in errors.
+
 Set `LLM_PROVIDER=mock` for no-network smoke tests. The mock provider returns a deterministic Companion reply and Memory patch while preserving the same `callCompanion` / `callAnalysis` interface used by the real DeepSeek provider.
 
 ## Local Backend Entrypoints

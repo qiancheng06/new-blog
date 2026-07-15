@@ -88,6 +88,10 @@ the current SQLite schema:
   `source_event_id`.
 - `timeline_events` maps to `timeline_events`. Writes are append-only and never
   update existing rows.
+- One `memory_patch` is applied inside a single SQLite transaction. If any
+  Topic, Profile, or Timeline write fails, all writes from that patch roll back.
+- Governed Profile correction/state and Topic state changes also commit their
+  audit Event and projection update in one transaction.
 
 The source Event remains immutable. Memory writes only reference it through
 `source_event_id`.
