@@ -68,6 +68,9 @@ CREATE TABLE IF NOT EXISTS daily_notes (
   highlights TEXT NOT NULL DEFAULT '[]',
   topic_distribution TEXT NOT NULL DEFAULT '{}',
   source_event_id TEXT REFERENCES events(id),
+  archive_path TEXT,
+  archive_event_id TEXT REFERENCES events(id),
+  archived_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );

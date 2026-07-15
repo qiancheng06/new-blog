@@ -66,6 +66,26 @@ export function createDailySummaryReadyEvent(payload: DailySummaryReadyPayload):
   }
 }
 
+export interface DailyNoteExportedPayload {
+  daily_note_id: string
+  date: string
+  relative_path: string
+  status: "created" | "updated" | "unchanged"
+}
+
+export function createDailyNoteExportedEvent(payload: DailyNoteExportedPayload): Event {
+  return {
+    source: "system",
+    type: "daily_note_exported",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "long_term_archive",
+      visibility: "user",
+    },
+  }
+}
+
 export interface CompanionReplyPayload {
   text: string
   in_reply_to: string

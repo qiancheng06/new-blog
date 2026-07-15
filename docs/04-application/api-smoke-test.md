@@ -64,6 +64,9 @@ Success response `200`:
     highlights: string[],
     topicDistribution: Record<string, number>,
     sourceEventId: string,
+    archivePath: string | null,
+    archiveEventId: string | null,
+    archivedAt: string | null,
     createdAt: string,
     updatedAt: string
   },
@@ -85,6 +88,32 @@ parameters are `limit` and `offset`.
 
 Returns `{ note: DailyNote }` for an exact `YYYY-MM-DD` date, or `404` when no
 Daily Note exists.
+
+### `POST /api/daily-summaries/:date/archive`
+
+Archives an existing Daily Note into the configured Obsidian vault. Send an
+empty JSON object with `Content-Type: application/json`:
+
+```ts
+{}
+```
+
+Success response `200`:
+
+```ts
+{
+  note: DailyNote,
+  archiveEventId: string,
+  relativePath: string,
+  status: "created" | "updated" | "unchanged"
+}
+```
+
+The operation writes only Persona's managed Markdown block, preserves content
+outside that block, appends a `system/daily_note_exported` audit Event, and then
+records the relative path and audit Event id on the Daily Note projection. A
+file with the same name but no unique managed block returns `409` and is never
+overwritten. A missing, inaccessible, or unsafe vault returns `503`.
 
 Error responses:
 
@@ -325,6 +354,8 @@ body returns `topic`.
 - Unknown routes return `404 { error: "not found" }`.
 - POST bodies must be JSON objects with `Content-Type: application/json` and
   may not exceed 64 KiB.
+- Daily Note archive writes are confined to the configured external Obsidian
+  vault and reject unmanaged same-name files instead of overwriting them.
 - Memory list limits are normalized by the Application layer and capped at 100.
 - Memory APIs are read-only and must not mutate Events, Profile, Topics, or
   Timeline rows.

@@ -16,6 +16,7 @@ assert(mockConfig.apiPort === 3100, "API_PORT should parse as a number")
 assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback")
 assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
 assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
+assert(mockConfig.dailyNoteDirectory === "persona/daily-notes", "Daily Note directory default mismatch")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
@@ -118,6 +119,18 @@ assert(
   validateRuntimeConfig(invalidTimeZone).some((error) => error.includes("PERSONA_TIME_ZONE")),
   "invalid IANA time zones should fail validation",
 )
+
+for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./daily-notes"]) {
+  const invalidDailyNoteDirectory = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    API_PORT: "3001",
+    PERSONA_DAILY_NOTE_DIR: invalidDirectory,
+  })
+  assert(
+    validateRuntimeConfig(invalidDailyNoteDirectory).some((error) => error.includes("PERSONA_DAILY_NOTE_DIR")),
+    `invalid Daily Note directory should fail validation: ${invalidDirectory}`,
+  )
+}
 
 console.log("infra config contract ok")
 

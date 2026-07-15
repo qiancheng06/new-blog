@@ -7,6 +7,9 @@ export interface DailyNoteRow {
   highlights: string
   topic_distribution: string
   source_event_id: string | null
+  archive_path: string | null
+  archive_event_id: string | null
+  archived_at: string | null
   created_at: string
   updated_at: string
 }
@@ -48,6 +51,9 @@ export function upsertDailyNote(note: DailyNoteWrite): DailyNoteRow {
        highlights = excluded.highlights,
        topic_distribution = excluded.topic_distribution,
        source_event_id = excluded.source_event_id,
+       archive_path = NULL,
+       archive_event_id = NULL,
+       archived_at = NULL,
        updated_at = datetime('now')`,
     [
       note.id,
@@ -59,6 +65,22 @@ export function upsertDailyNote(note: DailyNoteWrite): DailyNoteRow {
     ]
   )
   return getDailyNoteByDate(note.date)!
+}
+
+export function markDailyNoteArchived(options: {
+  date: string
+  relativePath: string
+  eventId: string
+}): DailyNoteRow {
+  run(
+    `UPDATE daily_notes
+     SET archive_path = ?,
+         archive_event_id = ?,
+         archived_at = datetime('now')
+     WHERE date = ?`,
+    [options.relativePath, options.eventId, options.date],
+  )
+  return getDailyNoteByDate(options.date)!
 }
 
 function normalizeLimit(value: number): number {

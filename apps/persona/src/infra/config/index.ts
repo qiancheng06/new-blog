@@ -12,6 +12,7 @@ export interface RuntimeConfig {
   allowedOrigins: string[]
   timeZone: string
   obsidianVaultPath: string
+  dailyNoteDirectory: string
 }
 
 export interface RuntimeConfigValidationOptions {
@@ -37,6 +38,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     ]),
     timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
     obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
+    dailyNoteDirectory: env.PERSONA_DAILY_NOTE_DIR?.trim() || "persona/daily-notes",
   }
 }
 
@@ -65,6 +67,10 @@ export function validateRuntimeConfig(
 
   if (!isValidTimeZone(runtimeConfig.timeZone)) {
     errors.push(`PERSONA_TIME_ZONE must be a valid IANA time zone. Current: ${runtimeConfig.timeZone || "(empty)"}`)
+  }
+
+  if (!isSafeRelativeDirectory(runtimeConfig.dailyNoteDirectory)) {
+    errors.push("PERSONA_DAILY_NOTE_DIR must be a relative directory without '.' or '..' segments.")
   }
 
   if (options.requireLlm && runtimeConfig.llmProvider !== "mock" && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
@@ -136,6 +142,12 @@ function isValidTimeZone(value: string): boolean {
   } catch {
     return false
   }
+}
+
+function isSafeRelativeDirectory(value: string): boolean {
+  if (!value || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\")) return false
+  const segments = value.split(/[\\/]+/)
+  return segments.length > 0 && segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
 }
 
 export const config = loadRuntimeConfig()

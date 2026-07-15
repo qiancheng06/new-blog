@@ -83,6 +83,10 @@ Daily Note per local calendar date. Application generation follows these rules:
 - the Daily Note upsert and audit Event are committed in one transaction
 - regenerating a date preserves the Daily Note id and updates its
   `source_event_id` to the latest `summary_ready` Event
+- a successful Obsidian archive records `archive_path`, `archive_event_id`, and
+  `archived_at` on the projection and appends a `daily_note_exported` Event
+- regenerating a date clears those archive fields so stale archive state is not
+  presented as current; the next archive request refreshes the managed block
 
 The public read shape parses `highlights` and `topic_distribution` into arrays
 and objects; their SQLite columns remain JSON text.

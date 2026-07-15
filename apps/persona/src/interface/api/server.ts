@@ -24,7 +24,10 @@ import {
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
 import {
   DailySummaryNotFoundError,
+  DailySummaryArchiveConflictError,
+  DailySummaryArchiveUnavailableError,
   DailySummaryValidationError,
+  archiveDailySummary,
   generateDailySummary,
   getDailySummaries,
   getDailySummary,
@@ -280,6 +283,10 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/daily-summaries" && req.method === "GET") {
       return handleDailySummaries(requestUrl, res)
     }
+    const dailySummaryArchiveMatch = /^\/api\/daily-summaries\/(\d{4}-\d{2}-\d{2})\/archive$/.exec(url)
+    if (dailySummaryArchiveMatch && req.method === "POST") {
+      return await handleDailySummaryArchive(req, dailySummaryArchiveMatch[1], res)
+    }
     const dailySummaryMatch = /^\/api\/daily-summaries\/(\d{4}-\d{2}-\d{2})$/.exec(url)
     if (dailySummaryMatch && req.method === "GET") {
       return handleDailySummaryByDate(dailySummaryMatch[1], res)
@@ -363,6 +370,14 @@ function handleDailySummaryError(err: unknown, res: ServerResponse): void {
     json(res, 404, { error: err.message })
     return
   }
+  if (err instanceof DailySummaryArchiveConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  if (err instanceof DailySummaryArchiveUnavailableError) {
+    json(res, 503, { error: err.message })
+    return
+  }
   throw err
 }
 
@@ -427,6 +442,17 @@ function handleDailySummaries(url: URL, res: ServerResponse) {
 function handleDailySummaryByDate(date: string, res: ServerResponse) {
   try {
     json(res, 200, { note: getDailySummary(date) })
+  } catch (err) {
+    handleDailySummaryError(err, res)
+  }
+}
+
+async function handleDailySummaryArchive(req: IncomingMessage, date: string, res: ServerResponse) {
+  const parsed = await readJsonObject<Record<string, never>>(req, res)
+  if (!parsed) return
+
+  try {
+    json(res, 200, archiveDailySummary(date))
   } catch (err) {
     handleDailySummaryError(err, res)
   }

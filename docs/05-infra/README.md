@@ -116,6 +116,19 @@ OBSIDIAN_VAULT_PATH=C:\Users\33831\OneDrive\obsidian\obsidian
 
 The current fallback keeps the original local path for this machine, but new machines and AI workers should treat `.env` / `.env.example` as the source of truth. The vault remains outside the repo and must not be committed.
 
+Persona archives generated Daily Notes below `PERSONA_DAILY_NOTE_DIR`, which
+defaults to `persona/daily-notes`. The value must be a relative directory and
+may not contain `.` or `..` segments. Both the vault and the final canonical
+directory must remain outside the repository and inside the configured vault;
+symbolic-link or junction escapes are rejected.
+
+Each archive uses the deterministic filename `YYYY-MM-DD.md` and an atomic
+temporary-file rename. Persona owns only the block between
+`<!-- PERSONA:DAILY_NOTE -->` and `<!-- /PERSONA:DAILY_NOTE -->`. Later exports
+replace that unique block and preserve user-authored Markdown around it. An
+existing same-name file without exactly one valid managed block is treated as a
+conflict and is not changed.
+
 ## Related Code
 
 - `apps/persona/src/infra/db/pool.ts`

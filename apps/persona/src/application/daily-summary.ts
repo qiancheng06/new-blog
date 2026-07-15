@@ -1,10 +1,11 @@
 import { randomUUID } from "crypto"
 import { DAILY_SUMMARY_PROMPT } from "../ai-runtime/prompts/daily-summary.js"
 import { getEventsBetween, insertEvent, type EventRow } from "../domain/event/store.js"
-import { createDailySummaryReadyEvent } from "../domain/event/types.js"
+import { createDailyNoteExportedEvent, createDailySummaryReadyEvent } from "../domain/event/types.js"
 import {
   getDailyNoteByDate,
   listDailyNotes,
+  markDailyNoteArchived,
   upsertDailyNote,
   type DailyNoteListOptions,
   type DailyNoteRow,
@@ -13,6 +14,11 @@ import { listMemoryTimelineEvents } from "../domain/memory/store.js"
 import { config } from "../infra/config/index.js"
 import { withTransaction } from "../infra/db/pool.js"
 import { callDailySummary } from "../infra/llm/deepseek.js"
+import {
+  exportDailyNoteToObsidian,
+  ObsidianArchiveConflictError,
+  ObsidianArchiveUnavailableError,
+} from "../infra/obsidian/daily-note-exporter.js"
 
 const DAILY_EVENT_LIMIT = 200
 const SUMMARY_EVENT_TYPES = new Set(["message", "note", "todo", "idea", "journal", "companion_reply"])
@@ -24,6 +30,9 @@ export interface DailyNote {
   highlights: string[]
   topicDistribution: Record<string, number>
   sourceEventId: string | null
+  archivePath: string | null
+  archiveEventId: string | null
+  archivedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -34,9 +43,20 @@ export interface DailySummaryGenerationResult {
   eventCount: number
 }
 
+export interface DailySummaryArchiveResult {
+  note: DailyNote
+  archiveEventId: string
+  relativePath: string
+  status: "created" | "updated" | "unchanged"
+}
+
 export class DailySummaryValidationError extends Error {}
 
 export class DailySummaryNotFoundError extends Error {}
+
+export class DailySummaryArchiveUnavailableError extends Error {}
+
+export class DailySummaryArchiveConflictError extends Error {}
 
 export async function generateDailySummary(options: { date?: string } = {}): Promise<DailySummaryGenerationResult> {
   const date = resolveDailySummaryDate(options.date)
@@ -86,6 +106,46 @@ export function getDailySummary(date: string): DailyNote {
 
 export function getDailySummaries(options: DailyNoteListOptions = {}): DailyNote[] {
   return listDailyNotes(options).map(toDailyNote)
+}
+
+export function archiveDailySummary(date: string): DailySummaryArchiveResult {
+  const note = getDailySummary(date)
+  let archive: { relativePath: string; status: "created" | "updated" | "unchanged" }
+
+  try {
+    archive = exportDailyNoteToObsidian(note, {
+      vaultPath: config.obsidianVaultPath,
+      relativeDirectory: config.dailyNoteDirectory,
+    })
+  } catch (err) {
+    if (err instanceof ObsidianArchiveConflictError) {
+      throw new DailySummaryArchiveConflictError(err.message)
+    }
+    if (err instanceof ObsidianArchiveUnavailableError) {
+      throw new DailySummaryArchiveUnavailableError(err.message)
+    }
+    throw err
+  }
+
+  return withTransaction(() => {
+    const archiveEvent = insertEvent(createDailyNoteExportedEvent({
+      daily_note_id: note.id,
+      date: note.date,
+      relative_path: archive.relativePath,
+      status: archive.status,
+    }))
+    const archivedNote = markDailyNoteArchived({
+      date: note.date,
+      relativePath: archive.relativePath,
+      eventId: archiveEvent.id,
+    })
+    return {
+      note: toDailyNote(archivedNote),
+      archiveEventId: archiveEvent.id,
+      relativePath: archive.relativePath,
+      status: archive.status,
+    }
+  })
 }
 
 export function getCurrentDailySummaryDate(now = new Date(), timeZone = config.timeZone): string {
@@ -167,6 +227,9 @@ function toDailyNote(row: DailyNoteRow): DailyNote {
     highlights: parseHighlights(row.highlights),
     topicDistribution: parseTopicDistribution(row.topic_distribution),
     sourceEventId: row.source_event_id,
+    archivePath: row.archive_path,
+    archiveEventId: row.archive_event_id,
+    archivedAt: row.archived_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

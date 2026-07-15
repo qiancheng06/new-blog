@@ -45,6 +45,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:daily-summary",
   },
   {
+    name: "Obsidian Daily Note archive contract test",
+    command: "npm.cmd run contract:obsidian-archive",
+  },
+  {
     name: "Persona prompt fixture test",
     command: "npm.cmd run fixture:persona",
   },
@@ -152,6 +156,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/real-mode-docs-contract.ts",
     "apps/persona/src/application/memory-transaction-contract.ts",
     "apps/persona/src/application/daily-summary-contract.ts",
+    "apps/persona/src/application/obsidian-archive-contract.ts",
+    "apps/persona/src/infra/obsidian/daily-note-exporter.ts",
     "apps/persona/src/application/runtime-burst-contract.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",
