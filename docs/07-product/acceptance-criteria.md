@@ -23,7 +23,8 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
-  entrypoint, `/health` readiness, and `stop()` shutdown behavior.
+  entrypoint, `/health` readiness, pending-work observability, and graceful
+  `stop()` draining behavior.
 - No-network real-mode docs contract test for required P16 checklist/template
   sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.

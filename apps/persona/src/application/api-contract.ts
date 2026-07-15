@@ -44,11 +44,13 @@ async function verifyHealth(portNumber: number): Promise<void> {
     status?: string
     uptime?: number
     events_today?: number
+    background_tasks?: { pending?: number }
   }>(`http://127.0.0.1:${portNumber}/health`)
 
   assert(body.status === "ok", "health.status must be ok")
   assert(typeof body.uptime === "number", "health.uptime must be number")
   assert(typeof body.events_today === "number", "health.events_today must be number")
+  assert(typeof body.background_tasks?.pending === "number", "health.background_tasks.pending must be number")
 }
 
 async function verifyNotFound(portNumber: number): Promise<void> {
@@ -103,6 +105,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     status?: string
     uptime?: number
     events_today?: number
+    background_tasks?: { pending?: number }
     memory?: { topics?: number; profile?: number; timelineEvents?: number }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
@@ -110,6 +113,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(body.status === "ok", "status.status must be ok")
   assert(typeof body.uptime === "number", "status.uptime must be number")
   assert(typeof body.events_today === "number", "status.events_today must be number")
+  assert(typeof body.background_tasks?.pending === "number", "status.background_tasks.pending must be number")
   assert(typeof body.memory?.topics === "number", "status.memory.topics must be number")
   assert(typeof body.memory?.profile === "number", "status.memory.profile must be number")
   assert(typeof body.memory?.timelineEvents === "number", "status.memory.timelineEvents must be number")

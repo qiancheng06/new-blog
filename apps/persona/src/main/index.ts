@@ -1,7 +1,10 @@
 import { initializeDb } from "../infra/db/pool.js"
 import { startApiServer, stopApiServer, type ApiServerOptions } from "../interface/api/server.js"
 import { assertRuntimeConfig, config } from "../infra/config/index.js"
+import { drainBackgroundTasks } from "../application/background-tasks.js"
 import type { Server } from "http"
+
+type TelegramModule = typeof import("../interface/telegram/bot.js")
 
 export interface PersonaRuntimeOptions {
   api?: ApiServerOptions
@@ -23,9 +26,11 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
 
   initializeDb()
   const apiServer = startApiServer(options.api)
+  let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
-    import("../interface/telegram/bot.js").then(({ startBot }) => {
+    telegramModulePromise = import("../interface/telegram/bot.js")
+    void telegramModulePromise.then(({ startBot }) => {
       return startBot()
     }).catch((err) => {
       console.error("[telegram startup error]", err instanceof Error ? err.message : err)
@@ -34,12 +39,54 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
     console.log("TELEGRAM_TOKEN not set, skipping telegram bot")
   }
 
+  let stopPromise: Promise<void> | null = null
+  const stop = (): Promise<void> => {
+    stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise)
+    return stopPromise
+  }
+
   return {
     apiServer,
-    stop: () => stopApiServer(apiServer),
+    stop,
   }
 }
 
 if (process.env.PERSONA_MAIN_AUTOSTART !== "0") {
-  startPersonaRuntime()
+  const runtime = startPersonaRuntime()
+  let shuttingDown = false
+
+  const shutdown = async (signal: NodeJS.Signals): Promise<void> => {
+    if (shuttingDown) return
+    shuttingDown = true
+    console.log(`persona-os shutting down (${signal})...`)
+    try {
+      await runtime.stop()
+    } catch (err) {
+      console.error("[shutdown error]", err instanceof Error ? err.message : err)
+      process.exitCode = 1
+    }
+  }
+
+  process.once("SIGINT", () => { void shutdown("SIGINT") })
+  process.once("SIGTERM", () => { void shutdown("SIGTERM") })
+}
+
+async function stopPersonaRuntime(
+  apiServer: Server,
+  telegramModulePromise: Promise<TelegramModule> | null,
+): Promise<void> {
+  const stopResults = await Promise.allSettled([
+    stopApiServer(apiServer),
+    telegramModulePromise
+      ? telegramModulePromise.then(({ stopBot }) => stopBot())
+      : Promise.resolve(),
+  ])
+
+  const drainResult = await drainBackgroundTasks()
+  if (!drainResult.completed) {
+    console.warn(`[shutdown warning] ${drainResult.pending} background task(s) still pending after timeout`)
+  }
+
+  const failure = stopResults.find((result): result is PromiseRejectedResult => result.status === "rejected")
+  if (failure) throw failure.reason
 }

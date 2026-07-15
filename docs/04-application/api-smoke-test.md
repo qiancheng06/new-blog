@@ -12,7 +12,10 @@ Response `200`:
 {
   status: "ok",
   uptime: number,
-  events_today: number
+  events_today: number,
+  background_tasks: {
+    pending: number
+  }
 }
 ```
 
@@ -56,6 +59,9 @@ Response `200`:
   status: "ok",
   uptime: number,
   events_today: number,
+  background_tasks: {
+    pending: number
+  },
   memory: {
     topics: number,
     profile: number,

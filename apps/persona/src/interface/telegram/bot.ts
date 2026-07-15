@@ -10,6 +10,8 @@ import { buildTelegramEvent } from "./events.js"
 export const bot = new Bot(config.telegramToken)
 
 const knownChats = new Set<number>()
+let pollingPromise: Promise<void> | null = null
+let errorHandlerInstalled = false
 
 bot.command("start", (ctx: Context) => {
   if (ctx.chat) knownChats.add(ctx.chat.id)
@@ -64,9 +66,28 @@ bot.on("message:text", async (ctx: Context) => {
 })
 
 export async function startBot(): Promise<void> {
-  bot.catch((err) => {
-    console.error("[telegram bot error]", err.error instanceof Error ? err.error.message : err.error)
+  if (pollingPromise) return pollingPromise
+
+  if (!errorHandlerInstalled) {
+    bot.catch((err) => {
+      console.error("[telegram bot error]", err.error instanceof Error ? err.error.message : err.error)
+    })
+    errorHandlerInstalled = true
+  }
+
+  const started = bot.start()
+  const tracked = started.finally(() => {
+    if (pollingPromise === tracked) pollingPromise = null
   })
-  await bot.start()
+  pollingPromise = tracked
   console.log("telegram bot started")
+  return tracked
+}
+
+export async function stopBot(): Promise<void> {
+  const activePolling = pollingPromise
+  if (bot.isRunning()) {
+    await bot.stop()
+  }
+  await activePolling?.catch(() => undefined)
 }

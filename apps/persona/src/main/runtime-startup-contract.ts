@@ -6,6 +6,10 @@ process.env.API_PORT = String(port)
 process.env.TELEGRAM_TOKEN = ""
 
 const { startPersonaRuntime } = await import("./index.js")
+const {
+  getPendingBackgroundTaskCount,
+  trackBackgroundTask,
+} = await import("../application/background-tasks.js")
 
 const runtime = startPersonaRuntime({
   api: { port, hostname: "127.0.0.1" },
@@ -14,12 +18,39 @@ const runtime = startPersonaRuntime({
 
 try {
   await waitForHealth(port)
-  await runtime.stop()
+  let releaseTask = (): void => undefined
+  const blockedTask = new Promise<void>((resolve) => {
+    releaseTask = resolve
+  })
+  trackBackgroundTask(blockedTask, "runtime-startup-contract")
+
+  const status = await readStatus(port)
+  assert(status.background_tasks?.pending === 1, "status should expose one pending background task")
+
+  let stopCompleted = false
+  const stopPromise = runtime.stop().then(() => {
+    stopCompleted = true
+  })
   await assertStopped(port)
+  assert(!stopCompleted, "runtime stop should wait for pending background tasks")
+  assert(getPendingBackgroundTaskCount() === 1, "pending task should remain tracked while shutdown waits")
+
+  releaseTask()
+  await stopPromise
+  assert(stopCompleted, "runtime stop should complete after pending task settles")
+  assert(getPendingBackgroundTaskCount() === 0, "shutdown should drain pending background tasks")
   console.log("runtime startup contract ok")
 } catch (err) {
   await runtime.stop().catch(() => undefined)
   throw err
+}
+
+async function readStatus(portNumber: number): Promise<{
+  background_tasks?: { pending?: number }
+}> {
+  const response = await fetch(`http://127.0.0.1:${portNumber}/api/status`)
+  assert(response.ok, "status request failed")
+  return await response.json() as { background_tasks?: { pending?: number } }
 }
 
 async function waitForHealth(portNumber: number): Promise<void> {

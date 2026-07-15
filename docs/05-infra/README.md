@@ -65,6 +65,12 @@ preflight before the bot starts. Runtime Telegram polling errors are logged with
 `[telegram startup error]` or `[telegram bot error]` and should not be treated as
 Workspace API contract changes.
 
+`SIGINT`, `SIGTERM`, and programmatic `runtime.stop()` use the same graceful
+shutdown path. Persona stops accepting API and Telegram input, then waits up to
+25 seconds for tracked Analysis/Memory background work to settle. `/health` and
+`/api/status` expose only the pending task count; task inputs and private content
+are never included.
+
 Default AI gates must not call real DeepSeek or Telegram services. Use
 `LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
 offline.

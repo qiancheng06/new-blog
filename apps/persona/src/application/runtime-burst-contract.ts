@@ -56,12 +56,14 @@ async function verifyStatus(portNumber: number, eventIds: string[]): Promise<voi
   const status = await getJson<{
     status?: string
     events_today?: number
+    background_tasks?: { pending?: number }
     memory?: { topics?: number; profile?: number; timelineEvents?: number }
     recent_events?: Array<{ id?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
   assert(status.status === "ok", "status should be ok after burst")
   assert(typeof status.events_today === "number", "status events_today should be numeric")
+  assert(status.background_tasks?.pending === 0, "background tasks should settle after burst memory writes")
   assert(typeof status.memory?.topics === "number", "status memory.topics should be numeric")
   assert(typeof status.memory?.profile === "number", "status memory.profile should be numeric")
   assert(typeof status.memory?.timelineEvents === "number", "status memory.timelineEvents should be numeric")

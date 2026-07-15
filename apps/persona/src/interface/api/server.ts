@@ -21,6 +21,7 @@ import {
   MemoryNotFoundError,
   parseMemoryListState,
 } from "../../application/memory.js"
+import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Origin": "*",
@@ -71,6 +72,7 @@ function handleHealth(_req: IncomingMessage, res: ServerResponse) {
     status: "ok",
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
+    background_tasks: { pending: getPendingBackgroundTaskCount() },
   })
 }
 
@@ -85,6 +87,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     status: "ok",
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
+    background_tasks: { pending: getPendingBackgroundTaskCount() },
     memory: getMemoryStatusStats(),
     recent_events: recentEvents.map((event) => ({
       id: event.id,
