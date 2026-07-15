@@ -29,6 +29,14 @@ const steps: Step[] = [
     command: "npm.cmd run contract:runtime-burst",
   },
   {
+    name: "No-network Persona runtime startup contract test",
+    command: "npm.cmd run contract:runtime-startup",
+  },
+  {
+    name: "No-network real-mode docs contract test",
+    command: "npm.cmd run contract:real-mode-docs",
+  },
+  {
     name: "Persona prompt fixture test",
     command: "npm.cmd run fixture:persona",
   },
@@ -120,11 +128,13 @@ function runRootStructureCheck(): void {
     "apps/workspace/scripts/watch.js",
     "apps/persona/src/index.ts",
     "apps/persona/src/main/index.ts",
+    "apps/persona/src/main/runtime-startup-contract.ts",
     "apps/persona/src/interface/api/server.ts",
     "apps/persona/src/interface/telegram/events.ts",
     "apps/persona/src/interface/telegram/telegram-contract.ts",
     "apps/persona/src/application/conversation.ts",
     "apps/persona/src/application/api-contract.ts",
+    "apps/persona/src/application/real-mode-docs-contract.ts",
     "apps/persona/src/application/runtime-burst-contract.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",

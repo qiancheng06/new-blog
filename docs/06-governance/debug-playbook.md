@@ -34,6 +34,8 @@ npm.cmd run verify:local
 npm.cmd run build:backend
 npm.cmd run smoke:api
 npm.cmd run contract:runtime-burst
+npm.cmd run contract:runtime-startup
+npm.cmd run contract:real-mode-docs
 npm.cmd run sync
 npm.cmd run build
 ```

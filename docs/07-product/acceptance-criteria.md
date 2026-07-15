@@ -22,6 +22,10 @@ This gate must pass without calling real LLM or Telegram services. It covers:
   no-reply boundaries, and real-mode evaluation metadata labeling.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
+- No-network Persona runtime startup contract test for the formal runtime
+  entrypoint, `/health` readiness, and `stop()` shutdown behavior.
+- No-network real-mode docs contract test for required P16 checklist/template
+  sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
 - Infra config contract test for no-network real-mode preflight behavior.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
@@ -40,6 +44,10 @@ Use individual commands only for focused diagnosis:
   and evaluation run labeling failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
   health/status regressions, and async Memory patch timing failures.
+- `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint
+  startup, health readiness, and shutdown regressions.
+- `npm.cmd run contract:real-mode-docs` for real-mode checklist/template drift
+  that could hide a P16 gate or weaken evidence boundaries.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
 - `npm.cmd run check:infra` for `.env`, provider, API port, and real-mode preflight failures.
 - `npm.cmd run contract:runtime` for runtime diagnostics redaction and no-network contract failures.
