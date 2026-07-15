@@ -4,9 +4,12 @@ export type LlmProvider = "deepseek" | "mock"
 
 export interface RuntimeConfig {
   telegramToken: string
+  telegramAllowedChatIds: number[]
   openaiApiKey: string
   llmProvider: string
   apiPort: number
+  apiHost: string
+  allowedOrigins: string[]
   obsidianVaultPath: string
 }
 
@@ -22,9 +25,15 @@ function optional(key: string): string {
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
   return {
     telegramToken: env.TELEGRAM_TOKEN?.trim() || "",
+    telegramAllowedChatIds: parseNumberList(env.TELEGRAM_ALLOWED_CHAT_IDS),
     openaiApiKey: env.OPENAI_API_KEY?.trim() || "",
     llmProvider: env.LLM_PROVIDER?.trim() || "deepseek",
     apiPort: Number(env.API_PORT || 3001),
+    apiHost: env.API_HOST?.trim() || "127.0.0.1",
+    allowedOrigins: parseTextList(env.PERSONA_ALLOWED_ORIGINS, [
+      "http://127.0.0.1:5173",
+      "http://127.0.0.1:5174",
+    ]),
     obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
   }
 }
@@ -43,12 +52,29 @@ export function validateRuntimeConfig(
     errors.push(`API_PORT must be an integer between 1 and 65535. Current: ${String(runtimeConfig.apiPort)}`)
   }
 
+  if (!/^[A-Za-z0-9.:[\]-]+$/.test(runtimeConfig.apiHost)) {
+    errors.push(`API_HOST must be a hostname or IP address. Current: ${runtimeConfig.apiHost || "(empty)"}`)
+  }
+
+  const invalidOrigin = runtimeConfig.allowedOrigins.find((origin) => !isHttpOrigin(origin))
+  if (invalidOrigin) {
+    errors.push(`PERSONA_ALLOWED_ORIGINS contains an invalid HTTP(S) origin: ${invalidOrigin}`)
+  }
+
   if (options.requireLlm && runtimeConfig.llmProvider !== "mock" && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
     errors.push("OPENAI_API_KEY is required for real DeepSeek mode. Use LLM_PROVIDER=mock for no-network local demos.")
   }
 
   if (options.requireTelegram && isPlaceholderOrEmpty(runtimeConfig.telegramToken)) {
     errors.push("TELEGRAM_TOKEN is required when Telegram startup is enabled.")
+  }
+
+  if (runtimeConfig.telegramAllowedChatIds.some((id) => !Number.isSafeInteger(id) || id === 0)) {
+    errors.push("TELEGRAM_ALLOWED_CHAT_IDS must contain non-zero safe integers separated by commas.")
+  }
+
+  if (options.requireTelegram && runtimeConfig.telegramAllowedChatIds.length === 0) {
+    errors.push("TELEGRAM_ALLOWED_CHAT_IDS must contain at least one trusted chat when Telegram startup is enabled.")
   }
 
   return errors
@@ -77,6 +103,24 @@ function isPlaceholderOrEmpty(value: string): boolean {
     normalized === "sk-your_deepseek_key_here" ||
     normalized === "your_key_here"
   )
+}
+
+function parseNumberList(value: string | undefined): number[] {
+  return parseTextList(value).map((item) => Number(item))
+}
+
+function parseTextList(value: string | undefined, fallback: string[] = []): string[] {
+  if (value === undefined || value.trim() === "") return [...fallback]
+  return [...new Set(value.split(",").map((item) => item.trim()).filter(Boolean))]
+}
+
+function isHttpOrigin(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin === value
+  } catch {
+    return false
+  }
 }
 
 export const config = loadRuntimeConfig()

@@ -194,4 +194,5 @@ server.
 For real Persona backend startup, use `npm.cmd run dev:backend`. It requires a
 valid DeepSeek bearer token in `OPENAI_API_KEY` when `LLM_PROVIDER=deepseek`.
 `TELEGRAM_TOKEN` may stay empty; in that case the API starts and Telegram is
-skipped.
+skipped. When Telegram is enabled, `TELEGRAM_ALLOWED_CHAT_IDS` must list at
+least one trusted numeric chat ID. The API binds to `127.0.0.1` by default.

@@ -29,6 +29,8 @@ This gate must pass without calling real LLM or Telegram services. It covers:
   sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
 - Infra config contract test for no-network real-mode preflight behavior.
+- API loopback/CORS and Telegram trusted-chat boundaries are fail-closed by
+  default and covered by no-network contracts.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
 - Real-mode cleanup contract test for tagged evaluation data preview and safe timeline-only cleanup.
 - Workspace entrypoint contract test for the served `http://127.0.0.1:5173/` primary UI path and legacy HTML boundaries.

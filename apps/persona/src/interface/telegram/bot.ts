@@ -6,12 +6,23 @@ import {
   handleConversationEvent,
 } from "../../application/conversation.js"
 import { buildTelegramEvent } from "./events.js"
+import { isTelegramChatAllowed } from "./access.js"
 
 export const bot = new Bot(config.telegramToken)
 
 const knownChats = new Set<number>()
 let pollingPromise: Promise<void> | null = null
 let errorHandlerInstalled = false
+
+bot.use(async (ctx, next) => {
+  const chatId = ctx.chat?.id
+  if (typeof chatId !== "number") return
+  if (!isTelegramChatAllowed(chatId, config.telegramAllowedChatIds)) {
+    console.warn("[telegram access] ignored unauthorized chat")
+    return
+  }
+  await next()
+})
 
 bot.command("start", (ctx: Context) => {
   if (ctx.chat) knownChats.add(ctx.chat.id)

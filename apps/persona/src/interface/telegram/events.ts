@@ -33,7 +33,8 @@ export interface TelegramEventBuildResult {
 export function parseTelegramCommand(text: string): TelegramCommandParseResult | null {
   const [command, ...restParts] = text.trim().split(/\s+/)
   const rest = restParts.join(" ").trim()
-  const type = COMMAND_PREFIXES[command]
+  const commandName = command.toLowerCase().split("@", 1)[0]
+  const type = COMMAND_PREFIXES[commandName]
   if (!type || !rest) return null
   return { type, content: rest }
 }

@@ -65,6 +65,16 @@ preflight before the bot starts. Runtime Telegram polling errors are logged with
 `[telegram startup error]` or `[telegram bot error]` and should not be treated as
 Workspace API contract changes.
 
+When Telegram is enabled, `TELEGRAM_ALLOWED_CHAT_IDS` must contain one or more
+trusted numeric chat IDs separated by commas. Updates from every other chat are
+discarded before an Event is created. The allowlist is fail-closed: an empty
+list never means public access.
+
+The Persona API binds to `API_HOST=127.0.0.1` by default. Browser access is
+limited to `PERSONA_ALLOWED_ORIGINS`; the default list contains the local
+Workspace development origins on ports 5173 and 5174. A non-loopback host must
+be an explicit deployment choice behind upstream authentication.
+
 `SIGINT`, `SIGTERM`, and programmatic `runtime.stop()` use the same graceful
 shutdown path. Persona stops accepting API and Telegram input, then waits up to
 25 seconds for tracked Analysis/Memory background work to settle. `/health` and

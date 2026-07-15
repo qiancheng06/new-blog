@@ -1,10 +1,12 @@
 import { buildTelegramEvent, parseTelegramCommand } from "./events.js"
+import { isTelegramChatAllowed } from "./access.js"
 
 const evaluationRunId = "eval-telegram-contract"
 
 verifyCommandParsing()
 verifyCommandEventBuild()
 verifyMessageEventBuild()
+verifyChatAllowlist()
 
 console.log("telegram contract ok")
 
@@ -14,6 +16,7 @@ function verifyCommandParsing(): void {
   assert(parseTelegramCommand("/i possible direction")?.type === "idea", "/i should parse as idea")
   assert(parseTelegramCommand("/j daily note")?.type === "journal", "/j should parse as journal")
   assert(parseTelegramCommand("/note long form")?.type === "note", "/note should parse as note")
+  assert(parseTelegramCommand("/n@persona_bot group note")?.type === "note", "targeted group command should parse")
   assert(parseTelegramCommand("/n") === null, "empty command content should not parse")
   assert(parseTelegramCommand(" /n   trimmed content ")?.content === "trimmed content", "command content should be trimmed")
   assert(parseTelegramCommand("/unknown content") === null, "unknown command should not parse")
@@ -55,6 +58,14 @@ function verifyMessageEventBuild(): void {
   assert(result.event.type === "message", "message event type mismatch")
   assert(result.event.payload.text === "normal companion message", "message payload text mismatch")
   assert(Object.keys(result.event.metadata).length === 0, "blank evaluation id should not add metadata")
+}
+
+function verifyChatAllowlist(): void {
+  const allowed = [12345, -98765]
+  assert(isTelegramChatAllowed(12345, allowed), "trusted direct chat should be allowed")
+  assert(isTelegramChatAllowed(-98765, allowed), "trusted group chat should be allowed")
+  assert(!isTelegramChatAllowed(54321, allowed), "unknown chat should be rejected")
+  assert(!isTelegramChatAllowed(12345, []), "empty allowlist should reject every chat")
 }
 
 function assert(condition: unknown, message: string): asserts condition {

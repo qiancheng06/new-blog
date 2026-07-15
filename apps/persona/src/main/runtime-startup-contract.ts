@@ -12,12 +12,14 @@ const {
 } = await import("../application/background-tasks.js")
 
 const runtime = startPersonaRuntime({
-  api: { port, hostname: "127.0.0.1" },
+  api: { port },
   telegram: false,
 })
 
 try {
   await waitForHealth(port)
+  const address = runtime.apiServer.address()
+  assert(typeof address === "object" && address?.address === "127.0.0.1", "runtime API should bind to loopback by default")
   let releaseTask = (): void => undefined
   const blockedTask = new Promise<void>((resolve) => {
     releaseTask = resolve

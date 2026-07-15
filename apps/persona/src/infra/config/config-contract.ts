@@ -13,12 +13,15 @@ const mockConfig = loadRuntimeConfig({
 
 assert(mockConfig.llmProvider === "mock", "mock provider should be preserved")
 assert(mockConfig.apiPort === 3100, "API_PORT should parse as a number")
+assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback")
+assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
 const defaultConfig = loadRuntimeConfig({})
 assert(defaultConfig.llmProvider === "deepseek", "missing LLM_PROVIDER should default to deepseek")
 assert(defaultConfig.apiPort === 3001, "missing API_PORT should default to 3001")
+assert(defaultConfig.telegramAllowedChatIds.length === 0, "Telegram allowlist should default to empty")
 
 const badProvider = loadRuntimeConfig({ LLM_PROVIDER: "unknown", API_PORT: "3001" })
 assert(
@@ -60,6 +63,49 @@ const missingTelegramToken = loadRuntimeConfig({
 assert(
   validateRuntimeConfig(missingTelegramToken, { requireTelegram: true }).some((error) => error.includes("TELEGRAM_TOKEN")),
   "Telegram startup should reject empty or placeholder token",
+)
+
+const missingTelegramAllowlist = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  TELEGRAM_TOKEN: "123456:realistic-test-token",
+})
+assert(
+  validateRuntimeConfig(missingTelegramAllowlist, { requireTelegram: true })
+    .some((error) => error.includes("TELEGRAM_ALLOWED_CHAT_IDS")),
+  "Telegram startup should reject an empty chat allowlist",
+)
+
+const telegramConfig = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  TELEGRAM_TOKEN: "123456:realistic-test-token",
+  TELEGRAM_ALLOWED_CHAT_IDS: "12345, -98765,12345",
+})
+assert(telegramConfig.telegramAllowedChatIds.length === 2, "Telegram allowlist should parse and deduplicate IDs")
+assert(
+  validateRuntimeConfig(telegramConfig, { requireTelegram: true }).length === 0,
+  "Telegram startup should accept a valid token and chat allowlist",
+)
+
+const invalidTelegramAllowlist = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  TELEGRAM_ALLOWED_CHAT_IDS: "not-a-chat-id",
+})
+assert(
+  validateRuntimeConfig(invalidTelegramAllowlist).some((error) => error.includes("TELEGRAM_ALLOWED_CHAT_IDS")),
+  "invalid Telegram chat IDs should fail validation",
+)
+
+const invalidOrigin = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  PERSONA_ALLOWED_ORIGINS: "https://trusted.example/path",
+})
+assert(
+  validateRuntimeConfig(invalidOrigin).some((error) => error.includes("PERSONA_ALLOWED_ORIGINS")),
+  "allowed origins should reject paths",
 )
 
 console.log("infra config contract ok")

@@ -130,6 +130,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/main/index.ts",
     "apps/persona/src/main/runtime-startup-contract.ts",
     "apps/persona/src/interface/api/server.ts",
+    "apps/persona/src/interface/telegram/access.ts",
     "apps/persona/src/interface/telegram/events.ts",
     "apps/persona/src/interface/telegram/telegram-contract.ts",
     "apps/persona/src/application/conversation.ts",

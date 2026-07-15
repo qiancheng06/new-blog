@@ -24,7 +24,8 @@ if (checks.some((check) => check.status === "fail")) {
 
 function configChecks(): Check[] {
   const requireLlm = config.llmProvider === "deepseek"
-  const validationErrors = validateRuntimeConfig(config, { requireLlm, requireTelegram: false })
+  const requireTelegram = Boolean(config.telegramToken)
+  const validationErrors = validateRuntimeConfig(config, { requireLlm, requireTelegram })
   const result: Check[] = []
 
   result.push({
@@ -40,6 +41,22 @@ function configChecks(): Check[] {
   })
 
   result.push({
+    name: "API_HOST",
+    status: validationErrors.some((error) => error.includes("API_HOST"))
+      ? "fail"
+      : isLoopbackHost(config.apiHost) ? "ok" : "warn",
+    detail: isLoopbackHost(config.apiHost)
+      ? `${config.apiHost} (loopback only)`
+      : `${config.apiHost} (non-loopback; add upstream authentication before exposure)`,
+  })
+
+  result.push({
+    name: "PERSONA_ALLOWED_ORIGINS",
+    status: validationErrors.some((error) => error.includes("PERSONA_ALLOWED_ORIGINS")) ? "fail" : "ok",
+    detail: `${config.allowedOrigins.length} configured origin(s)`,
+  })
+
+  result.push({
     name: "OPENAI_API_KEY",
     status: validationErrors.some((error) => error.includes("OPENAI_API_KEY")) ? "fail" : "ok",
     detail: describeSecret(config.openaiApiKey, "DeepSeek bearer token"),
@@ -47,8 +64,20 @@ function configChecks(): Check[] {
 
   result.push({
     name: "TELEGRAM_TOKEN",
-    status: config.telegramToken ? "ok" : "warn",
+    status: validationErrors.some((error) => error.includes("TELEGRAM_TOKEN"))
+      ? "fail"
+      : config.telegramToken ? "ok" : "warn",
     detail: config.telegramToken ? describeSecret(config.telegramToken, "Telegram bot token") : "empty; Telegram will be skipped",
+  })
+
+  result.push({
+    name: "TELEGRAM_ALLOWED_CHAT_IDS",
+    status: validationErrors.some((error) => error.includes("TELEGRAM_ALLOWED_CHAT_IDS"))
+      ? "fail"
+      : config.telegramToken ? "ok" : "warn",
+    detail: config.telegramToken
+      ? `${config.telegramAllowedChatIds.length} trusted chat(s)`
+      : "not required while Telegram is disabled",
   })
 
   return result
@@ -146,5 +175,9 @@ function describeVault(vaultPath: string): string {
 
 function isInsideProject(targetPath: string): boolean {
   const rel = relative(projectRoot, targetPath)
-  return Boolean(rel) && !rel.startsWith("..") && !rel.startsWith("/") && !/^[A-Za-z]:/.test(rel)
+  return rel === "" || (!rel.startsWith("..") && !rel.startsWith("/") && !/^[A-Za-z]:/.test(rel))
+}
+
+function isLoopbackHost(host: string): boolean {
+  return host === "127.0.0.1" || host === "localhost" || host === "::1" || host === "[::1]"
 }

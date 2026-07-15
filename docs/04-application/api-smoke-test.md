@@ -269,7 +269,9 @@ body returns `topic`.
 
 ### Shared behavior
 
-- `OPTIONS` returns `204` with CORS headers.
+- The API binds to `127.0.0.1` unless `API_HOST` is explicitly configured.
+- `OPTIONS` returns `204` only for configured `PERSONA_ALLOWED_ORIGINS` and
+  returns `403` for an unknown browser origin.
 - Unknown routes return `404 { error: "not found" }`.
 - Memory list limits are normalized by the Application layer and capped at 100.
 - Memory APIs are read-only and must not mutate Events, Profile, Topics, or

@@ -24,7 +24,6 @@ import {
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
 
 const CORS_HEADERS = {
-  "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 }
@@ -200,8 +199,14 @@ async function handleMemoryTopicState(req: IncomingMessage, res: ServerResponse)
 }
 
 async function handler(req: IncomingMessage, res: ServerResponse) {
+  applyCorsHeaders(req, res)
+
   if (req.method === "OPTIONS") {
-    res.writeHead(204, CORS_HEADERS)
+    const origin = req.headers.origin
+    if (origin && !config.allowedOrigins.includes(origin)) {
+      return json(res, 403, { error: "origin not allowed" })
+    }
+    res.writeHead(204)
     res.end()
     return
   }
@@ -301,6 +306,18 @@ function getEventPreview(payloadText: string): string {
   }
 }
 
+function applyCorsHeaders(req: IncomingMessage, res: ServerResponse): void {
+  for (const [name, value] of Object.entries(CORS_HEADERS)) {
+    res.setHeader(name, value)
+  }
+
+  const origin = req.headers.origin
+  if (origin && config.allowedOrigins.includes(origin)) {
+    res.setHeader("Access-Control-Allow-Origin", origin)
+    res.setHeader("Vary", "Origin")
+  }
+}
+
 export interface ApiServerOptions {
   port?: number
   hostname?: string
@@ -313,18 +330,11 @@ export function createApiServer(): Server {
 export function startApiServer(options: ApiServerOptions = {}): Server {
   const server = createApiServer()
   const port = options.port ?? config.apiPort
-  const hostname = options.hostname
-  const labelHost = hostname || "localhost"
+  const hostname = options.hostname ?? config.apiHost
 
-  if (hostname) {
-    server.listen(port, hostname, () => {
-      console.log(`api server listening on http://${labelHost}:${port}`)
-    })
-  } else {
-    server.listen(port, () => {
-      console.log(`api server listening on http://${labelHost}:${port}`)
-    })
-  }
+  server.listen(port, hostname, () => {
+    console.log(`api server listening on http://${hostname}:${port}`)
+  })
 
   return server
 }

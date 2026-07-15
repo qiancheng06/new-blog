@@ -71,7 +71,8 @@ DeepSeek verdict: pass/fail/not run
 
 ## Telegram End-To-End Check
 
-Only fill this section when `TELEGRAM_TOKEN` is real and Telegram was tested.
+Only fill this section when `TELEGRAM_TOKEN` is real,
+`TELEGRAM_ALLOWED_CHAT_IDS` contains the test chat, and Telegram was tested.
 
 Backend command:
 
@@ -89,6 +90,7 @@ Result:
 - Logs included chat id, user id, event type, event id, and preview: yes/no
 - Handler or polling errors were logged without API crash: yes/no
 - API `/health` stayed healthy: yes/no
+- An unlisted chat was rejected before Event creation: yes/no/not tested
 
 Telegram verdict: pass/fail/not run
 

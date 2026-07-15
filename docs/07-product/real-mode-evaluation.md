@@ -24,7 +24,10 @@ Do not run this checklist with placeholder credentials.
 LLM_PROVIDER=deepseek
 OPENAI_API_KEY=<real DeepSeek bearer token>
 API_PORT=3001
+API_HOST=127.0.0.1
 TELEGRAM_TOKEN=<real bot token, or empty to skip Telegram>
+TELEGRAM_ALLOWED_CHAT_IDS=<trusted numeric chat id, or empty when Telegram is skipped>
+PERSONA_ALLOWED_ORIGINS=http://127.0.0.1:5173
 OBSIDIAN_VAULT_PATH=<local vault path>
 ```
 
@@ -88,7 +91,9 @@ Fail criteria:
 
 ## Telegram End-To-End Check
 
-Only run this section when `TELEGRAM_TOKEN` is set to a real bot token.
+Only run this section when `TELEGRAM_TOKEN` is set to a real bot token and
+`TELEGRAM_ALLOWED_CHAT_IDS` contains the test chat. Unknown chats must not
+create Events, trigger LLM calls, or receive replies.
 
 Start:
 

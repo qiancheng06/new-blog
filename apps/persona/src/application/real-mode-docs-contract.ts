@@ -19,6 +19,7 @@ function verifyChecklist(): void {
   assertIncludes(checklist, "npm.cmd run verify:local", "checklist must require default gate")
   assertIncludes(checklist, "npm.cmd run diagnose:runtime", "checklist must require diagnostics")
   assertIncludes(checklist, "PERSONA_EVALUATION_RUN_ID", "checklist must describe Telegram evaluation labels")
+  assertIncludes(checklist, "TELEGRAM_ALLOWED_CHAT_IDS", "checklist must require Telegram trusted-chat scope")
   assertIncludes(checklist, "Never paste real API keys", "checklist must forbid secret leakage")
 }
 
@@ -43,6 +44,7 @@ function verifyTemplate(): void {
   assertIncludes(template, "Do not commit secrets", "template must forbid committing secrets")
   assertIncludes(template, "Workspace avoided direct reads from `.env`, `data/`, provider logs, or SQLite", "template must preserve Workspace/backend boundary check")
   assertIncludes(template, "Timeline-only apply used", "template must preserve cleanup apply boundary")
+  assertIncludes(template, "TELEGRAM_ALLOWED_CHAT_IDS", "template must record Telegram trusted-chat scope")
 }
 
 function verifyReadinessRecord(): void {

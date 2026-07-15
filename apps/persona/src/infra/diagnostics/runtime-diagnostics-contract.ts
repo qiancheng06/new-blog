@@ -18,7 +18,10 @@ const result = spawnSync(
       LLM_PROVIDER: "deepseek",
       OPENAI_API_KEY: fakeDeepseekKey,
       TELEGRAM_TOKEN: fakeTelegramToken,
+      TELEGRAM_ALLOWED_CHAT_IDS: "123456",
       API_PORT: "3001",
+      API_HOST: "127.0.0.1",
+      PERSONA_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
       OBSIDIAN_VAULT_PATH: "C:\\definitely\\missing\\vault",
     },
   },
@@ -31,6 +34,8 @@ assert(output.includes("Persona runtime diagnostics"), "diagnostics header missi
 assert(output.includes("No network calls"), "diagnostics must state no-network behavior")
 assert(output.includes("[OK] OPENAI_API_KEY"), "DeepSeek key status missing")
 assert(output.includes("[OK] TELEGRAM_TOKEN"), "Telegram token status missing")
+assert(output.includes("[OK] TELEGRAM_ALLOWED_CHAT_IDS"), "Telegram allowlist status missing")
+assert(output.includes("[OK] API_HOST"), "loopback API host status missing")
 assert(output.includes("[WARN] Obsidian vault"), "missing vault should be a warning")
 assert(output.includes("sk-...[redacted]"), "DeepSeek key should be redacted")
 assert(output.includes("telegram-token...[redacted]"), "Telegram token should be redacted")
@@ -53,7 +58,10 @@ const failing = spawnSync(
       LLM_PROVIDER: "deepseek",
       OPENAI_API_KEY: "sk-your_deepseek_key_here",
       TELEGRAM_TOKEN: "",
+      TELEGRAM_ALLOWED_CHAT_IDS: "",
       API_PORT: "abc",
+      API_HOST: "127.0.0.1",
+      PERSONA_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
       OBSIDIAN_VAULT_PATH: "",
     },
   },
@@ -81,7 +89,10 @@ const insideRepo = spawnSync(
       LLM_PROVIDER: "mock",
       OPENAI_API_KEY: "",
       TELEGRAM_TOKEN: "",
+      TELEGRAM_ALLOWED_CHAT_IDS: "",
       API_PORT: "3001",
+      API_HOST: "127.0.0.1",
+      PERSONA_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
       OBSIDIAN_VAULT_PATH: insideRepoVault,
     },
   },
@@ -93,6 +104,36 @@ assert(insideRepoOutput.includes("[WARN] Obsidian vault"), "inside-repo vault sh
 assert(insideRepoOutput.includes("appears inside repository"), "inside-repo vault warning should explain boundary")
 assert(insideRepoOutput.includes("leaf: docs"), "inside-repo vault should only print leaf name")
 assert(!insideRepoOutput.includes(process.cwd()), "inside-repo vault should not leak absolute project path")
+
+const projectRoot = spawnSync(
+  process.execPath,
+  [
+    "--import",
+    "tsx",
+    "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
+  ],
+  {
+    cwd: process.cwd(),
+    encoding: "utf-8",
+    env: {
+      ...process.env,
+      LLM_PROVIDER: "mock",
+      OPENAI_API_KEY: "",
+      TELEGRAM_TOKEN: "",
+      TELEGRAM_ALLOWED_CHAT_IDS: "",
+      API_PORT: "3001",
+      API_HOST: "127.0.0.1",
+      PERSONA_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
+      OBSIDIAN_VAULT_PATH: ".",
+    },
+  },
+)
+
+const projectRootOutput = `${projectRoot.stdout}\n${projectRoot.stderr}`
+assert(projectRoot.status === 0, `project-root vault warning should not fail diagnostics: ${projectRootOutput}`)
+assert(projectRootOutput.includes("[WARN] Obsidian vault"), "project root must be treated as inside repository")
+assert(projectRootOutput.includes("appears inside repository"), "project-root warning should explain boundary")
+assert(!projectRootOutput.includes(process.cwd()), "project-root vault should not leak absolute project path")
 
 console.log("runtime diagnostics contract ok")
 

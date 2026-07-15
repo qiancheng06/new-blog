@@ -34,9 +34,20 @@ try {
 }
 
 async function verifyOptions(portNumber: number): Promise<void> {
-  const response = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, { method: "OPTIONS" })
+  const allowedOrigin = "http://127.0.0.1:5173"
+  const response = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "OPTIONS",
+    headers: { Origin: allowedOrigin },
+  })
   assert(response.status === 204, `OPTIONS /api/chat expected 204, got ${response.status}`)
-  assert(response.headers.get("access-control-allow-origin") === "*", "OPTIONS missing CORS origin")
+  assert(response.headers.get("access-control-allow-origin") === allowedOrigin, "OPTIONS should echo trusted Workspace origin")
+
+  const rejected = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "OPTIONS",
+    headers: { Origin: "https://untrusted.example" },
+  })
+  assert(rejected.status === 403, `untrusted OPTIONS expected 403, got ${rejected.status}`)
+  assert(rejected.headers.get("access-control-allow-origin") === null, "untrusted origin must not receive CORS access")
 }
 
 async function verifyHealth(portNumber: number): Promise<void> {
