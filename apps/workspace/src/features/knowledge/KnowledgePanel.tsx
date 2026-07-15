@@ -1,0 +1,67 @@
+"use client"
+
+import { useEffect, useMemo, useState } from "react"
+import { getWorkspaceKnowledge, type KnowledgeCategory } from "@/shared/data/workspaceData"
+import { contentUrl } from "@/shared/data/workspaceSources"
+
+export function KnowledgePanel() {
+  const [categories, setCategories] = useState<KnowledgeCategory[]>([])
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    async function load() {
+      const data = await getWorkspaceKnowledge()
+      setCategories(data)
+      setLoading(false)
+    }
+
+    void load()
+  }, [])
+
+  const totalPages = useMemo(() => categories.reduce((sum, category) => sum + category.pages.length, 0), [categories])
+
+  return (
+    <section className="feature-panel" id="knowledge">
+      <div className="feature-heading">
+        <div>
+          <p className="eyebrow">Knowledge</p>
+          <h2>Content Index</h2>
+          <p>Obsidian remains the content site. Workspace shows index and entry points without scanning the vault.</p>
+          <div className="inline-stats" aria-label="Knowledge summary">
+            <span>{categories.length} categories</span>
+            <span>{totalPages} pages</span>
+          </div>
+        </div>
+        <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
+          Open VitePress site
+        </a>
+      </div>
+
+      {loading ? <p className="empty-state">Loading content index...</p> : null}
+      {!loading && totalPages === 0 ? (
+        <div className="empty-box">
+          <strong>No synced knowledge index yet.</strong>
+          <p>The content site remains available; the index appears here when the vault is present during sync.</p>
+        </div>
+      ) : null}
+
+      <div className="knowledge-grid">
+        {categories.map((category) => (
+          <article key={category.category} className="knowledge-card">
+            <div className="knowledge-card-head">
+              <h3>{category.label}</h3>
+              <span>{category.pages.length}</span>
+            </div>
+            <div className="knowledge-links">
+              {category.pages.slice(0, 5).map((page) => (
+                <a key={`${category.category}-${page.name}`} href={contentUrl(page.link || "/knowledge/")} target="_blank" rel="noreferrer">
+                  {page.name}
+                </a>
+              ))}
+            </div>
+          </article>
+        ))}
+      </div>
+    </section>
+  )
+}

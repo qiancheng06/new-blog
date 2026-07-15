@@ -1,0 +1,150 @@
+"use client"
+
+import { FormEvent, useEffect, useRef, useState } from "react"
+import { getPersonaJson, postPersonaJson } from "@/shared/api/personaApi"
+
+interface ChatMessage {
+  role: "user" | "assistant"
+  text: string
+  time: string
+}
+
+interface ChatResponse {
+  reply?: string
+}
+
+const quickPrompts = [
+  "Summarize today's workspace state",
+  "Review active project risks",
+  "Help me turn notes into next actions",
+]
+
+function formatTime(date: Date): string {
+  return `${date.getHours().toString().padStart(2, "0")}:${date.getMinutes().toString().padStart(2, "0")}`
+}
+
+export function ChatDock() {
+  const [open, setOpen] = useState(false)
+  const [online, setOnline] = useState(false)
+  const [input, setInput] = useState("")
+  const [loading, setLoading] = useState(false)
+  const [messages, setMessages] = useState<ChatMessage[]>([])
+  const scrollRef = useRef<HTMLDivElement>(null)
+
+  useEffect(() => {
+    async function checkHealth() {
+      try {
+        await getPersonaJson("/health")
+        setOnline(true)
+      } catch {
+        setOnline(false)
+      }
+    }
+
+    void checkHealth()
+  }, [])
+
+  useEffect(() => {
+    scrollRef.current?.scrollTo({ top: scrollRef.current.scrollHeight })
+  }, [messages, loading])
+
+  async function send(event: FormEvent) {
+    event.preventDefault()
+    const text = input.trim()
+    if (!text || loading) return
+
+    setInput("")
+    setMessages((current) => [...current, { role: "user", text, time: formatTime(new Date()) }])
+    setLoading(true)
+
+    try {
+      const data = await postPersonaJson<ChatResponse>("/api/chat", {
+        text,
+        page: globalThis.location?.pathname ?? "/",
+      })
+      setOnline(true)
+      setMessages((current) => [
+        ...current,
+        { role: "assistant", text: data.reply || "I am here.", time: formatTime(new Date()) },
+      ])
+    } catch {
+      setOnline(false)
+      setMessages((current) => [
+        ...current,
+        {
+          role: "assistant",
+          text: "Connection failed. Start Persona with npm.cmd run dev:backend or npm.cmd run dev:backend:mock.",
+          time: formatTime(new Date()),
+        },
+      ])
+    } finally {
+      setLoading(false)
+    }
+  }
+
+  if (!open) {
+    return (
+      <div className="chat-dock">
+        <button className="chat-fab" type="button" title="Open Companion" onClick={() => setOpen(true)}>
+          <span className={`chat-fab-dot ${online ? "online" : "offline"}`} />
+          C
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <section className="chat-dock chat-panel" aria-label="Companion chat">
+      <header className="chat-header">
+        <div>
+          <strong>Companion</strong>
+          <span>{online ? "Persona API online" : "Persona API offline"}</span>
+        </div>
+        <button className="icon-button" type="button" title="Close chat" onClick={() => setOpen(false)}>
+          x
+        </button>
+      </header>
+
+      <div className="chat-messages" ref={scrollRef}>
+        {messages.length === 0 ? (
+          <div className="chat-empty">
+            <p className="empty-state">Send a message. Companion replies through the local Application API.</p>
+            <div className="quick-prompt-row" aria-label="Quick prompts">
+              {quickPrompts.map((prompt) => (
+                <button key={prompt} type="button" onClick={() => setInput(prompt)}>
+                  {prompt}
+                </button>
+              ))}
+            </div>
+          </div>
+        ) : null}
+        {messages.map((message, index) => (
+          <div key={`${message.role}-${index}`} className={`chat-message ${message.role}`}>
+            {message.text}
+            <span className="chat-time">{message.time}</span>
+          </div>
+        ))}
+        {loading ? <div className="chat-message assistant">Thinking...</div> : null}
+      </div>
+
+      <form className="chat-input-row" onSubmit={send}>
+        <textarea
+          className="input chat-input"
+          value={input}
+          rows={1}
+          placeholder="Type a message..."
+          onChange={(event) => setInput(event.target.value)}
+          onKeyDown={(event) => {
+            if (event.key === "Enter" && !event.shiftKey) {
+              event.preventDefault()
+              void send(event)
+            }
+          }}
+        />
+        <button className="chat-send" type="submit" disabled={!input.trim() || loading} title="Send">
+          &gt;
+        </button>
+      </form>
+    </section>
+  )
+}

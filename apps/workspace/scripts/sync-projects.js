@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { config as loadEnv } from 'dotenv'
@@ -8,6 +8,7 @@ const ROOT = join(__dirname, '..')
 const REPO_ROOT = join(ROOT, '..', '..')
 loadEnv({ path: join(REPO_ROOT, '.env') })
 const LEGACY_DIR = join(ROOT, 'legacy')
+const PUBLIC_DATA_DIR = join(ROOT, 'public', 'data')
 const PROJECTS_DIR = join(ROOT, 'projects')
 const PROJECTS_WEB_DIR = 'apps/workspace/projects'
 const INDEX_HTML = join(LEGACY_DIR, 'index.html')
@@ -20,6 +21,9 @@ const BLOG_DIR = join(VAULT_ROOT, 'blog')
 const BLOG_INDEX = join(BLOG_DIR, 'index.md')
 const BLOG_TAGS = join(BLOG_DIR, 'tags.md')
 const CONFIG_TS = join(ROOT, '.vitepress', 'config.ts')
+let projectsSourceAvailable = true
+let todosSourceAvailable = true
+let knowledgeSourceAvailable = true
 
 function parseFrontmatter(text) {
   const m = text.match(/^---\n([\s\S]*?)\n---/)
@@ -68,6 +72,11 @@ function parseSections(text) {
 }
 
 function loadProjects() {
+  if (!existsSync(PROJECTS_DIR)) {
+    projectsSourceAvailable = false
+    console.log('Workspace projects directory not found, using empty project list:', PROJECTS_DIR)
+    return []
+  }
   const files = readdirSync(PROJECTS_DIR).filter(f => f.endsWith('.md'))
   const projects = []
   for (const f of files) {
@@ -109,9 +118,25 @@ function genJSON(obj) {
   return JSON.stringify(obj, null, 2)
 }
 
+function writeJsonIfAvailable(fileName, data, available) {
+  if (!available) return false
+  mkdirSync(PUBLIC_DATA_DIR, { recursive: true })
+  const filePath = join(PUBLIC_DATA_DIR, fileName)
+  const nextContent = `${genJSON(data)}\n`
+  const prevContent = existsSync(filePath) ? readFileSync(filePath, 'utf-8') : ''
+  if (prevContent === nextContent) return false
+  writeFileSync(filePath, nextContent, 'utf-8')
+  return true
+}
+
 // ── Todo parsing ──
 
 function loadTodos() {
+  if (!existsSync(TODO_DIR)) {
+    todosSourceAvailable = false
+    console.log('TODO_DIR not found, keeping existing synced todo data:', TODO_DIR)
+    return []
+  }
   if (!existsSync(TODO_DIR)) { console.log('⚠️  TODO_DIR not found:', TODO_DIR); return [] }
   const files = readdirSync(TODO_DIR).filter(f => f.endsWith('.md') && f !== 'index.md')
   const todos = []
@@ -219,6 +244,12 @@ const PAGE_ICONS = {
 function loadKnowledge() {
   const result = []
   const inboxFiles = []
+
+  if (!existsSync(KNOWLEDGE_DIR)) {
+    knowledgeSourceAvailable = false
+    console.log('KNOWLEDGE_DIR not found, keeping existing synced knowledge data:', KNOWLEDGE_DIR)
+    return []
+  }
 
   for (const [cat, config] of Object.entries(CATEGORY_CONFIG)) {
     const dirPath = join(KNOWLEDGE_DIR, config.sub)
@@ -391,6 +422,11 @@ function genSidebarBlock(posts) {
 }
 
 function syncBlog() {
+  if (!existsSync(BLOG_DIR) || !existsSync(BLOG_INDEX) || !existsSync(BLOG_TAGS)) {
+    console.log('Blog source files not found, skipping blog sync:', BLOG_DIR)
+    return false
+  }
+
   const posts = loadBlogPosts()
   let updated = false
 
@@ -451,25 +487,41 @@ function main() {
   // Update each block
   let updated = false
 
-  const newIdx = replaceBlock(idxHtml, 'EMBEDDED_PROJECTS', jsContent)
-  if (newIdx !== idxHtml) { idxHtml = newIdx; updated = true }
+  if (writeJsonIfAvailable('projects.json', projects, projectsSourceAvailable)) updated = true
+  if (writeJsonIfAvailable('todos.json', todos, todosSourceAvailable)) updated = true
+  if (writeJsonIfAvailable('knowledge.json', knowledge, knowledgeSourceAvailable)) updated = true
 
-  const newIdxTodo = replaceBlockRaw(idxHtml, 'TODO_DATA', todoJSON)
-  if (newIdxTodo !== idxHtml) { idxHtml = newIdxTodo; updated = true }
+  if (projectsSourceAvailable) {
+    const newIdx = replaceBlock(idxHtml, 'EMBEDDED_PROJECTS', jsContent)
+    if (newIdx !== idxHtml) { idxHtml = newIdx; updated = true }
+  }
 
-  const newIdxKn = replaceBlockRaw(idxHtml, 'KNOWLEDGE_DATA', knowledgeJSON)
-  if (newIdxKn !== idxHtml) { idxHtml = newIdxKn; updated = true }
+  if (todosSourceAvailable) {
+    const newIdxTodo = replaceBlockRaw(idxHtml, 'TODO_DATA', todoJSON)
+    if (newIdxTodo !== idxHtml) { idxHtml = newIdxTodo; updated = true }
+  }
 
-  const newDet = replaceBlock(detHtml, 'ALL_PROJECTS', jsContent)
-  if (newDet !== detHtml) { detHtml = newDet; updated = true }
+  if (knowledgeSourceAvailable) {
+    const newIdxKn = replaceBlockRaw(idxHtml, 'KNOWLEDGE_DATA', knowledgeJSON)
+    if (newIdxKn !== idxHtml) { idxHtml = newIdxKn; updated = true }
+  }
 
-  const newDetTodo = replaceBlockRaw(detHtml, 'TODO_DATA', todoJSON)
-  if (newDetTodo !== detHtml) { detHtml = newDetTodo; updated = true }
+  if (projectsSourceAvailable) {
+    const newDet = replaceBlock(detHtml, 'ALL_PROJECTS', jsContent)
+    if (newDet !== detHtml) { detHtml = newDet; updated = true }
+  }
 
-  const newDetKn = replaceBlockRaw(detHtml, 'KNOWLEDGE_DATA', knowledgeJSON)
-  if (newDetKn !== detHtml) { detHtml = newDetKn; updated = true }
+  if (todosSourceAvailable) {
+    const newDetTodo = replaceBlockRaw(detHtml, 'TODO_DATA', todoJSON)
+    if (newDetTodo !== detHtml) { detHtml = newDetTodo; updated = true }
+  }
 
-  if (calHtml) {
+  if (knowledgeSourceAvailable) {
+    const newDetKn = replaceBlockRaw(detHtml, 'KNOWLEDGE_DATA', knowledgeJSON)
+    if (newDetKn !== detHtml) { detHtml = newDetKn; updated = true }
+  }
+
+  if (calHtml && todosSourceAvailable) {
     const newCalTodo = replaceBlockRaw(calHtml, 'TODO_DATA', todoJSON)
     if (newCalTodo !== calHtml) { calHtml = newCalTodo; updated = true }
   }

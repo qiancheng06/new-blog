@@ -1,50 +1,74 @@
 # Workspace
 
-Workspace 是用户主动管理内容的前台域。
+Workspace is the user-facing workbench domain. It owns visible interaction,
+content browsing, dashboards, and the frontend bridge into Persona OS.
 
-## 本域职责
+## Current Status
 
-- Dashboard、项目进度、待办日历、知识库、博客展示
-- Workspace 可观测面板的只读展示（后端在线状态、事件概览、运行状态摘要）
-- Obsidian/Markdown 到 HTML/VitePress 的同步链路
-- 本地可打开的静态页面和 VitePress 页面体验
+- Primary app: Next.js under `apps/workspace/`.
+- Primary URL: `http://127.0.0.1:5173/` via `npm.cmd run dev`.
+- Content site: VitePress/Obsidian on `http://127.0.0.1:5174/` via
+  `npm.cmd run dev:content`.
+- Legacy HTML under `apps/workspace/legacy/` is migration reference only.
+- Projects, Todos, Calendar, Knowledge, Memory, and Chat now have Next.js
+  modules.
 
-## 本域不负责
+## Responsibilities
 
-- 不做认知推理
-- 不直接写 Memory
-- 不绕过 Event Core 调用 Persona
-- 不保存长期画像或自动记忆
-- 不直接读取数据库、日志文件或调用 LLM Provider
+- Workspace shell, navigation, layout, and user interaction.
+- Dashboard modules for projects, todos, calendar, knowledge, memory state, and
+  companion chat.
+- Frontend adapters for generated Workspace JSON and Persona Application APIs.
+- Obsidian/Markdown content presentation through the content site.
+- Clear source/fallback affordances when generated data or Persona API is not
+  available.
 
-## 常读文档
+## Out Of Scope
 
+- Do not implement reasoning, persona behavior, or memory ranking here.
+- Do not read the SQLite database directly from Workspace UI code.
+- Do not read the Obsidian vault directly from React components.
+- Do not call LLM providers directly from the frontend.
+- Do not bypass the Application API for chat or memory state.
+
+## Common Documents
+
+- [frontend-modernization.md](frontend-modernization.md)
 - [design.md](design.md)
 - [dashboard-spec.md](dashboard-spec.md)
 - [obsidian-vault-spec.md](obsidian-vault-spec.md)
 - [sync-spec.md](sync-spec.md)
 - [../00-overview/domain-map.md](../00-overview/domain-map.md)
 
-## 相关代码位置
+## Related Code
 
-- `apps/workspace/.vitepress/`
-- `apps/workspace/legacy/` (legacy standalone HTML assets, not the primary browser entrypoint)
+- `apps/workspace/app/`
+- `apps/workspace/src/features/`
+- `apps/workspace/src/shared/api/personaApi.ts`
+- `apps/workspace/src/shared/data/workspaceData.ts`
+- `apps/workspace/src/shared/data/workspaceSources.ts`
 - `apps/workspace/scripts/sync-projects.js`
-- `apps/workspace/scripts/watch.js`
-- `apps/workspace/projects/*.md`
+- `apps/workspace/.vitepress/`
+- `apps/workspace/legacy/`
 
-## AI 修改前检查项
+## Modify Checklist
 
-- 确认修改是否只影响用户可见前台
-- 检查同步脚本是否会覆盖手工编辑区域
-- 不修改 Obsidian 内容结构，除非任务明确要求
-- 如果需要对话能力，只通过 Application/API 进入 Persona
-- Companion chat 入口只调用本地 Application API：`http://127.0.0.1:3001/health` 和 `http://127.0.0.1:3001/api/chat`
-- 可观测面板只能读取 Application 暴露的只读接口，例如 `/health`、`/api/status`、`/api/events`；不得在 Workspace 侧解析数据库文件或重建后端状态
+- Confirm whether the change belongs to Workspace or should be routed to
+  Application, Memory, Persona, or Infra.
+- Keep React UI code behind `apps/workspace/src/shared/` adapters for external
+  data.
+- Keep Obsidian and SQLite as separate long-term sources behind the middle
+  layer.
+- Preserve source/fallback behavior when local generated JSON is missing.
+- Verify with `npm.cmd run build` and `npm.cmd run check:workspace` when
+  frontend behavior changes.
 
-## 跨域协作规则
+## Cross-Domain Rules
 
-- 需要聊天或认知能力时，交给 Application 域
-- 需要新增记忆字段时，交给 Memory 域
-- 需要改变同步路径或部署方式时，交给 Infra 域
-- 需要新增可观测指标时，Workspace 只定义展示需求；指标口径、查询出口和运行时采集分别交给 Application 与 Infra 域
+- Chat and memory actions go through the Application API on port `3001`.
+- Memory schema, ranking, forgetting, and profile state belong to
+  `03-memory/`.
+- Persona expression, prompts, and operator behavior belong to `02-persona/`.
+- DB path, provider configuration, deployment, and local environment concerns
+  belong to `05-infra/`.
+- Product scope and acceptance criteria belong to `07-product/`.
