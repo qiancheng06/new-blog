@@ -22,6 +22,7 @@ const memoryText = [
 const recentEvents: EventRow[] = [
   createEvent("system-note", "note", "not user visible"),
   createEvent("older", "message", "older message"),
+  createEvent("previous-reply", "companion_reply", "previous reply", "system"),
   createEvent("latest", "message", "latest message"),
 ]
 
@@ -40,8 +41,13 @@ assert(prompts.analysisSystemPrompt.includes("JSON"), "analysis prompt must dema
 assert(prompts.historyText.includes("Private long-term memory context:"), "historyText must include memory context")
 assert(prompts.historyText.includes("Recent conversation:"), "historyText must include recent conversation")
 assert(prompts.historyText.includes("older message"), "historyText must include older message")
+assert(prompts.historyText.includes("previous reply"), "historyText must include previous Companion reply")
 assert(prompts.historyText.includes("latest message"), "historyText must include latest message")
 assert(!prompts.historyText.includes("not user visible"), "historyText must ignore non-message events")
+assert(prompts.companionSystemPrompt.includes("<conversation_history>"), "companion prompt must wrap recent conversation")
+assert(prompts.companionSystemPrompt.includes("User: older message"), "companion prompt must include prior user text")
+assert(prompts.companionSystemPrompt.includes("Companion: previous reply"), "companion prompt must include prior Companion reply")
+assert(prompts.companionSystemPrompt.includes("Do not mention the history block"), "companion prompt must hide history internals")
 
 const companionWithMemory = buildCompanionSystemPrompt(memoryText)
 assert(companionWithMemory.includes("<memory_context>"), "companion prompt must wrap memory context")
@@ -54,8 +60,9 @@ const companionWithoutMemory = buildCompanionSystemPrompt("")
 assert(!companionWithoutMemory.includes("<memory_context>"), "empty memory must not add memory context block")
 
 const historyOnly = buildHistoryContext(recentEvents)
-assert(historyOnly.includes("older message"), "history context must include older message")
-assert(historyOnly.includes("latest message"), "history context must include latest message")
+assert(historyOnly.includes("User: older message"), "history context must label older user message")
+assert(historyOnly.includes("Companion: previous reply"), "history context must label prior Companion reply")
+assert(historyOnly.includes("User: latest message"), "history context must label latest user message")
 assert(!historyOnly.includes("not user visible"), "history context must ignore non-message events")
 
 const analysisContext = buildAnalysisContextText({ memoryText, recentConversationText: historyOnly })
@@ -88,10 +95,10 @@ verifyAnalysisSchema()
 
 console.log("persona prompt fixture ok")
 
-function createEvent(id: string, type: string, text: string): EventRow {
+function createEvent(id: string, type: string, text: string, source = "web"): EventRow {
   return {
     id,
-    source: "web",
+    source,
     type,
     payload: JSON.stringify({ text }),
     timestamp: "2026-07-03T00:00:00.000Z",

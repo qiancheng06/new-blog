@@ -15,7 +15,8 @@
 - Analysis output stays hidden and structured. Mock analysis must keep deterministic `research`, `critic`, and `memory_patch` shapes.
 - Runtime schema validation rejects malformed Analysis fields before Memory
   writes and reports field paths without echoing provider or user content.
-- History context must filter non-message events and keep only the latest bounded conversation window.
+- Companion replies are immutable `system/companion_reply` Events linked to their input Event through `in_reply_to`.
+- History context keeps the latest 10 user and Companion Events, filters unrelated Events, and remains private prompt context.
 
 Persona 是认知表达域，负责系统如何理解、分析和回应用户。
 

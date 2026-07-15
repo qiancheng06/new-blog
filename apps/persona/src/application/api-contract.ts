@@ -127,16 +127,39 @@ async function verifyValidChat(portNumber: number): Promise<void> {
   const body = await postJson<{
     reply?: string
     eventId?: string
+    replyEventId?: string
   }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract", evaluationRunId })
 
   assert(typeof body.reply === "string" && body.reply.includes(contractTag), "chat.reply must include mock tag")
   assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat.eventId must be non-empty string")
+  assert(typeof body.replyEventId === "string" && body.replyEventId.length > 0, "chat.replyEventId must be non-empty string")
 
   const event = queryOne<{ metadata: string }>("SELECT metadata FROM events WHERE id = ?", [body.eventId])
   assert(event, "chat event should exist")
   const metadata = JSON.parse(event.metadata) as { purpose?: string; run_id?: string }
   assert(metadata.purpose === "real_mode_evaluation", "evaluation metadata purpose mismatch")
   assert(metadata.run_id === evaluationRunId, "evaluation metadata run_id mismatch")
+
+  const replyEvent = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
+    "SELECT source, type, payload, metadata FROM events WHERE id = ?",
+    [body.replyEventId],
+  )
+  assert(replyEvent, "chat reply event should exist")
+  assert(replyEvent.source === "system", "chat reply event source must be system")
+  assert(replyEvent.type === "companion_reply", "chat reply event type must be companion_reply")
+  const replyPayload = JSON.parse(replyEvent.payload) as { text?: string; in_reply_to?: string }
+  assert(replyPayload.text === body.reply, "chat reply event text must equal the response reply")
+  assert(replyPayload.in_reply_to === body.eventId, "chat reply event payload must link to the input event")
+  const replyMetadata = JSON.parse(replyEvent.metadata) as {
+    purpose?: string
+    visibility?: string
+    in_reply_to?: string
+    run_id?: string
+  }
+  assert(replyMetadata.purpose === "conversation_output", "chat reply event purpose mismatch")
+  assert(replyMetadata.visibility === "user", "chat reply event visibility mismatch")
+  assert(replyMetadata.in_reply_to === body.eventId, "chat reply event metadata must link to the input event")
+  assert(replyMetadata.run_id === evaluationRunId, "chat reply event run_id mismatch")
 }
 
 async function verifyEvents(portNumber: number): Promise<void> {

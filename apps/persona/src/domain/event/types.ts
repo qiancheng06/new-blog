@@ -47,6 +47,30 @@ export function createSystemEvent(type: SystemEventType, payload: Record<string,
   }
 }
 
+export interface CompanionReplyPayload {
+  text: string
+  in_reply_to: string
+}
+
+export function createCompanionReplyEvent(
+  payload: CompanionReplyPayload,
+  sourceMetadata: Record<string, unknown> = {},
+): Event {
+  const runId = typeof sourceMetadata.run_id === "string" ? sourceMetadata.run_id.trim() : ""
+  return {
+    source: "system",
+    type: "companion_reply",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "conversation_output",
+      visibility: "user",
+      in_reply_to: payload.in_reply_to,
+      ...(runId ? { run_id: runId } : {}),
+    },
+  }
+}
+
 export interface WorkspacePayload {
   text: string
   page?: string

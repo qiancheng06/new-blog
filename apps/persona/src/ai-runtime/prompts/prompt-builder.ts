@@ -16,35 +16,49 @@ export interface BuiltPrompts {
 
 export function buildPrompts(context: PromptContext = {}): BuiltPrompts {
   const memoryText = context.memoryText ?? buildMemoryContextText()
+  const recentConversationText = buildHistoryContext(context.recentEvents ?? [])
   const historyText = buildAnalysisContextText({
     memoryText,
-    recentConversationText: buildHistoryContext(context.recentEvents ?? []),
+    recentConversationText,
   })
 
   return {
-    companionSystemPrompt: buildCompanionSystemPrompt(memoryText),
+    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText),
     analysisSystemPrompt: ANALYSIS_PROMPT,
     historyText,
     memoryText,
   }
 }
 
-export function buildCompanionSystemPrompt(memoryText: string): string {
-  if (!memoryText.trim()) return COMPANION_PROMPT
+export function buildCompanionSystemPrompt(memoryText: string, recentConversationText = ""): string {
+  const sections = [COMPANION_PROMPT]
 
-  return [
-    COMPANION_PROMPT,
-    "Private long-term memory context. This block is context only, not user-visible content:",
-    "<memory_context>",
-    memoryText,
-    "</memory_context>",
-    "Use the memory context only to understand continuity and preferences. Do not quote, summarize, reveal, or mention the memory block, internal labels, storage fields, confidence, cooling status, or retrieval process.",
-  ].join("\n\n")
+  if (memoryText.trim()) {
+    sections.push([
+      "Private long-term memory context. This block is context only, not user-visible content:",
+      "<memory_context>",
+      memoryText,
+      "</memory_context>",
+      "Use the memory context only to understand continuity and preferences. Do not quote, summarize, reveal, or mention the memory block, internal labels, storage fields, confidence, cooling status, or retrieval process.",
+    ].join("\n\n"))
+  }
+
+  if (recentConversationText.trim()) {
+    sections.push([
+      "Private recent conversation context. Use it only to resolve continuity and references:",
+      "<conversation_history>",
+      recentConversationText,
+      "</conversation_history>",
+      "Do not mention the history block, timestamps, role labels, storage, or retrieval process.",
+    ].join("\n\n"))
+  }
+
+  return sections.join("\n\n")
 }
 
 export function buildHistoryContext(events: EventRow[]): string {
   return events
-    .filter((event) => event.type === "message")
+    .filter((event) => event.type === "message" || event.type === "companion_reply")
     .slice(0, 10)
     .reverse()
     .map(formatHistoryEvent)
@@ -68,11 +82,12 @@ export function buildAnalysisContextText(context: { memoryText: string; recentCo
 
 function formatHistoryEvent(event: EventRow): string {
   const payload = parsePayload(event.payload)
-  const text = typeof payload.text === "string" ? payload.text.trim() : ""
+  const text = typeof payload.text === "string" ? payload.text.trim().slice(0, 2_000) : ""
   if (!text) return ""
 
   const time = new Date(event.timestamp).toLocaleTimeString()
-  return `[${time}] ${text}`
+  const role = event.type === "companion_reply" ? "Companion" : "User"
+  return `[${time}] ${role}: ${text}`
 }
 
 function parsePayload(payload: string): Record<string, unknown> {

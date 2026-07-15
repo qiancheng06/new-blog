@@ -8,7 +8,7 @@ import { buildPrompts } from "../prompts/prompt-builder.js"
 export async function processMessage(eventRow: EventRow): Promise<{ companionReply: string }> {
   const payload = JSON.parse(eventRow.payload) as Record<string, unknown>
   const userText = (payload.text as string) || ""
-  const recentEvents = getRecentEvents(10)
+  const recentEvents = getRecentEvents(21).filter((event) => event.id !== eventRow.id)
   const prompts = buildPrompts({ recentEvents })
 
   const companionReply = await callCompanion(prompts.companionSystemPrompt, userText)

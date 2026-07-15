@@ -35,9 +35,14 @@ Success response `200`:
 ```ts
 {
   reply: string,
-  eventId: string
+  eventId: string,
+  replyEventId: string
 }
 ```
+
+`eventId` identifies the immutable user input Event. `replyEventId` identifies the
+linked `system/companion_reply` output Event whose `in_reply_to` points back to the
+input Event.
 
 Error responses:
 

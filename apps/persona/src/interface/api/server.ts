@@ -76,7 +76,11 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
 
   try {
     const result = await handleConversationEvent(event)
-    json(res, 200, { reply: result.companionReply, eventId: result.event.id })
+    json(res, 200, {
+      reply: result.companionReply,
+      eventId: result.event.id,
+      replyEventId: result.replyEvent?.id,
+    })
   } catch (err) {
     console.error("[web error]", err instanceof Error ? err.message : err)
     json(res, 500, { reply: CONVERSATION_FALLBACK_REPLY, error: "processing failed" })

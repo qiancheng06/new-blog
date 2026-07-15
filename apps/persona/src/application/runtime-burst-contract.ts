@@ -18,12 +18,15 @@ try {
   await waitForHealth(port)
 
   const eventIds: string[] = []
+  const replyEventIds: string[] = []
   for (let index = 0; index < messageCount; index += 1) {
     const text = `${burstTag}-${index}`
     const body = await postChat(port, text)
     assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat response missing eventId")
+    assert(typeof body.replyEventId === "string" && body.replyEventId.length > 0, "chat response missing replyEventId")
     assert(body.reply === `[mock companion] ${text}`, "mock reply mismatch")
     eventIds.push(body.eventId)
+    replyEventIds.push(body.replyEventId)
 
     const health = await getJson<{ status?: string; events_today?: number }>(`http://127.0.0.1:${port}/health`)
     assert(health.status === "ok", "health should remain ok during burst")
@@ -31,7 +34,8 @@ try {
   }
 
   await waitForMemoryPatches(burstTag, messageCount)
-  await verifyStatus(port, eventIds)
+  verifyStoredReplyPairs(eventIds, replyEventIds)
+  await verifyStatus(port, eventIds, replyEventIds)
 
   console.log("runtime burst contract ok")
 } finally {
@@ -39,7 +43,7 @@ try {
   await stopApiServer(server)
 }
 
-async function postChat(portNumber: number, text: string): Promise<{ reply?: string; eventId?: string }> {
+async function postChat(portNumber: number, text: string): Promise<{ reply?: string; eventId?: string; replyEventId?: string }> {
   const response = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
     method: "POST",
     headers: { "Content-Type": "application/json" },
@@ -49,10 +53,10 @@ async function postChat(portNumber: number, text: string): Promise<{ reply?: str
   if (!response.ok) {
     throw new Error(`chat failed: ${response.status} ${await response.text()}`)
   }
-  return await response.json() as { reply?: string; eventId?: string }
+  return await response.json() as { reply?: string; eventId?: string; replyEventId?: string }
 }
 
-async function verifyStatus(portNumber: number, eventIds: string[]): Promise<void> {
+async function verifyStatus(portNumber: number, eventIds: string[], replyEventIds: string[]): Promise<void> {
   const status = await getJson<{
     status?: string
     events_today?: number
@@ -69,8 +73,21 @@ async function verifyStatus(portNumber: number, eventIds: string[]): Promise<voi
   assert(typeof status.memory?.timelineEvents === "number", "status memory.timelineEvents should be numeric")
   assert(Array.isArray(status.recent_events), "status recent_events should be an array")
 
-  for (const eventId of eventIds.slice(-3)) {
+  for (const eventId of [...eventIds.slice(-2), ...replyEventIds.slice(-2)]) {
     assert(status.recent_events.some((event) => event.id === eventId), "recent_events should include latest burst events")
+  }
+}
+
+function verifyStoredReplyPairs(eventIds: string[], replyEventIds: string[]): void {
+  for (let index = 0; index < eventIds.length; index += 1) {
+    const replyEvent = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
+      "SELECT source, type, payload, metadata FROM events WHERE id = ?",
+      [replyEventIds[index]],
+    )
+    assert(replyEvent?.source === "system", "stored burst reply source mismatch")
+    assert(replyEvent.type === "companion_reply", "stored burst reply type mismatch")
+    assert((JSON.parse(replyEvent.payload) as { in_reply_to?: string }).in_reply_to === eventIds[index], "stored burst reply payload link mismatch")
+    assert((JSON.parse(replyEvent.metadata) as { in_reply_to?: string }).in_reply_to === eventIds[index], "stored burst reply metadata link mismatch")
   }
 }
 
@@ -95,7 +112,7 @@ async function waitForMemoryPatches(tag: string, expected: number): Promise<void
     const profile = queryOne<{ value: string }>("SELECT value FROM profile WHERE key = ?", ["last_mock_message"])
 
     if (
-      events.length >= expected &&
+      events.length >= expected * 2 &&
       topics.length >= expected &&
       timelines.length >= expected &&
       typeof profile?.value === "string" &&
