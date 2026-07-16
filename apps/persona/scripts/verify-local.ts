@@ -29,6 +29,14 @@ const steps: Step[] = [
     command: "npm.cmd run contract:telegram-idempotency",
   },
   {
+    name: "Ordered asynchronous Memory commit contract test",
+    command: "npm.cmd run contract:ordered-memory",
+  },
+  {
+    name: "Process Message out-of-order Analysis contract test",
+    command: "npm.cmd run contract:process-ordering",
+  },
+  {
     name: "No-network runtime burst contract test",
     command: "npm.cmd run contract:runtime-burst",
   },
@@ -164,6 +172,9 @@ function runRootStructureCheck(): void {
     "apps/persona/src/infra/obsidian/daily-note-exporter.ts",
     "apps/persona/src/application/runtime-burst-contract.ts",
     "apps/persona/src/application/telegram-idempotency-contract.ts",
+    "apps/persona/src/application/ordered-memory-commit.ts",
+    "apps/persona/src/application/ordered-memory-commit-contract.ts",
+    "apps/persona/src/application/process-message-ordering-contract.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",

@@ -100,7 +100,13 @@ calling Companion:
 2. AI runtime loads recent Memory through `buildMemoryContextText()`.
 3. Companion receives the base prompt plus long-term memory context.
 4. Analysis runs asynchronously and returns a `memory_patch`.
-5. Memory writes the patch with the saved Event id as provenance.
+5. Analysis calls may overlap, but Memory commits follow input reservation order.
+6. Memory writes the patch with the saved Event id as provenance.
+
+A failed Analysis releases its queue slot so later Memory commits continue. If
+Companion fails before Analysis is scheduled, the reservation is cancelled for
+the same reason. This keeps replies responsive without allowing an older,
+slower patch to overwrite newer Profile state.
 
 This is the current minimal memory loop. It is intentionally simple: Memory
 decides how rows are read and written, while Persona only consumes formatted

@@ -65,3 +65,12 @@ first Telegram delivery continues through Companion and asynchronous Memory;
 later deliveries of the same `(chat_id, message_id)` return
 `duplicate: true` and do not call the model, append a reply, apply Memory, or
 send a second Telegram response. Command Events use the same boundary.
+
+## Ordered asynchronous Memory commits
+
+Each message reserves a Memory commit position before awaiting Companion. Once
+Companion returns, Analysis may run concurrently with later messages, while the
+resulting patches commit in reservation order. Failed Analysis and failed
+Companion paths release their positions, so one request cannot permanently
+block the queue. The queue is process-local; durable source provenance remains
+the immutable Event id on every written Memory row.
