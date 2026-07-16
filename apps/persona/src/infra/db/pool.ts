@@ -28,10 +28,9 @@ export function queryOne<T = any>(sql: string, params?: unknown[]): T | null {
   return (row as T) ?? null
 }
 
-export function run(sql: string, params?: unknown[]): void {
+export function run(sql: string, params?: unknown[]) {
   const stmt = _db.prepare(sql)
-  if (params) stmt.run(...params)
-  else stmt.run()
+  return params ? stmt.run(...params) : stmt.run()
 }
 
 export function withTransaction<T>(work: () => T): T {

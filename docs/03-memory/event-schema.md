@@ -52,3 +52,16 @@ interface SystemEvent {
 - 新增 Event 类型继承基础 Event 接口，不修改已有类型
 - 未来 Web 接入时新增 `source: 'web'`
 - 未来 Worker 产出时新增 `source: 'worker'`
+
+## Telegram event identity
+
+Telegram message identity is the pair `(chat_id, message_id)`. Persona maps the
+pair to a deterministic UUID v5 before persistence. Application insertion uses
+that stable Event id and returns the already stored Event on redelivery, so a
+polling retry cannot append another input Event, Companion reply, or Memory
+patch.
+
+For databases created before deterministic ids were introduced, the Event store
+also looks up the same payload identity and returns the legacy row. Reusing an
+identity with different source, type, or payload is an explicit conflict rather
+than a silent overwrite. Original Events remain immutable.

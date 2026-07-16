@@ -1,4 +1,7 @@
+import { createHash } from "crypto"
 import { z } from "zod"
+
+const TELEGRAM_EVENT_NAMESPACE = Buffer.from("a82228d5fc664f4983ef70fbc9006e10", "hex")
 
 export const EventSource = z.enum(["telegram", "system", "web"])
 export type EventSource = z.infer<typeof EventSource>
@@ -26,6 +29,7 @@ export type TelegramEventType = "message" | "note" | "todo" | "idea" | "journal"
 
 export function createTelegramEvent(payload: TelegramPayload, type: TelegramEventType = "message"): Event {
   return {
+    id: createTelegramEventId(payload.chat_id, payload.message_id),
     source: "telegram",
     type,
     payload: payload as unknown as Record<string, unknown>,
@@ -84,6 +88,17 @@ export function createDailyNoteExportedEvent(payload: DailyNoteExportedPayload):
       visibility: "user",
     },
   }
+}
+
+export function createTelegramEventId(chatId: number, messageId: number): string {
+  const hash = createHash("sha1")
+    .update(TELEGRAM_EVENT_NAMESPACE)
+    .update(`${chatId}:${messageId}`, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
 export interface CompanionReplyPayload {

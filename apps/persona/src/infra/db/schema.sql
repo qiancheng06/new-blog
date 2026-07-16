@@ -10,6 +10,11 @@ CREATE TABLE IF NOT EXISTS events (
 
 CREATE INDEX IF NOT EXISTS idx_events_source ON events(source);
 CREATE INDEX IF NOT EXISTS idx_events_timestamp ON events(timestamp DESC);
+CREATE INDEX IF NOT EXISTS idx_events_telegram_identity ON events(
+  source,
+  json_extract(payload, '$.chat_id'),
+  json_extract(payload, '$.message_id')
+) WHERE source = 'telegram';
 
 CREATE TABLE IF NOT EXISTS topics (
   id TEXT PRIMARY KEY,

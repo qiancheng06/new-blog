@@ -25,6 +25,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:telegram",
   },
   {
+    name: "Telegram durable idempotency contract test",
+    command: "npm.cmd run contract:telegram-idempotency",
+  },
+  {
     name: "No-network runtime burst contract test",
     command: "npm.cmd run contract:runtime-burst",
   },
@@ -159,6 +163,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/obsidian-archive-contract.ts",
     "apps/persona/src/infra/obsidian/daily-note-exporter.ts",
     "apps/persona/src/application/runtime-burst-contract.ts",
+    "apps/persona/src/application/telegram-idempotency-contract.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",

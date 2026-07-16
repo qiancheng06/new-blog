@@ -79,6 +79,12 @@ trusted numeric chat IDs separated by commas. Updates from every other chat are
 discarded before an Event is created. The allowlist is fail-closed: an empty
 list never means public access.
 
+Authorized Telegram messages use a deterministic Event id derived from
+`chat_id + message_id`. Polling redelivery therefore remains idempotent across
+process restarts. Duplicate deliveries are acknowledged without another model
+call or Telegram reply; conflicting content for an existing identity is logged
+through the normal handler error path.
+
 The Persona API binds to `API_HOST=127.0.0.1` by default. Browser access is
 limited to `PERSONA_ALLOWED_ORIGINS`; the default list contains the local
 Workspace development origins on ports 5173 and 5174. A non-loopback host must

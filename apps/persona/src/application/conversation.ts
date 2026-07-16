@@ -1,4 +1,4 @@
-import { countEventsToday, getRecentEvents, insertEvent } from "../domain/event/store.js"
+import { countEventsToday, getRecentEvents, insertEvent, insertEventOnce } from "../domain/event/store.js"
 import { createCompanionReplyEvent, type Event } from "../domain/event/types.js"
 import type { EventRow } from "../domain/event/store.js"
 import { processMessage } from "../ai-runtime/operators/process-message.js"
@@ -7,6 +7,7 @@ export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
 export interface ConversationResult {
   event: EventRow
+  duplicate: boolean
   companionReply?: string
   replyEvent?: EventRow
 }
@@ -19,10 +20,15 @@ export async function handleConversationEvent(
   event: Event,
   options: ConversationOptions = {},
 ): Promise<ConversationResult> {
-  const saved = insertEvent(event)
+  const input = insertEventOnce(event)
+  const saved = input.event
+
+  if (!input.inserted) {
+    return { event: saved, duplicate: true }
+  }
 
   if (options.shouldReply === false) {
-    return { event: saved }
+    return { event: saved, duplicate: false }
   }
 
   const result = await processMessage(saved)
@@ -32,6 +38,7 @@ export async function handleConversationEvent(
   }, parseMetadata(saved.metadata)))
   return {
     event: saved,
+    duplicate: false,
     companionReply: result.companionReply,
     replyEvent,
   }

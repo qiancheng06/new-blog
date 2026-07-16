@@ -6,6 +6,7 @@ const evaluationRunId = "eval-telegram-contract"
 verifyCommandParsing()
 verifyCommandEventBuild()
 verifyMessageEventBuild()
+verifyStableEventIdentity()
 verifyChatAllowlist()
 
 console.log("telegram contract ok")
@@ -58,6 +59,18 @@ function verifyMessageEventBuild(): void {
   assert(result.event.type === "message", "message event type mismatch")
   assert(result.event.payload.text === "normal companion message", "message payload text mismatch")
   assert(Object.keys(result.event.metadata).length === 0, "blank evaluation id should not add metadata")
+}
+
+function verifyStableEventIdentity(): void {
+  const first = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3005 })
+  const duplicate = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3005 })
+  const otherChat = buildTelegramEvent({ chatId: -1002, userId: 2002, text: "first", messageId: 3005 })
+  const otherMessage = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3006 })
+
+  assert(first.event.id === duplicate.event.id, "same Telegram message must produce a stable Event id")
+  assert(first.event.id !== otherChat.event.id, "Telegram Event id must include chat id")
+  assert(first.event.id !== otherMessage.event.id, "Telegram Event id must include message id")
+  assert(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(first.event.id ?? ""), "Telegram Event id must be UUID v5")
 }
 
 function verifyChatAllowlist(): void {

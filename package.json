@@ -20,6 +20,7 @@
     "contract:runtime": "tsx apps/persona/src/infra/diagnostics/runtime-diagnostics-contract.ts",
     "contract:api": "tsx apps/persona/src/application/api-contract.ts",
     "contract:telegram": "tsx apps/persona/src/interface/telegram/telegram-contract.ts",
+    "contract:telegram-idempotency": "tsx apps/persona/src/application/telegram-idempotency-contract.ts",
     "contract:runtime-burst": "tsx apps/persona/src/application/runtime-burst-contract.ts",
     "contract:runtime-startup": "tsx apps/persona/src/main/runtime-startup-contract.ts",
     "contract:real-mode-docs": "tsx apps/persona/src/application/real-mode-docs-contract.ts",
