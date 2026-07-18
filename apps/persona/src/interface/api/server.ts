@@ -23,6 +23,15 @@ import {
 } from "../../application/memory.js"
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
 import {
+  AnalysisJobConflictError,
+  AnalysisJobNotFoundError,
+  AnalysisJobValidationError,
+  getAnalysisJobs,
+  getAnalysisJobsStatus,
+  parseAnalysisJobStatus,
+  retryAnalysisJob,
+} from "../../application/analysis-jobs.js"
+import {
   DailySummaryNotFoundError,
   DailySummaryArchiveConflictError,
   DailySummaryArchiveUnavailableError,
@@ -103,6 +112,7 @@ function handleHealth(_req: IncomingMessage, res: ServerResponse) {
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
     background_tasks: { pending: getPendingBackgroundTaskCount() },
+    analysis_jobs: getAnalysisJobsStatus(),
   })
 }
 
@@ -118,6 +128,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
     background_tasks: { pending: getPendingBackgroundTaskCount() },
+    analysis_jobs: getAnalysisJobsStatus(),
     memory: getMemoryStatusStats(),
     recent_events: recentEvents.map((event) => ({
       id: event.id,
@@ -253,6 +264,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
     }
+    if (url === "/api/analysis-jobs" && req.method === "GET") {
+      return handleAnalysisJobs(requestUrl, res)
+    }
+    const analysisJobRetryMatch = /^\/api\/analysis-jobs\/([^/]+)\/retry$/.exec(url)
+    if (analysisJobRetryMatch && req.method === "POST") {
+      return await handleAnalysisJobRetry(req, analysisJobRetryMatch[1], res)
+    }
     if (url === "/api/memory" && req.method === "GET") {
       return handleMemoryOverview(requestUrl, res)
     }
@@ -361,6 +379,22 @@ function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
   throw err
 }
 
+function handleAnalysisJobError(err: unknown, res: ServerResponse): void {
+  if (err instanceof AnalysisJobValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof AnalysisJobNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof AnalysisJobConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
 function handleDailySummaryError(err: unknown, res: ServerResponse): void {
   if (err instanceof DailySummaryValidationError) {
     json(res, 400, { error: err.message })
@@ -447,6 +481,34 @@ function handleDailySummaryByDate(date: string, res: ServerResponse) {
   }
 }
 
+function handleAnalysisJobs(url: URL, res: ServerResponse) {
+  try {
+    const limit = readNumber(url, "limit")
+    const offset = readNumber(url, "offset")
+    json(res, 200, {
+      items: getAnalysisJobs({
+        status: parseAnalysisJobStatus(readText(url, "status")),
+        limit,
+        offset,
+      }),
+      limit: normalizePageLimit(limit),
+      offset: normalizePageOffset(offset),
+    })
+  } catch (err) {
+    handleAnalysisJobError(err, res)
+  }
+}
+
+async function handleAnalysisJobRetry(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<Record<string, never>>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 202, retryAnalysisJob(id))
+  } catch (err) {
+    handleAnalysisJobError(err, res)
+  }
+}
+
 async function handleDailySummaryArchive(req: IncomingMessage, date: string, res: ServerResponse) {
   const parsed = await readJsonObject<Record<string, never>>(req, res)
   if (!parsed) return
@@ -456,6 +518,17 @@ async function handleDailySummaryArchive(req: IncomingMessage, date: string, res
   } catch (err) {
     handleDailySummaryError(err, res)
   }
+}
+
+function normalizePageLimit(value: number | undefined): number {
+  if (value === undefined) return 20
+  if (!Number.isFinite(value)) return 1
+  return Math.min(100, Math.max(1, Math.floor(value)))
+}
+
+function normalizePageOffset(value: number | undefined): number {
+  if (value === undefined || !Number.isFinite(value)) return 0
+  return Math.max(0, Math.floor(value))
 }
 
 export interface ApiServerOptions {

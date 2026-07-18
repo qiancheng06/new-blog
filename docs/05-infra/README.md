@@ -96,6 +96,12 @@ shutdown path. Persona stops accepting API and Telegram input, then waits up to
 `/api/status` expose only the pending task count; task inputs and private content
 are never included.
 
+Analysis job state survives process restarts. On startup, jobs left pending or
+running are marked failed with the bounded `interrupted` code and can be retried
+through the audited Application API. Health/status expose aggregate job counts;
+neither diagnostics nor job APIs include prompts, messages, provider responses,
+or raw errors. Analysis completion logs expose counts only, not model content.
+
 Default AI gates must not call real DeepSeek or Telegram services. Use
 `LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
 offline.

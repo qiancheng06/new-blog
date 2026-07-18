@@ -74,3 +74,9 @@ resulting patches commit in reservation order. Failed Analysis and failed
 Companion paths release their positions, so one request cannot permanently
 block the queue. The queue is process-local; durable source provenance remains
 the immutable Event id on every written Memory row.
+
+Analysis execution state itself is durable in `analysis_jobs`. Workspace may
+inspect it through `GET /api/analysis-jobs` and retry a failed job through the
+audited `POST /api/analysis-jobs/:id/retry` command. The API exposes only state,
+timestamps, counters, source Event ids, and bounded error codes; private source
+or provider content is not part of this read model.

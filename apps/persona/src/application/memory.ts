@@ -122,7 +122,7 @@ export function correctMemoryProfile(input: ProfileCorrectionInput): ProfileCorr
 
     const [profile] = upsertProfileUpdates(
       [{ key, value: input.value, confidence: 1 }],
-      { sourceEventId: event.id }
+      { sourceEventId: event.id, allowStaleProfile: true }
     )
 
     if (!profile) throw new Error("profile correction did not write a row")

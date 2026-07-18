@@ -90,6 +90,24 @@ export function createDailyNoteExportedEvent(payload: DailyNoteExportedPayload):
   }
 }
 
+export interface AnalysisRetryRequestedPayload {
+  analysis_job_id: string
+  source_event_id: string
+}
+
+export function createAnalysisRetryRequestedEvent(payload: AnalysisRetryRequestedPayload): Event {
+  return {
+    source: "web",
+    type: "analysis_retry_requested",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "analysis_recovery",
+      visibility: "user",
+    },
+  }
+}
+
 export function createTelegramEventId(chatId: number, messageId: number): string {
   const hash = createHash("sha1")
     .update(TELEGRAM_EVENT_NAMESPACE)

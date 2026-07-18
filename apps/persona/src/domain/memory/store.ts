@@ -323,6 +323,7 @@ export function upsertProfileUpdates(
     .map(normalizeProfileUpdate)
     .filter((update): update is ProfileUpdate => update !== null)
     .map((update) => upsertProfile(update, options))
+    .filter((row): row is ProfileRow => row !== null)
 }
 
 export function appendTimelineEvents(
@@ -360,11 +361,12 @@ function upsertTopic(update: TopicUpdate): TopicRow {
   return queryOne<TopicRow>("SELECT * FROM topics WHERE id = ?", [id])!
 }
 
-function upsertProfile(update: ProfileUpdate, options: MemoryPatchWriteOptions): ProfileRow {
+function upsertProfile(update: ProfileUpdate, options: MemoryPatchWriteOptions): ProfileRow | null {
   const existing = queryOne<ProfileRow>("SELECT * FROM profile WHERE key = ?", [update.key])
   const value = JSON.stringify(update.value)
 
   if (existing) {
+    if (!options.allowStaleProfile && isStaleProfileSource(existing.source_event_id, options.sourceEventId)) return null
     const sourceEventId = options.sourceEventId ?? existing.source_event_id
     run(
       `UPDATE profile
@@ -384,6 +386,31 @@ function upsertProfile(update: ProfileUpdate, options: MemoryPatchWriteOptions):
     [id, update.key, value, options.sourceEventId ?? null]
   )
   return queryOne<ProfileRow>("SELECT * FROM profile WHERE id = ?", [id])!
+}
+
+function isStaleProfileSource(currentSourceEventId: string | null, incomingSourceEventId: string | undefined): boolean {
+  if (!currentSourceEventId || !incomingSourceEventId || currentSourceEventId === incomingSourceEventId) return false
+  const ordering = queryOne<{
+    current_timestamp: string
+    incoming_timestamp: string
+    current_order: number
+    incoming_order: number
+  }>(
+    `SELECT current_event."timestamp" AS current_timestamp,
+            incoming_event."timestamp" AS incoming_timestamp,
+            current_event.rowid AS current_order,
+            incoming_event.rowid AS incoming_order
+     FROM events current_event, events incoming_event
+     WHERE current_event.id = ? AND incoming_event.id = ?`,
+    [currentSourceEventId, incomingSourceEventId],
+  )
+  return Boolean(ordering && (
+    ordering.incoming_timestamp < ordering.current_timestamp ||
+    (
+      ordering.incoming_timestamp === ordering.current_timestamp &&
+      ordering.incoming_order < ordering.current_order
+    )
+  ))
 }
 
 function appendTimelineEvent(event: TimelineEventPatch, options: MemoryPatchWriteOptions): TimelineEventRow {

@@ -108,6 +108,25 @@ Companion fails before Analysis is scheduled, the reservation is cancelled for
 the same reason. This keeps replies responsive without allowing an older,
 slower patch to overwrite newer Profile state.
 
+## Durable Analysis jobs
+
+Every asynchronous Analysis is represented by one `analysis_jobs` row keyed by
+its immutable source Event. The state machine is `pending -> running ->
+succeeded|failed`; attempts use privacy-safe error codes and never persist user
+text, provider output, or raw exception messages.
+
+Memory projection writes and `succeeded` commit in one database transaction.
+Manual retries are allowed only from `failed`, append an
+`analysis_retry_requested` Event, and increment `attempt_count`. Jobs left in
+`pending` or `running` after a process interruption become failed with
+`error_code = interrupted` on the next runtime start.
+
+Profile updates compare source Event timestamps. A recovered older Analysis may
+still add its previously unwritten Topic or Timeline evidence, but it cannot
+replace Profile state already sourced from a newer Event.
+When timestamps tie, Event insertion order breaks the tie. Governed manual
+Profile corrections explicitly bypass this automatic stale-source guard.
+
 This is the current minimal memory loop. It is intentionally simple: Memory
 decides how rows are read and written, while Persona only consumes formatted
 context and proposes future patches.

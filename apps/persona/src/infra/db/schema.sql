@@ -16,6 +16,22 @@ CREATE INDEX IF NOT EXISTS idx_events_telegram_identity ON events(
   json_extract(payload, '$.message_id')
 ) WHERE source = 'telegram';
 
+CREATE TABLE IF NOT EXISTS analysis_jobs (
+  id TEXT PRIMARY KEY,
+  source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NOT NULL DEFAULT '',
+  retry_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_analysis_jobs_status_updated
+  ON analysis_jobs(status, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS topics (
   id TEXT PRIMARY KEY,
   name TEXT NOT NULL UNIQUE,

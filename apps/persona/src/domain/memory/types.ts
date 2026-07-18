@@ -24,4 +24,5 @@ export interface MemoryPatch {
 
 export interface MemoryPatchWriteOptions {
   sourceEventId?: string
+  allowStaleProfile?: boolean
 }

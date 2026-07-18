@@ -88,6 +88,10 @@ export function countEventsToday(): number {
   return row ? Number(row.count) : 0
 }
 
+export function getEventById(id: string): EventRow | null {
+  return queryOne<EventRow>("SELECT * FROM events WHERE id = ?", [id])
+}
+
 function findExistingExternalEvent(event: Event): EventRow | null {
   if (event.source !== "telegram") return null
   const chatId = event.payload.chat_id

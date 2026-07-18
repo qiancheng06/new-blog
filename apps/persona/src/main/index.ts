@@ -2,6 +2,7 @@ import { initializeDb } from "../infra/db/pool.js"
 import { startApiServer, stopApiServer, type ApiServerOptions } from "../interface/api/server.js"
 import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
+import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
 import type { Server } from "http"
 
 type TelegramModule = typeof import("../interface/telegram/bot.js")
@@ -25,6 +26,10 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   })
 
   initializeDb()
+  const recoveredAnalysisJobs = recoverAnalysisJobsAtStartup()
+  if (recoveredAnalysisJobs > 0) {
+    console.warn(`[analysis recovery] marked ${recoveredAnalysisJobs} interrupted job(s) as failed`)
+  }
   const apiServer = startApiServer(options.api)
   let telegramModulePromise: Promise<TelegramModule> | null = null
 

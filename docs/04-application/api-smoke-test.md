@@ -15,6 +15,12 @@ Response `200`:
   events_today: number,
   background_tasks: {
     pending: number
+  },
+  analysis_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
   }
 }
 ```
@@ -141,6 +147,12 @@ Response `200`:
   background_tasks: {
     pending: number
   },
+  analysis_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
+  },
   memory: {
     topics: number,
     profile: number,
@@ -155,6 +167,42 @@ Response `200`:
   }>
 }
 ```
+
+### `GET /api/analysis-jobs`
+
+Returns privacy-safe Analysis execution state without source text or provider
+output. Optional query parameters are `status`, `limit`, and `offset`; status is
+one of `pending`, `running`, `succeeded`, or `failed`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    status: "pending" | "running" | "succeeded" | "failed",
+    attemptCount: number,
+    errorCode: "analysis_error" | "memory_error" | "interrupted" | null,
+    retryEventId: string | null,
+    createdAt: string,
+    startedAt: string | null,
+    finishedAt: string | null,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/analysis-jobs/:id/retry`
+
+Retries one failed Analysis job. Send `{}` as JSON. The response is `202` with
+`{ job, retryEventId }`; the model call and Memory commit remain asynchronous.
+The request first appends an `analysis_retry_requested` audit Event. Missing
+jobs return `404`, while pending, running, or succeeded jobs return `409`.
+
+Successful Memory projection writes and the job's `succeeded` transition commit
+atomically. A retry never reapplies a succeeded job, and an older source Event
+cannot overwrite Profile state whose provenance Event is newer.
 
 ### `GET /api/memory`
 
