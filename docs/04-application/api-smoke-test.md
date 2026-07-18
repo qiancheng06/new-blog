@@ -51,9 +51,14 @@ Request:
 ```ts
 {
   text: string,
-  page?: string
+  page?: string,
+  requestId?: string
 }
 ```
+
+`requestId` is an opaque 1-128 character idempotency key using letters,
+numbers, `.`, `_`, `:`, or `-`. Browsers may send the same value through the
+`Idempotency-Key` header instead. When both are present they must match.
 
 Success response `200`:
 
@@ -61,13 +66,33 @@ Success response `200`:
 {
   reply: string,
   eventId: string,
-  replyEventId: string
+  replyEventId: string,
+  duplicate: boolean,
+  conversationJobId: string,
+  conversationJobStatus: "succeeded"
 }
 ```
 
 `eventId` identifies the immutable user input Event. `replyEventId` identifies the
 linked `system/companion_reply` output Event whose `in_reply_to` points back to the
 input Event.
+
+The first accepted request persists the input Event and Conversation job in one
+transaction. Concurrent requests with the same key share one Companion call.
+A completed replay returns the stored reply without another model call or reply
+Event. Reusing a key with different input returns `409`. A failed response
+returns bounded `eventId` and `conversationJobId` recovery identifiers without
+provider errors; replaying the same key creates an audited retry attempt.
+
+```ts
+{ error: "idempotency key conflict" } // 409
+{
+  reply: string,
+  error: "processing failed",
+  eventId: string,
+  conversationJobId: string
+} // 500, retryable with the same request key or job retry API
+```
 
 ### `POST /api/daily-summaries`
 
@@ -177,6 +202,12 @@ Response `200`:
     succeeded: number,
     failed: number
   },
+  conversation_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
+  },
   memory: {
     topics: number,
     profile: number,
@@ -194,12 +225,50 @@ Response `200`:
 
 `RuntimeComponents` contains only bounded states and counts: database, LLM
 provider/mode, Telegram lifecycle, Obsidian availability, Daily Summary
-scheduler state, Analysis job counts, and pending background task count. The
+scheduler state, Conversation/Analysis job counts, and pending background task count. The
 Daily Summary component exposes only status, target/completed dates, next run
 time, failure count, and aggregate persisted run counts. It never includes
 configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.
+
+### `GET /api/conversation-jobs`
+
+Returns privacy-safe Companion execution state. Optional query parameters are
+`status`, `limit`, and `offset`; status is `pending`, `running`, `succeeded`, or
+`failed`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    status: "pending" | "running" | "succeeded" | "failed",
+    attemptCount: number,
+    errorCode: "companion_error" | "reply_error" | "state_error" | "interrupted" | null,
+    replyEventId: string | null,
+    retryEventId: string | null,
+    createdAt: string,
+    startedAt: string | null,
+    finishedAt: string | null,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/conversation-jobs/:id/retry`
+
+Retries one failed job synchronously and appends a
+`conversation_retry_requested` audit Event before the new attempt. Send `{}` as
+JSON. Success returns the job, retry Event id, stored reply, input Event id, and
+reply Event id. Missing jobs return `404`; non-failed jobs return `409`.
+
+Conversation jobs never store prompts, reply text, provider output, or raw
+errors. Reply text remains in the governed `companion_reply` Event. Startup
+marks interrupted pending/running jobs failed with the bounded `interrupted`
+code so they can be explicitly recovered.
 
 ## Automatic Daily Summary
 
@@ -446,9 +515,12 @@ body returns `topic`.
 - The API binds to `127.0.0.1` unless `API_HOST` is explicitly configured.
 - `OPTIONS` returns `204` only for configured `PERSONA_ALLOWED_ORIGINS` and
   returns `403` for an unknown browser origin.
+- Trusted browser preflight allows `Content-Type` and `Idempotency-Key`.
 - Unknown routes return `404 { error: "not found" }`.
 - POST bodies must be JSON objects with `Content-Type: application/json` and
   may not exceed 64 KiB.
+- Telegram redelivery remains acknowledge-only and never sends a second reply;
+  Web replay recovery is enabled only when an idempotency key is present.
 - Daily Note archive writes are confined to the configured external Obsidian
   vault and reject unmanaged same-name files instead of overwriting them.
 - Memory list limits are normalized by the Application layer and capped at 100.

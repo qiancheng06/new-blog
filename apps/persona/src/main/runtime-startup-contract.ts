@@ -12,6 +12,11 @@ const { insertEvent } = await import("../domain/event/store.js")
 const { createWorkspaceEvent } = await import("../domain/event/types.js")
 const { ensureAnalysisJob, getAnalysisJobById } = await import("../domain/analysis-job/store.js")
 const {
+  beginConversationJobAttempt,
+  ensureConversationJob,
+  getConversationJobById,
+} = await import("../domain/conversation-job/store.js")
+const {
   getPendingBackgroundTaskCount,
   trackBackgroundTask,
 } = await import("../application/background-tasks.js")
@@ -19,6 +24,9 @@ const {
 initializeDb()
 const recoveryEvent = insertEvent(createWorkspaceEvent({ text: recoveryTag }))
 const recoveryJob = ensureAnalysisJob(recoveryEvent.id)
+const conversationJob = ensureConversationJob(recoveryEvent.id)
+const runningConversationJob = beginConversationJobAttempt(conversationJob.id)
+assert(runningConversationJob?.status === "running", "Conversation recovery fixture must be running")
 const runtime = startPersonaRuntime({
   api: { port },
   telegram: false,
@@ -32,6 +40,9 @@ try {
   const recoveredJob = getAnalysisJobById(recoveryJob.id)
   assert(recoveredJob?.status === "failed", "runtime startup must recover pending Analysis job")
   assert(recoveredJob.error_code === "interrupted", "runtime startup recovery error code mismatch")
+  const recoveredConversationJob = getConversationJobById(conversationJob.id)
+  assert(recoveredConversationJob?.status === "failed", "runtime startup must recover running Conversation job")
+  assert(recoveredConversationJob.error_code === "interrupted", "Conversation recovery error code mismatch")
   let releaseTask = (): void => undefined
   const blockedTask = new Promise<void>((resolve) => {
     releaseTask = resolve

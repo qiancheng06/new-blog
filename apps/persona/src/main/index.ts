@@ -3,6 +3,7 @@ import { startApiServer, stopApiServer, type ApiServerOptions } from "../interfa
 import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
 import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
+import { recoverConversationJobsAtStartup } from "../application/conversation-jobs.js"
 import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
 import {
   startDailySummaryScheduler,
@@ -32,6 +33,10 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   })
 
   initializeDb()
+  const recoveredConversationJobs = recoverConversationJobsAtStartup()
+  if (recoveredConversationJobs > 0) {
+    console.warn(`[conversation recovery] marked ${recoveredConversationJobs} interrupted job(s) as failed`)
+  }
   const recoveredAnalysisJobs = recoverAnalysisJobsAtStartup()
   if (recoveredAnalysisJobs > 0) {
     console.warn(`[analysis recovery] marked ${recoveredAnalysisJobs} interrupted job(s) as failed`)

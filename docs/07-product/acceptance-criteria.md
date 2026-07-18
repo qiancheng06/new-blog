@@ -16,6 +16,8 @@ npm.cmd run verify:local
 This gate must pass without calling real LLM or Telegram services. It covers:
 
 - Persona backend TypeScript build.
+- Fresh SQLite schema contract that executes `schema.sql` in an empty temporary
+  database and verifies task-specific error-code constraints.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
 - No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
 - No-network Telegram contract test for command text-to-Event mapping, command
@@ -28,6 +30,8 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network automatic Daily Summary contract for per-date single-flight,
   finalization, archive-stage recovery, retry state, timezone scheduling, and
   graceful scheduler stop.
+- No-network Conversation job contract for Web idempotent replay, concurrent
+  single-flight, audited manual retry, stored reply reuse, and startup recovery.
 - No-network real-mode docs contract test for required P16 checklist/template
   sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
@@ -48,8 +52,11 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 Use individual commands only for focused diagnosis:
 
 - `npm.cmd run build:backend` for Persona backend type/build failures.
+- `npm.cmd run contract:db-schema` for fresh-install schema and constraint failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
 - `npm.cmd run contract:api` for Application API request/response shape failures.
+- `npm.cmd run contract:conversation-jobs` for Companion execution recovery,
+  Web idempotency, and retry audit failures.
 - `npm.cmd run contract:telegram` for Telegram command mapping, no-reply boundary,
   and evaluation run labeling failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,

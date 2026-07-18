@@ -3,6 +3,7 @@ import { isAbsolute, relative, sep } from "path"
 import { getAnalysisJobsStatus } from "./analysis-jobs.js"
 import { getPendingBackgroundTaskCount } from "./background-tasks.js"
 import { getDailySummarySchedulerSnapshot } from "./daily-summary-scheduler.js"
+import { getConversationJobsStatus } from "./conversation-jobs.js"
 import {
   config,
   isSupportedProvider,
@@ -23,6 +24,10 @@ export interface RuntimeHealthComponents {
   telegram: { status: TelegramRuntimeStatus }
   obsidian: { status: "disabled" | "ok" | "unavailable" }
   analysis: {
+    status: "ok" | "degraded"
+    jobs: { pending: number; running: number; succeeded: number; failed: number }
+  }
+  conversation: {
     status: "ok" | "degraded"
     jobs: { pending: number; running: number; succeeded: number; failed: number }
   }
@@ -54,6 +59,7 @@ export function setTelegramRuntimeStatus(status: TelegramRuntimeStatus): void {
 
 export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
   const jobs = getSafeAnalysisStatus()
+  const conversationJobs = getSafeConversationStatus()
   const pendingBackgroundTasks = getPendingBackgroundTaskCount()
   const dailySummary = getDailySummarySchedulerSnapshot()
   return summarizeRuntimeHealth({
@@ -64,6 +70,10 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
     analysis: {
       status: jobs.failed > 0 ? "degraded" : "ok",
       jobs,
+    },
+    conversation: {
+      status: conversationJobs.failed > 0 ? "degraded" : "ok",
+      jobs: conversationJobs,
     },
     daily_summary: dailySummary,
     background_tasks: {
@@ -82,6 +92,7 @@ export function summarizeRuntimeHealth(components: RuntimeHealthComponents): Run
     components.telegram.status === "stopped" ||
     components.obsidian.status === "unavailable" ||
     components.analysis.status === "degraded" ||
+    components.conversation.status === "degraded" ||
     components.daily_summary.status === "failed" ||
     components.daily_summary.status === "stopped"
   )
@@ -96,10 +107,10 @@ function getDatabaseStatus(): RuntimeHealthComponents["database"] {
        WHERE type = 'table'
          AND name IN (
            'events', 'profile', 'topics', 'timeline_events', 'daily_notes',
-           'analysis_jobs', 'daily_summary_runs'
+           'analysis_jobs', 'conversation_jobs', 'daily_summary_runs'
          )`,
     )
-    return { status: Number(row?.count) === 7 ? "ok" : "failed" }
+    return { status: Number(row?.count) === 8 ? "ok" : "failed" }
   } catch {
     return { status: "failed" }
   }
@@ -141,6 +152,14 @@ function getObsidianStatus(runtimeConfig: RuntimeConfig): RuntimeHealthComponent
 function getSafeAnalysisStatus(): RuntimeHealthComponents["analysis"]["jobs"] {
   try {
     return getAnalysisJobsStatus()
+  } catch {
+    return { pending: 0, running: 0, succeeded: 0, failed: 0 }
+  }
+}
+
+function getSafeConversationStatus(): RuntimeHealthComponents["conversation"]["jobs"] {
+  try {
+    return getConversationJobsStatus()
   } catch {
     return { pending: 0, running: 0, succeeded: 0, failed: 0 }
   }

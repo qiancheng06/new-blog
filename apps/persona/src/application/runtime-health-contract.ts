@@ -59,6 +59,15 @@ const schedulerFailure = summarizeRuntimeHealth(components({
 assert(schedulerFailure.status === "degraded", "Daily Summary failure must degrade runtime")
 assert(schedulerFailure.ready, "Daily Summary failure must not block core readiness")
 
+const conversationFailure = summarizeRuntimeHealth(components({
+  conversation: {
+    status: "degraded",
+    jobs: { pending: 0, running: 0, succeeded: 2, failed: 1 },
+  },
+}))
+assert(conversationFailure.status === "degraded", "Conversation failure must degrade runtime")
+assert(conversationFailure.ready, "Conversation failure must not block core readiness")
+
 setTelegramRuntimeStatus("starting")
 const runtimeSnapshot = getRuntimeHealthSnapshot()
 assert(runtimeSnapshot.ready, "mock runtime snapshot must be ready")
@@ -68,6 +77,7 @@ assert(runtimeSnapshot.components.llm.mode === "mock", "runtime LLM mode must be
 assert(runtimeSnapshot.components.telegram.status === "starting", "Telegram runtime status must be tracked")
 assert(runtimeSnapshot.components.obsidian.status === "disabled", "empty Obsidian config must be disabled")
 assert(typeof runtimeSnapshot.components.analysis.jobs.failed === "number", "analysis failed count must be numeric")
+assert(typeof runtimeSnapshot.components.conversation.jobs.failed === "number", "conversation failed count must be numeric")
 assert(runtimeSnapshot.components.daily_summary.status === "disabled", "Daily Summary scheduler must default to disabled in contract")
 assert(typeof runtimeSnapshot.components.daily_summary.runs.failed === "number", "Daily Summary failed run count must be numeric")
 assert(typeof runtimeSnapshot.components.background_tasks.pending === "number", "background task count must be numeric")
@@ -83,6 +93,10 @@ function components(overrides: Partial<RuntimeHealthComponents> = {}): RuntimeHe
     telegram: { status: "disabled" },
     obsidian: { status: "disabled" },
     analysis: {
+      status: "ok",
+      jobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
+    },
+    conversation: {
       status: "ok",
       jobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
     },

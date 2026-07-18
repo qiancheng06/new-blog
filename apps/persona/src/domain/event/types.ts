@@ -2,6 +2,7 @@ import { createHash } from "crypto"
 import { z } from "zod"
 
 const TELEGRAM_EVENT_NAMESPACE = Buffer.from("a82228d5fc664f4983ef70fbc9006e10", "hex")
+const WORKSPACE_EVENT_NAMESPACE = Buffer.from("1aa87ef80f9d4d778c807f5479026caf", "hex")
 
 export const EventSource = z.enum(["telegram", "system", "web"])
 export type EventSource = z.infer<typeof EventSource>
@@ -108,6 +109,25 @@ export function createAnalysisRetryRequestedEvent(payload: AnalysisRetryRequeste
   }
 }
 
+export interface ConversationRetryRequestedPayload {
+  conversation_job_id: string
+  source_event_id: string
+  reason: "manual" | "idempotent_replay"
+}
+
+export function createConversationRetryRequestedEvent(payload: ConversationRetryRequestedPayload): Event {
+  return {
+    source: "web",
+    type: "conversation_retry_requested",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "conversation_recovery",
+      visibility: "user",
+    },
+  }
+}
+
 export function createTelegramEventId(chatId: number, messageId: number): string {
   const hash = createHash("sha1")
     .update(TELEGRAM_EVENT_NAMESPACE)
@@ -149,18 +169,30 @@ export interface WorkspacePayload {
   evaluationRunId?: string
 }
 
-export function createWorkspaceEvent(payload: WorkspacePayload): Event {
+export function createWorkspaceEvent(payload: WorkspacePayload, options: { requestId?: string } = {}): Event {
   const metadata = payload.evaluationRunId?.trim()
     ? { purpose: "real_mode_evaluation", run_id: payload.evaluationRunId.trim() }
     : {}
 
   return {
+    id: options.requestId ? createWorkspaceEventId(options.requestId) : undefined,
     source: "web",
     type: "message",
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
     metadata,
   }
+}
+
+export function createWorkspaceEventId(requestId: string): string {
+  const hash = createHash("sha1")
+    .update(WORKSPACE_EVENT_NAMESPACE)
+    .update(requestId, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
 export interface MemoryProfileCorrectionPayload {

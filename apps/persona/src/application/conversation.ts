@@ -1,7 +1,14 @@
-import { countEventsToday, getRecentEvents, insertEvent, insertEventOnce } from "../domain/event/store.js"
-import { createCompanionReplyEvent, type Event } from "../domain/event/types.js"
+import { countEventsToday, getRecentEvents, insertEventOnce } from "../domain/event/store.js"
+import { type Event } from "../domain/event/types.js"
 import type { EventRow } from "../domain/event/store.js"
-import { processMessage } from "../ai-runtime/operators/process-message.js"
+import type { ProcessMessageDependencies } from "../ai-runtime/operators/process-message.js"
+import {
+  ensureConversationJobForEvent,
+  executeConversationJob,
+  retryConversationJob,
+  type ConversationJob,
+} from "./conversation-jobs.js"
+import { withTransaction } from "../infra/db/pool.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -10,37 +17,45 @@ export interface ConversationResult {
   duplicate: boolean
   companionReply?: string
   replyEvent?: EventRow
+  job?: ConversationJob
 }
 
 export interface ConversationOptions {
   shouldReply?: boolean
+  resumeDuplicate?: boolean
+  dependencies?: ProcessMessageDependencies
 }
 
 export async function handleConversationEvent(
   event: Event,
   options: ConversationOptions = {},
 ): Promise<ConversationResult> {
-  const input = insertEventOnce(event)
+  const shouldReply = options.shouldReply !== false
+  const input = withTransaction(() => {
+    const inserted = insertEventOnce(event)
+    const shouldEnsureJob = shouldReply && (inserted.inserted || options.resumeDuplicate === true)
+    const job = shouldEnsureJob ? ensureConversationJobForEvent(inserted.event.id) : undefined
+    return { ...inserted, job }
+  })
   const saved = input.event
 
-  if (!input.inserted) {
-    return { event: saved, duplicate: true }
+  if (!shouldReply) {
+    return { event: saved, duplicate: !input.inserted }
   }
 
-  if (options.shouldReply === false) {
-    return { event: saved, duplicate: false }
+  if (!input.inserted && options.resumeDuplicate !== true) {
+    return { event: saved, duplicate: true, job: input.job }
   }
 
-  const result = await processMessage(saved)
-  const replyEvent = insertEvent(createCompanionReplyEvent({
-    text: result.companionReply,
-    in_reply_to: saved.id,
-  }, parseMetadata(saved.metadata)))
+  const execution = !input.inserted && input.job?.status === "failed"
+    ? await retryConversationJob(input.job.id, "idempotent_replay", options.dependencies)
+    : await executeConversationJob(saved, options.dependencies)
   return {
     event: saved,
-    duplicate: false,
-    companionReply: result.companionReply,
-    replyEvent,
+    duplicate: !input.inserted,
+    companionReply: execution.companionReply,
+    replyEvent: execution.replyEvent,
+    job: execution.job,
   }
 }
 
@@ -50,15 +65,4 @@ export function countConversationEventsToday(): number {
 
 export function getRecentConversationEvents(limit = 20): EventRow[] {
   return getRecentEvents(limit)
-}
-
-function parseMetadata(value: string): Record<string, unknown> {
-  try {
-    const parsed = JSON.parse(value) as unknown
-    return parsed && typeof parsed === "object" && !Array.isArray(parsed)
-      ? parsed as Record<string, unknown>
-      : {}
-  } catch {
-    return {}
-  }
 }

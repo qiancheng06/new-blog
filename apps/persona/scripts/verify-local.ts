@@ -13,6 +13,10 @@ const steps: Step[] = [
     command: "npm.cmd run build:backend",
   },
   {
+    name: "Fresh database schema contract test",
+    command: "npm.cmd run contract:db-schema",
+  },
+  {
     name: "No-network API smoke test",
     command: "npm.cmd run smoke:api",
   },
@@ -39,6 +43,10 @@ const steps: Step[] = [
   {
     name: "Durable Analysis job recovery contract test",
     command: "npm.cmd run contract:analysis-jobs",
+  },
+  {
+    name: "Durable Conversation job and idempotency contract test",
+    command: "npm.cmd run contract:conversation-jobs",
   },
   {
     name: "Component runtime health contract test",
@@ -192,11 +200,15 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/process-message-ordering-contract.ts",
     "apps/persona/src/application/analysis-jobs.ts",
     "apps/persona/src/application/analysis-job-contract.ts",
+    "apps/persona/src/application/conversation-jobs.ts",
+    "apps/persona/src/application/conversation-job-contract.ts",
+    "apps/persona/src/domain/conversation-job/store.ts",
     "apps/persona/src/application/runtime-health.ts",
     "apps/persona/src/application/runtime-health-contract.ts",
     "apps/persona/src/domain/analysis-job/store.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",
+    "apps/persona/src/infra/db/schema-contract.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics-contract.ts",
     "apps/persona/src/domain/memory/inspect-memory.ts",

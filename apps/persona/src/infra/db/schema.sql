@@ -16,12 +16,29 @@ CREATE INDEX IF NOT EXISTS idx_events_telegram_identity ON events(
   json_extract(payload, '$.message_id')
 ) WHERE source = 'telegram';
 
+CREATE TABLE IF NOT EXISTS conversation_jobs (
+  id TEXT PRIMARY KEY,
+  source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NOT NULL DEFAULT '' CHECK (error_code IN ('', 'companion_error', 'reply_error', 'state_error', 'interrupted')),
+  reply_event_id TEXT UNIQUE REFERENCES events(id) ON DELETE SET NULL,
+  retry_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_conversation_jobs_status_updated
+  ON conversation_jobs(status, updated_at DESC);
+
 CREATE TABLE IF NOT EXISTS analysis_jobs (
   id TEXT PRIMARY KEY,
   source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
   attempt_count INTEGER NOT NULL DEFAULT 0,
-  error_code TEXT NOT NULL DEFAULT '' CHECK (error_code IN ('', 'generation_error', 'archive_error', 'state_error', 'interrupted')),
+  error_code TEXT NOT NULL DEFAULT '' CHECK (error_code IN ('', 'analysis_error', 'memory_error', 'interrupted')),
   retry_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,
@@ -103,7 +120,7 @@ CREATE TABLE IF NOT EXISTS daily_summary_runs (
   date TEXT PRIMARY KEY,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
   attempt_count INTEGER NOT NULL DEFAULT 0,
-  error_code TEXT NOT NULL DEFAULT '',
+  error_code TEXT NOT NULL DEFAULT '' CHECK (error_code IN ('', 'generation_error', 'archive_error', 'state_error', 'interrupted')),
   archive_requested INTEGER NOT NULL DEFAULT 0 CHECK (archive_requested IN (0, 1)),
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,

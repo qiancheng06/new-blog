@@ -1,6 +1,7 @@
 import { createServer, IncomingMessage, ServerResponse, type Server } from "http"
 import { config } from "../../infra/config/index.js"
 import { createWorkspaceEvent } from "../../domain/event/types.js"
+import { EventIdentityConflictError } from "../../domain/event/store.js"
 import {
   CONVERSATION_FALLBACK_REPLY,
   countConversationEventsToday,
@@ -33,6 +34,15 @@ import {
   retryAnalysisJob,
 } from "../../application/analysis-jobs.js"
 import {
+  ConversationExecutionError,
+  ConversationJobConflictError,
+  ConversationJobNotFoundError,
+  ConversationJobValidationError,
+  getConversationJobs,
+  parseConversationJobStatus,
+  retryConversationJob,
+} from "../../application/conversation-jobs.js"
+import {
   DailySummaryNotFoundError,
   DailySummaryArchiveConflictError,
   DailySummaryArchiveUnavailableError,
@@ -45,7 +55,7 @@ import {
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
-  "Access-Control-Allow-Headers": "Content-Type",
+  "Access-Control-Allow-Headers": "Content-Type, Idempotency-Key",
 }
 
 const MAX_JSON_BODY_BYTES = 64 * 1024
@@ -85,25 +95,56 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
 }
 
 async function handleChat(req: IncomingMessage, res: ServerResponse) {
-  const parsed = await readJsonObject<{ text?: string; page?: string; evaluationRunId?: string }>(req, res)
+  const parsed = await readJsonObject<{
+    text?: string
+    page?: string
+    evaluationRunId?: string
+    requestId?: unknown
+  }>(req, res)
   if (!parsed) return
 
   const text = parsed.text?.trim()
   if (!text) return json(res, 400, { error: "text is required" })
 
-  const event = createWorkspaceEvent({ text, page: parsed.page, evaluationRunId: parsed.evaluationRunId })
+  let requestId: string | undefined
+  try {
+    requestId = resolveIdempotencyKey(req, parsed.requestId)
+  } catch (err) {
+    if (err instanceof ChatRequestValidationError) return json(res, 400, { error: err.message })
+    throw err
+  }
+
+  const event = createWorkspaceEvent(
+    { text, page: parsed.page, evaluationRunId: parsed.evaluationRunId },
+    { requestId },
+  )
   console.log(`[web] ${text.slice(0, 60)}`)
 
   try {
-    const result = await handleConversationEvent(event)
+    const result = await handleConversationEvent(event, { resumeDuplicate: Boolean(requestId) })
     json(res, 200, {
       reply: result.companionReply,
       eventId: result.event.id,
       replyEventId: result.replyEvent?.id,
+      duplicate: result.duplicate,
+      conversationJobId: result.job?.id,
+      conversationJobStatus: result.job?.status,
     })
   } catch (err) {
+    if (err instanceof EventIdentityConflictError) {
+      return json(res, 409, { error: "idempotency key conflict" })
+    }
+    if (err instanceof ConversationExecutionError) {
+      console.error("[web error] conversation processing failed")
+      return json(res, 500, {
+        reply: CONVERSATION_FALLBACK_REPLY,
+        error: "processing failed",
+        eventId: err.sourceEventId,
+        conversationJobId: err.jobId,
+      })
+    }
     console.error("[web error]", err instanceof Error ? err.message : err)
-    json(res, 500, { reply: CONVERSATION_FALLBACK_REPLY, error: "processing failed" })
+    return json(res, 500, { reply: CONVERSATION_FALLBACK_REPLY, error: "processing failed" })
   }
 }
 
@@ -158,6 +199,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     events_today: eventsToday,
     background_tasks: { pending: health.components.background_tasks.pending },
     analysis_jobs: health.components.analysis.jobs,
+    conversation_jobs: health.components.conversation.jobs,
     memory,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
@@ -299,6 +341,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/analysis-jobs" && req.method === "GET") {
       return handleAnalysisJobs(requestUrl, res)
     }
+    if (url === "/api/conversation-jobs" && req.method === "GET") {
+      return handleConversationJobs(requestUrl, res)
+    }
+    const conversationJobRetryMatch = /^\/api\/conversation-jobs\/([^/]+)\/retry$/.exec(url)
+    if (conversationJobRetryMatch && req.method === "POST") {
+      return await handleConversationJobRetry(req, conversationJobRetryMatch[1], res)
+    }
     const analysisJobRetryMatch = /^\/api\/analysis-jobs\/([^/]+)\/retry$/.exec(url)
     if (analysisJobRetryMatch && req.method === "POST") {
       return await handleAnalysisJobRetry(req, analysisJobRetryMatch[1], res)
@@ -398,6 +447,7 @@ function readMediaType(req: IncomingMessage): string {
 }
 
 class RequestBodyTooLargeError extends Error {}
+class ChatRequestValidationError extends Error {}
 
 function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
   if (err instanceof MemoryValidationError) {
@@ -422,6 +472,30 @@ function handleAnalysisJobError(err: unknown, res: ServerResponse): void {
   }
   if (err instanceof AnalysisJobConflictError) {
     json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleConversationJobError(err: unknown, res: ServerResponse): void {
+  if (err instanceof ConversationJobValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof ConversationJobNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof ConversationJobConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  if (err instanceof ConversationExecutionError) {
+    json(res, 500, {
+      error: err.message,
+      eventId: err.sourceEventId,
+      conversationJobId: err.jobId,
+    })
     return
   }
   throw err
@@ -513,6 +587,25 @@ function handleDailySummaryByDate(date: string, res: ServerResponse) {
   }
 }
 
+function resolveIdempotencyKey(req: IncomingMessage, bodyValue: unknown): string | undefined {
+  const headerValue = req.headers["idempotency-key"]
+  if (Array.isArray(headerValue)) throw new ChatRequestValidationError("idempotency key is invalid")
+  if (bodyValue !== undefined && typeof bodyValue !== "string") {
+    throw new ChatRequestValidationError("requestId must be a string")
+  }
+  const headerKey = headerValue?.trim() || ""
+  const bodyKey = typeof bodyValue === "string" ? bodyValue.trim() : ""
+  if (headerKey && bodyKey && headerKey !== bodyKey) {
+    throw new ChatRequestValidationError("requestId does not match Idempotency-Key")
+  }
+  const key = headerKey || bodyKey
+  if (!key) return undefined
+  if (!/^[A-Za-z0-9][A-Za-z0-9._:-]{0,127}$/.test(key)) {
+    throw new ChatRequestValidationError("idempotency key is invalid")
+  }
+  return key
+}
+
 function getSafeHealthCounters(): {
   eventsToday: number
   analysisJobs: { pending: number; running: number; succeeded: number; failed: number }
@@ -545,6 +638,41 @@ function handleAnalysisJobs(url: URL, res: ServerResponse) {
     })
   } catch (err) {
     handleAnalysisJobError(err, res)
+  }
+}
+
+function handleConversationJobs(url: URL, res: ServerResponse) {
+  try {
+    const limit = readNumber(url, "limit")
+    const offset = readNumber(url, "offset")
+    json(res, 200, {
+      items: getConversationJobs({
+        status: parseConversationJobStatus(readText(url, "status")),
+        limit,
+        offset,
+      }),
+      limit: normalizePageLimit(limit),
+      offset: normalizePageOffset(offset),
+    })
+  } catch (err) {
+    handleConversationJobError(err, res)
+  }
+}
+
+async function handleConversationJobRetry(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<Record<string, never>>(req, res)
+  if (!parsed) return
+  try {
+    const result = await retryConversationJob(id)
+    json(res, 200, {
+      job: result.job,
+      retryEventId: result.retryEventId,
+      reply: result.companionReply,
+      eventId: result.job.sourceEventId,
+      replyEventId: result.replyEvent.id,
+    })
+  } catch (err) {
+    handleConversationJobError(err, res)
   }
 }
 

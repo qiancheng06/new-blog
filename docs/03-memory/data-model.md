@@ -81,6 +81,22 @@ Profile 更新只能渐进写入。带 `cooling_required` 的 patch 当前不会
 | created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
 
+### conversation_jobs
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | execution identity |
+| source_event_id | UUID UNIQUE | immutable input Event |
+| status | TEXT | pending / running / succeeded / failed |
+| attempt_count | INTEGER | monotonic attempt number |
+| error_code | TEXT | bounded recovery code only |
+| reply_event_id | UUID UNIQUE | successful `companion_reply` Event |
+| retry_event_id | UUID | latest retry audit Event |
+| started_at | TIMESTAMPTZ | latest attempt start |
+| finished_at | TIMESTAMPTZ | latest terminal transition |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
 ### daily_summary_runs
 
 | Column | Type | Notes |

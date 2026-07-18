@@ -106,7 +106,7 @@ never included.
 
 Telegram and Obsidian are optional. A failed Telegram polling lifecycle, an
 unavailable configured vault, failed automatic Daily Summary run, or failed
-Analysis jobs marks `/api/status` as `degraded` while `/ready` remains
+Conversation/Analysis jobs marks `/api/status` as `degraded` while `/ready` remains
 successful. Database or LLM configuration failure makes `/ready` return `503`.
 
 Automatic Daily Summary generation is tracked as graceful-shutdown background
@@ -119,6 +119,14 @@ of 6 hours. Runtime status exposes only dates, counts, and bounded states; it
 never includes raw errors or note content. Unfinished runs adopt the current
 archive setting at startup, so disabling Obsidian releases an archive-only
 failure.
+
+Conversation execution state also survives restarts. Input Event creation and
+job creation commit together. Companion reply Event creation and the job's
+`succeeded` transition also commit together. Startup converts pending/running
+jobs to failed `interrupted` state; Web idempotency replay or the audited retry
+API can start a new attempt. Job rows expose only bounded status, counts, error
+codes, and Event ids. They never persist prompts, replies, provider output, raw
+errors, or browser idempotency keys.
 
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried

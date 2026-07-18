@@ -20,6 +20,7 @@ try {
   await verifyNotFound(port)
   await verifyInvalidChat(port)
   await verifyValidChat(port)
+  await verifyIdempotentChat(port)
   await verifyEvents(port)
   await verifyStatus(port)
   await verifyMemoryOverview(port)
@@ -43,6 +44,10 @@ async function verifyOptions(portNumber: number): Promise<void> {
   })
   assert(response.status === 204, `OPTIONS /api/chat expected 204, got ${response.status}`)
   assert(response.headers.get("access-control-allow-origin") === allowedOrigin, "OPTIONS should echo trusted Workspace origin")
+  assert(
+    response.headers.get("access-control-allow-headers")?.includes("Idempotency-Key"),
+    "OPTIONS should allow Idempotency-Key",
+  )
 
   const rejected = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
     method: "OPTIONS",
@@ -147,11 +152,17 @@ async function verifyValidChat(portNumber: number): Promise<void> {
     reply?: string
     eventId?: string
     replyEventId?: string
+    duplicate?: boolean
+    conversationJobId?: string
+    conversationJobStatus?: string
   }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract", evaluationRunId })
 
   assert(typeof body.reply === "string" && body.reply.includes(contractTag), "chat.reply must include mock tag")
   assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat.eventId must be non-empty string")
   assert(typeof body.replyEventId === "string" && body.replyEventId.length > 0, "chat.replyEventId must be non-empty string")
+  assert(body.duplicate === false, "first chat request must not be duplicate")
+  assert(typeof body.conversationJobId === "string", "chat.conversationJobId must be string")
+  assert(body.conversationJobStatus === "succeeded", "chat conversation job must succeed")
 
   const event = queryOne<{ metadata: string }>("SELECT metadata FROM events WHERE id = ?", [body.eventId])
   assert(event, "chat event should exist")
@@ -181,6 +192,82 @@ async function verifyValidChat(portNumber: number): Promise<void> {
   assert(replyMetadata.run_id === evaluationRunId, "chat reply event run_id mismatch")
 }
 
+async function verifyIdempotentChat(portNumber: number): Promise<void> {
+  const requestId = `${contractTag}-idempotent`
+  const text = `${contractTag}-idempotent-message`
+  const first = await postJson<{
+    reply?: string
+    eventId?: string
+    replyEventId?: string
+    duplicate?: boolean
+    conversationJobId?: string
+  }>(`http://127.0.0.1:${portNumber}/api/chat`, { text, requestId })
+  const replay = await postJson<typeof first>(`http://127.0.0.1:${portNumber}/api/chat`, { text, requestId })
+
+  assert(first.duplicate === false, "first idempotent chat must not be duplicate")
+  assert(replay.duplicate === true, "replayed idempotent chat must be duplicate")
+  assert(replay.eventId === first.eventId, "idempotent replay event id mismatch")
+  assert(replay.replyEventId === first.replyEventId, "idempotent replay reply event id mismatch")
+  assert(replay.conversationJobId === first.conversationJobId, "idempotent replay job id mismatch")
+  assert(replay.reply === first.reply, "idempotent replay must return the stored reply")
+
+  const conflict = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text: `${text}-changed`, requestId }),
+  })
+  assert(conflict.status === 409, `idempotency conflict expected 409, got ${conflict.status}`)
+  assert((await conflict.json() as { error?: string }).error === "idempotency key conflict", "idempotency conflict error mismatch")
+
+  const mismatch = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": `${requestId}-header`,
+    },
+    body: JSON.stringify({ text, requestId: `${requestId}-body` }),
+  })
+  assert(mismatch.status === 400, `idempotency key mismatch expected 400, got ${mismatch.status}`)
+
+  const headerOnly = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    headers: {
+      "Content-Type": "application/json",
+      "Idempotency-Key": `${requestId}-header-only`,
+    },
+    body: JSON.stringify({ text: `${text}-header-only` }),
+  })
+  assert(headerOnly.status === 200, `header-only idempotent chat expected 200, got ${headerOnly.status}`)
+  const headerBody = await headerOnly.json() as { duplicate?: boolean; conversationJobId?: string }
+  assert(headerBody.duplicate === false, "header-only first chat must not be duplicate")
+  assert(typeof headerBody.conversationJobId === "string", "header-only chat must create a Conversation job")
+
+  const invalidRequestId = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ text, requestId: 42 }),
+  })
+  assert(invalidRequestId.status === 400, `non-string requestId expected 400, got ${invalidRequestId.status}`)
+
+  const jobs = await getJson<{
+    items?: Array<{ id?: string; sourceEventId?: string; status?: string; replyEventId?: string | null }>
+  }>(`http://127.0.0.1:${portNumber}/api/conversation-jobs?status=succeeded&limit=100`)
+  const job = jobs.items?.find((item) => item.id === first.conversationJobId)
+  assert(job?.sourceEventId === first.eventId, "conversation job source event mismatch")
+  assert(job?.status === "succeeded", "conversation job list status mismatch")
+  assert(job.replyEventId === first.replyEventId, "conversation job reply event mismatch")
+
+  const retrySucceeded = await fetch(
+    `http://127.0.0.1:${portNumber}/api/conversation-jobs/${first.conversationJobId}/retry`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: "{}",
+    },
+  )
+  assert(retrySucceeded.status === 409, `succeeded conversation retry expected 409, got ${retrySucceeded.status}`)
+}
+
 async function verifyEvents(portNumber: number): Promise<void> {
   const body = await getJson<{ events?: unknown[] }>(`http://127.0.0.1:${portNumber}/api/events`)
   assert(Array.isArray(body.events), "events.events must be array")
@@ -195,6 +282,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     events_today?: number
     background_tasks?: { pending?: number }
     analysis_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
+    conversation_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
     memory?: { topics?: number; profile?: number; timelineEvents?: number }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
@@ -206,6 +294,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.events_today === "number", "status.events_today must be number")
   assert(typeof body.background_tasks?.pending === "number", "status.background_tasks.pending must be number")
   assert(typeof body.analysis_jobs?.failed === "number", "status.analysis_jobs.failed must be number")
+  assert(typeof body.conversation_jobs?.failed === "number", "status.conversation_jobs.failed must be number")
   assert(typeof body.memory?.topics === "number", "status.memory.topics must be number")
   assert(typeof body.memory?.profile === "number", "status.memory.profile must be number")
   assert(typeof body.memory?.timelineEvents === "number", "status.memory.timelineEvents must be number")
@@ -229,6 +318,10 @@ interface RuntimeComponents {
     status?: string
     jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
   }
+  conversation?: {
+    status?: string
+    jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
+  }
   daily_summary?: {
     status?: string
     targetDate?: string | null
@@ -248,6 +341,7 @@ function verifyRuntimeComponents(components: RuntimeComponents | undefined, rout
   assert(components.telegram?.status === "disabled", `${route} Telegram component must be disabled`)
   assert(components.obsidian?.status === "disabled", `${route} Obsidian component must be disabled`)
   assert(typeof components.analysis?.jobs?.failed === "number", `${route} Analysis failed count must be number`)
+  assert(typeof components.conversation?.jobs?.failed === "number", `${route} Conversation failed count must be number`)
   assert(components.daily_summary?.status === "disabled", `${route} Daily Summary scheduler must be disabled`)
   assert(typeof components.daily_summary.failureCount === "number", `${route} Daily Summary failure count must be number`)
   assert(typeof components.daily_summary.runs?.failed === "number", `${route} Daily Summary failed run count must be number`)

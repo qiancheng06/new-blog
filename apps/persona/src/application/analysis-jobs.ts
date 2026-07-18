@@ -50,6 +50,10 @@ export function scheduleAnalysisForEvent(options: {
   analyze: () => Promise<AnalysisResult>
 }): AnalysisJob {
   const job = ensureAnalysisJob(options.sourceEventId)
+  if (job.status !== "pending") {
+    options.reservation.cancel()
+    return toAnalysisJob(job)
+  }
   return scheduleAnalysisAttempt(job, options.reservation, options.analyze)
 }
 

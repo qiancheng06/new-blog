@@ -65,3 +65,16 @@ For databases created before deterministic ids were introduced, the Event store
 also looks up the same payload identity and returns the legacy row. Reusing an
 identity with different source, type, or payload is an explicit conflict rather
 than a silent overwrite. Original Events remain immutable.
+
+## Workspace event identity
+
+`POST /api/chat` may provide `requestId` or `Idempotency-Key`. Persona derives a
+deterministic UUID v5 from that opaque key. The first request persists one Web
+Event; concurrent or later replays with the same content reuse it. Reusing the
+key with different Event content is an explicit conflict. The raw key is not
+stored in Event payload or Conversation job state.
+
+Conversation recovery appends `conversation_retry_requested` Events with the
+job id, source Event id, and bounded reason (`manual` or
+`idempotent_replay`). Companion outputs remain separate immutable
+`system/companion_reply` Events linked by `in_reply_to`.
