@@ -107,10 +107,10 @@ function getDatabaseStatus(): RuntimeHealthComponents["database"] {
        WHERE type = 'table'
          AND name IN (
            'events', 'profile', 'topics', 'timeline_events', 'daily_notes',
-           'analysis_jobs', 'conversation_jobs', 'daily_summary_runs'
+           'analysis_jobs', 'conversation_jobs', 'daily_summary_runs', 'memory_proposals'
          )`,
     )
-    return { status: Number(row?.count) === 8 ? "ok" : "failed" }
+    return { status: Number(row?.count) === 9 ? "ok" : "failed" }
   } catch {
     return { status: "failed" }
   }

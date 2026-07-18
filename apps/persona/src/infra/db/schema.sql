@@ -88,6 +88,36 @@ CREATE TABLE IF NOT EXISTS profile (
 
 CREATE INDEX IF NOT EXISTS idx_profile_updated_at ON profile(updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS memory_proposals (
+  id TEXT PRIMARY KEY,
+  source_event_id TEXT NOT NULL REFERENCES events(id) ON DELETE CASCADE,
+  proposal_type TEXT NOT NULL CHECK (proposal_type IN ('profile')),
+  proposal_key TEXT NOT NULL,
+  proposed_value TEXT NOT NULL,
+  confidence REAL NOT NULL CHECK (confidence >= 0 AND confidence <= 1),
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'accepted', 'rejected')),
+  review_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  review_reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  reviewed_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  UNIQUE (source_event_id, proposal_type, proposal_key, proposed_value),
+  CHECK (
+    (
+      status = 'pending' AND review_event_id IS NULL AND
+      review_reason = '' AND reviewed_at IS NULL
+    ) OR (
+      status IN ('accepted', 'rejected') AND review_event_id IS NOT NULL AND
+      length(trim(review_reason)) > 0 AND reviewed_at IS NOT NULL
+    )
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_memory_proposals_status_created
+  ON memory_proposals(status, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_memory_proposals_source
+  ON memory_proposals(source_event_id, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS timeline_events (
   id TEXT PRIMARY KEY,
   date TEXT NOT NULL,

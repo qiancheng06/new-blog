@@ -203,6 +203,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/conversation-jobs.ts",
     "apps/persona/src/application/conversation-job-contract.ts",
     "apps/persona/src/domain/conversation-job/store.ts",
+    "apps/persona/src/domain/memory-proposal/store.ts",
     "apps/persona/src/application/runtime-health.ts",
     "apps/persona/src/application/runtime-health-contract.ts",
     "apps/persona/src/domain/analysis-job/store.ts",

@@ -52,6 +52,48 @@ try {
     "Conversation jobs must reject Analysis error codes",
   )
 
+  db.prepare(
+    `INSERT INTO memory_proposals (
+       id, source_event_id, proposal_type, proposal_key, proposed_value, confidence
+     ) VALUES (?, ?, 'profile', 'contract_key', '"contract_value"', 0.8)`,
+  ).run(
+    "00000000-0000-4000-8000-000000000004",
+    "00000000-0000-4000-8000-000000000001",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE memory_proposals SET status = 'accepted'").run(),
+    "Terminal Memory proposals must require complete review provenance",
+  )
+  db.prepare(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'web', 'memory_proposal_accepted', '{}', datetime('now'), '{}')`,
+  ).run("00000000-0000-4000-8000-000000000005")
+  db.prepare(
+    `UPDATE memory_proposals
+     SET status = 'accepted', review_event_id = ?, review_reason = 'contract review',
+         reviewed_at = datetime('now')
+     WHERE id = ?`,
+  ).run(
+    "00000000-0000-4000-8000-000000000005",
+    "00000000-0000-4000-8000-000000000004",
+  )
+  db.prepare("UPDATE memory_proposals SET status = 'rejected' WHERE id = ?").run(
+    "00000000-0000-4000-8000-000000000004",
+  )
+  db.prepare(
+    `UPDATE memory_proposals
+     SET status = 'pending', review_event_id = NULL, review_reason = '', reviewed_at = NULL
+     WHERE id = ?`,
+  ).run("00000000-0000-4000-8000-000000000004")
+  assertConstraintRejects(
+    () => db.prepare("UPDATE memory_proposals SET status = 'running'").run(),
+    "Memory proposals must reject execution job statuses",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE memory_proposals SET confidence = 1.1").run(),
+    "Memory proposal confidence must remain bounded",
+  )
+
   db.prepare("INSERT INTO daily_summary_runs (date) VALUES ('2099-01-01')").run()
   for (const errorCode of ["", "generation_error", "archive_error", "state_error", "interrupted"]) {
     db.prepare("UPDATE daily_summary_runs SET error_code = ? WHERE date = '2099-01-01'").run(errorCode)

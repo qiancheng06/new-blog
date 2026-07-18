@@ -211,7 +211,8 @@ Response `200`:
   memory: {
     topics: number,
     profile: number,
-    timelineEvents: number
+    timelineEvents: number,
+    pendingProposals: number
   },
   recent_events: Array<{
     id: string,
@@ -339,7 +340,8 @@ Response `200`:
   stats: {
     topics: number,
     profile: number,
-    timelineEvents: number
+    timelineEvents: number,
+    pendingProposals: number
   },
   topics: TopicRow[],
   profile: ProfileRow[],
@@ -433,10 +435,58 @@ Response `200`:
 }
 ```
 
+### `GET /api/memory/proposals`
+
+Lists cooled Profile candidates without promoting them into AI context.
+
+```ts
+{
+  status?: "pending" | "accepted" | "rejected",
+  sourceEventId?: string,
+  limit?: number,
+  offset?: number
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: MemoryProposalRow[],
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/memory/proposals/:id/review`
+
+Accepts or rejects one pending proposal exactly once.
+
+```ts
+{
+  decision: "accept" | "reject",
+  reason: string
+}
+```
+
+Success response `200`:
+
+```ts
+{
+  eventId: string,
+  proposal: MemoryProposalRow,
+  profile: ProfileRow | null
+}
+```
+
+Acceptance returns the written Profile row; rejection returns `profile: null`.
+The review Event, proposal transition, and optional Profile upsert commit in one
+transaction. Errors are `400` for invalid input, `404` for an unknown proposal,
+and `409` after the proposal has already been reviewed.
+
 ### `POST /api/memory/profile/corrections`
 
-Governed Profile correction. This is the only current Memory management write
-operation exposed to Workspace. It records an Event before updating Profile.
+Governed Profile correction. It records an Event before updating Profile.
 
 Request:
 
@@ -524,13 +574,14 @@ body returns `topic`.
 - Daily Note archive writes are confined to the configured external Obsidian
   vault and reject unmanaged same-name files instead of overwriting them.
 - Memory list limits are normalized by the Application layer and capped at 100.
-- Memory APIs are read-only and must not mutate Events, Profile, Topics, or
-  Timeline rows.
-- `POST /api/memory/profile/corrections` is the only exception; it is a governed
-  Application write path and must first append an Event.
+- Memory GET APIs are read-only and must not mutate Events, Profile, Topics,
+  Timeline rows, or proposals.
+- `POST /api/memory/profile/corrections` and proposal review are governed
+  Application write paths and must append an Event.
 - `POST /api/memory/profile/state` and `POST /api/memory/topics/state` are
   governed projection-state write paths. They append governance Events before
   changing row state. The Event and projection change commit atomically.
+- Pending or rejected proposals never enter Profile or Companion context.
 
 ## Safe paths
 

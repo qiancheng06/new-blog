@@ -78,3 +78,18 @@ Conversation recovery appends `conversation_retry_requested` Events with the
 job id, source Event id, and bounded reason (`manual` or
 `idempotent_replay`). Companion outputs remain separate immutable
 `system/companion_reply` Events linked by `in_reply_to`.
+
+## Memory proposal review events
+
+Analysis output marked `cooling_required` is persisted as a pending Memory
+proposal and does not enter Profile or Companion context. A human review appends
+one immutable Web Event:
+
+- `memory_proposal_accepted`
+- `memory_proposal_rejected`
+
+The payload contains the proposal id, original source Event id, Profile key,
+decision, and required reason. It intentionally does not duplicate the proposed
+value. Both Event types use `metadata.purpose = "memory_governance"` and
+`metadata.visibility = "user"`. The review Event and proposal transition are
+atomic; acceptance also writes Profile in the same transaction.

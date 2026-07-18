@@ -211,6 +211,27 @@ export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrect
   }
 }
 
+export interface MemoryProposalReviewPayload {
+  proposal_id: string
+  source_event_id: string
+  proposal_key: string
+  decision: "accept" | "reject"
+  reason: string
+}
+
+export function createMemoryProposalReviewEvent(payload: MemoryProposalReviewPayload): Event {
+  return {
+    source: "web",
+    type: payload.decision === "accept" ? "memory_proposal_accepted" : "memory_proposal_rejected",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "memory_governance",
+      visibility: "user",
+    },
+  }
+}
+
 export type MemoryProjectionState = "active" | "archived" | "suppressed"
 
 export interface MemoryStateChangePayload {

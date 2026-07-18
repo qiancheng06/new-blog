@@ -147,9 +147,15 @@ function completeAnalysisJob(job: AnalysisJobRow, result: AnalysisResult): void 
     const written = applyMemoryPatch(result.memory_patch, { sourceEventId: job.source_event_id })
     const succeeded = markAnalysisJobSucceeded(job.id, job.attempt_count)
     if (!succeeded) throw new AnalysisJobConflictError("analysis job completion was not persisted")
-    if (written.topics.length > 0 || written.profile.length > 0 || written.timelineEvents.length > 0) {
+    if (
+      written.topics.length > 0 ||
+      written.profile.length > 0 ||
+      written.timelineEvents.length > 0 ||
+      written.proposals.length > 0
+    ) {
       console.log(
-        `  [memory written] topics=${written.topics.length} profile=${written.profile.length} timeline=${written.timelineEvents.length}`,
+        `  [memory written] topics=${written.topics.length} profile=${written.profile.length} ` +
+        `timeline=${written.timelineEvents.length} proposals=${written.proposals.length}`,
       )
     }
   })

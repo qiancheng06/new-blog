@@ -51,13 +51,14 @@ Memory 是系统自动沉淀的记忆域，负责 Event、Topic、Profile、Time
 persisting `AnalysisResult.memory_patch` after the source Event has already been
 inserted.
 
-- `applyMemoryPatch(patch, { sourceEventId })`: writes topic, profile, and
-  timeline changes in one domain call.
+- `applyMemoryPatch(patch, { sourceEventId })`: writes topic, profile, timeline,
+  and cooled Profile proposals in one domain transaction.
 - `upsertTopicUpdates(updates)`: creates topics by name or refreshes existing
   topics, increments `message_count`, and updates `last_active_at`.
 - `upsertProfileUpdates(updates, { sourceEventId })`: progressively updates
   profile keys by replacing the JSON value and latest source event reference.
-  Updates marked `cooling_required` are skipped until a later verified flow.
+  Updates marked `cooling_required` never enter Profile directly; they are
+  persisted as pending `memory_proposals` for explicit review.
 - `appendTimelineEvents(events, { sourceEventId })`: appends immutable timeline
   rows. Existing timeline rows are never updated.
 - `getMemoryContext({ topicLimit, profileLimit, timelineLimit })`: reads the
@@ -109,7 +110,8 @@ calling Companion:
 3. Companion receives the base prompt plus long-term memory context.
 4. Analysis runs asynchronously and returns a `memory_patch`.
 5. Analysis calls may overlap, but Memory commits follow input reservation order.
-6. Memory writes the patch with the saved Event id as provenance.
+6. Memory writes stable patch items and pending cooled proposals with the saved
+   Event id as provenance.
 
 A failed Analysis releases its queue slot so later Memory commits continue. If
 Companion fails before Analysis is scheduled, the reservation is cancelled for
@@ -139,11 +141,30 @@ This is the current minimal memory loop. It is intentionally simple: Memory
 decides how rows are read and written, while Persona only consumes formatted
 context and proposes future patches.
 
+## Cooling and proposal review
+
+`cooling_required` is a governance boundary, not a discard flag. Each valid
+cooled Profile update becomes one deduplicated pending `memory_proposals` row.
+Pending and rejected values are excluded from Profile and therefore cannot
+enter Companion prompts.
+
+Application exposes:
+
+- `GET /api/memory/proposals?status=&sourceEventId=&limit=&offset=`
+- `POST /api/memory/proposals/:id/review`
+
+Review requires `decision = accept|reject` and a non-empty reason. Acceptance
+atomically appends a `memory_proposal_accepted` Event, writes the proposed value
+to Profile, and marks the proposal accepted. Rejection appends a
+`memory_proposal_rejected` Event and leaves Profile unchanged. A proposal can be
+reviewed only once; later attempts return a conflict.
+
 ## Read-only inspection contract
 
 Current Memory inspection is read-only. It may expose:
 
-- counts for `topics`, `profile`, and `timeline_events`
+- counts for active `topics`, active `profile`, `timeline_events`, and pending
+  Memory proposals
 - recent `TopicRow` records ordered by activity
 - recent `ProfileRow` records ordered by update time
 - recent `TimelineEventRow` records ordered by date and creation time
@@ -162,18 +183,18 @@ npm.cmd run inspect:memory
 ## Application read API
 
 Workspace and debug panels must read Memory through Application HTTP APIs, not
-through SQLite files or domain stores directly. The current read-only routes are:
+through SQLite files or domain stores directly. The current read routes are:
 
 - `GET /api/memory`
 - `GET /api/memory/topics?limit=&offset=&name=`
 - `GET /api/memory/profile?limit=&offset=&key=`
 - `GET /api/memory/timeline?limit=&offset=&type=&date=&sourceEventId=`
 - `GET /api/memory/sources`
+- `GET /api/memory/proposals?status=&sourceEventId=&limit=&offset=`
 
 These routes are implemented through `apps/persona/src/application/memory.ts`.
-They do not edit, archive, delete, merge, or rewrite Memory. `ProfileRow.value`
-is returned as the stored JSON string; UI parsing/editing belongs to a later
-governed management flow.
+These reads do not edit, archive, delete, merge, or rewrite Memory.
+`ProfileRow.value` and proposal values are returned as stored JSON strings.
 
 ## Timeline type normalization
 

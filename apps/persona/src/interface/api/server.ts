@@ -11,6 +11,7 @@ import {
 import {
   getMemoryOverview,
   getMemoryProfile,
+  getMemoryProposals,
   getMemorySourceInspection,
   getMemoryStatusStats,
   getMemoryTimelineEvents,
@@ -18,9 +19,12 @@ import {
   changeMemoryProfileState,
   changeMemoryTopicState,
   correctMemoryProfile,
+  reviewMemoryProposal,
+  MemoryConflictError,
   MemoryValidationError,
   MemoryNotFoundError,
   parseMemoryListState,
+  parseMemoryProposalStatus,
 } from "../../application/memory.js"
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
 import { getRuntimeHealthSnapshot, summarizeRuntimeHealth } from "../../application/runtime-health.js"
@@ -175,7 +179,7 @@ function handleEvents(_req: IncomingMessage, res: ServerResponse) {
 function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   let health = getRuntimeHealthSnapshot()
   let eventsToday = 0
-  let memory = { topics: 0, profile: 0, timelineEvents: 0 }
+  let memory = { topics: 0, profile: 0, timelineEvents: 0, pendingProposals: 0 }
   let recentEvents: ReturnType<typeof getRecentConversationEvents> = []
 
   if (health.components.database.status === "ok") {
@@ -250,6 +254,19 @@ function handleMemoryTimeline(url: URL, res: ServerResponse) {
 
 function handleMemorySources(_url: URL, res: ServerResponse) {
   json(res, 200, getMemorySourceInspection())
+}
+
+function handleMemoryProposals(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getMemoryProposals({
+      status: parseMemoryProposalStatus(readText(url, "status")),
+      sourceEventId: readText(url, "sourceEventId"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleMemoryWriteError(err, res)
+  }
 }
 
 async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerResponse) {
@@ -367,6 +384,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/memory/sources" && req.method === "GET") {
       return handleMemorySources(requestUrl, res)
     }
+    if (url === "/api/memory/proposals" && req.method === "GET") {
+      return handleMemoryProposals(requestUrl, res)
+    }
+    const memoryProposalReviewMatch = /^\/api\/memory\/proposals\/([^/]+)\/review$/.exec(url)
+    if (memoryProposalReviewMatch && req.method === "POST") {
+      return await handleMemoryProposalReview(req, memoryProposalReviewMatch[1], res)
+    }
     if (url === "/api/memory/profile/corrections" && req.method === "POST") {
       return await handleMemoryProfileCorrection(req, res)
     }
@@ -456,6 +480,10 @@ function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
   }
   if (err instanceof MemoryNotFoundError) {
     json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof MemoryConflictError) {
+    json(res, 409, { error: err.message })
     return
   }
   throw err
@@ -620,6 +648,26 @@ function getSafeHealthCounters(): {
       eventsToday: 0,
       analysisJobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
     }
+  }
+}
+
+async function handleMemoryProposalReview(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<{ decision?: string; reason?: string }>(req, res)
+  if (!parsed) return
+
+  try {
+    const result = reviewMemoryProposal({
+      id,
+      decision: parsed.decision as never,
+      reason: parsed.reason ?? "",
+    })
+    json(res, 200, {
+      eventId: result.event.id,
+      proposal: result.proposal,
+      profile: result.profile,
+    })
+  } catch (err) {
+    handleMemoryWriteError(err, res)
   }
 }
 

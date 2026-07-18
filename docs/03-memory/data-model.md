@@ -51,7 +51,26 @@
 | source_event_id | UUID | 来源事件 |
 | updated_at | TIMESTAMPTZ | |
 
-Profile 更新只能渐进写入。带 `cooling_required` 的 patch 当前不会直接落库，避免把单次会话情绪写入长期画像。
+Profile 更新只能渐进写入。带 `cooling_required` 的 patch 不会直接进入
+Profile，而是进入 `memory_proposals` 等待显式接受或拒绝，避免把单次会话
+情绪直接写入长期画像。
+
+### memory_proposals
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | proposal identity |
+| source_event_id | UUID FK | immutable Analysis source Event |
+| proposal_type | TEXT | currently `profile` |
+| proposal_key | TEXT | candidate Profile key |
+| proposed_value | JSON text | candidate Profile value |
+| confidence | REAL | bounded 0-1 model confidence |
+| status | TEXT | pending / accepted / rejected |
+| review_event_id | UUID FK | immutable accept/reject audit Event |
+| review_reason | TEXT | required human reason after review |
+| created_at | TIMESTAMPTZ | |
+| reviewed_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
 
 ### timeline_events
 
@@ -121,13 +140,18 @@ the current SQLite schema:
   `message_count`, and replace `summary` only when a new summary is provided.
 - `profile_updates` maps to `profile`. `key` is unique, so writes are
   progressive upserts of the JSON-encoded `value` with the latest
-  `source_event_id`.
+  `source_event_id`. A `cooling_required` update maps to `memory_proposals`
+  instead and remains outside AI context until accepted.
 - `timeline_events` maps to `timeline_events`. Writes are append-only and never
   update existing rows.
 - One `memory_patch` is applied inside a single SQLite transaction. If any
-  Topic, Profile, or Timeline write fails, all writes from that patch roll back.
+  Topic, Profile, Timeline, or proposal write fails, all writes from that patch
+  roll back.
 - Governed Profile correction/state and Topic state changes also commit their
   audit Event and projection update in one transaction.
+- Proposal acceptance commits its review Event, Profile upsert, and terminal
+  proposal state in one transaction; rejection commits only the review Event
+  and terminal proposal state.
 
 The source Event remains immutable. Memory writes only reference it through
 `source_event_id`.

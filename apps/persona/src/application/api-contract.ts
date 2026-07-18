@@ -8,6 +8,8 @@ process.env.OBSIDIAN_VAULT_PATH = ""
 
 const { initializeDb, queryOne, run } = await import("../infra/db/pool.js")
 const { startApiServer, stopApiServer } = await import("../interface/api/server.js")
+const { applyMemoryPatch } = await import("../domain/memory/store.js")
+const { randomUUID } = await import("crypto")
 
 initializeDb()
 const server = startApiServer({ port, hostname: "127.0.0.1" })
@@ -28,6 +30,7 @@ try {
   await verifyMemoryProfile(port)
   await verifyMemoryProfileCorrection(port)
   await verifyMemoryProjectionState(port)
+  await verifyMemoryProposals(port)
   await verifyMemoryTimeline(port)
   await verifyMemorySources(port)
   console.log("api contract ok")
@@ -283,7 +286,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     background_tasks?: { pending?: number }
     analysis_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
     conversation_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
-    memory?: { topics?: number; profile?: number; timelineEvents?: number }
+    memory?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
@@ -298,6 +301,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.memory?.topics === "number", "status.memory.topics must be number")
   assert(typeof body.memory?.profile === "number", "status.memory.profile must be number")
   assert(typeof body.memory?.timelineEvents === "number", "status.memory.timelineEvents must be number")
+  assert(typeof body.memory.pendingProposals === "number", "status.memory.pendingProposals must be number")
   assert(Array.isArray(body.recent_events), "status.recent_events must be array")
 
   for (const event of body.recent_events) {
@@ -350,7 +354,7 @@ function verifyRuntimeComponents(components: RuntimeComponents | undefined, rout
 
 async function verifyMemoryOverview(portNumber: number): Promise<void> {
   const body = await getJson<{
-    stats?: { topics?: number; profile?: number; timelineEvents?: number }
+    stats?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
     topics?: unknown[]
     profile?: unknown[]
     timelineEvents?: unknown[]
@@ -359,6 +363,7 @@ async function verifyMemoryOverview(portNumber: number): Promise<void> {
   assert(typeof body.stats?.topics === "number", "memory.stats.topics must be number")
   assert(typeof body.stats.profile === "number", "memory.stats.profile must be number")
   assert(typeof body.stats.timelineEvents === "number", "memory.stats.timelineEvents must be number")
+  assert(typeof body.stats.pendingProposals === "number", "memory.stats.pendingProposals must be number")
   assert(Array.isArray(body.topics), "memory.topics must be array")
   assert(Array.isArray(body.profile), "memory.profile must be array")
   assert(Array.isArray(body.timelineEvents), "memory.timelineEvents must be array")
@@ -548,6 +553,125 @@ async function verifyMemoryProjectionState(portNumber: number): Promise<void> {
 }
 
 
+async function verifyMemoryProposals(portNumber: number): Promise<void> {
+  const acceptedKey = `contract_proposal_accept_${contractTag}`
+  const rejectedKey = `contract_proposal_reject_${contractTag}`
+  const acceptedSourceEventId = randomUUID()
+  const rejectedSourceEventId = randomUUID()
+
+  for (const [id, text] of [
+    [acceptedSourceEventId, `${contractTag}-proposal-accept-source`],
+    [rejectedSourceEventId, `${contractTag}-proposal-reject-source`],
+  ]) {
+    run(
+      `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+       VALUES (?, 'web', 'message', ?, datetime('now'), '{}')`,
+      [id, JSON.stringify({ text })],
+    )
+  }
+
+  const acceptedWrite = applyMemoryPatch({
+    profile_updates: [{
+      key: acceptedKey,
+      value: { preference: contractTag },
+      confidence: 0.82,
+      cooling_required: true,
+    }],
+    topic_updates: [],
+    timeline_events: [],
+  }, { sourceEventId: acceptedSourceEventId })
+  const rejectedWrite = applyMemoryPatch({
+    profile_updates: [{
+      key: rejectedKey,
+      value: `reject-${contractTag}`,
+      confidence: 0.61,
+      cooling_required: true,
+    }],
+    topic_updates: [],
+    timeline_events: [],
+  }, { sourceEventId: rejectedSourceEventId })
+
+  const acceptedProposal = acceptedWrite.proposals[0]
+  const rejectedProposal = rejectedWrite.proposals[0]
+  assert(acceptedProposal?.status === "pending", "cooled Profile update must create a pending proposal")
+  assert(rejectedProposal?.status === "pending", "second cooled Profile update must create a pending proposal")
+  assert(acceptedWrite.profile.length === 0, "pending proposal must not write Profile")
+  assert(!queryOne("SELECT id FROM profile WHERE key = ?", [acceptedKey]), "pending value must stay outside Profile")
+
+  const pending = await getJson<{
+    items?: Array<{ id?: string; source_event_id?: string; status?: string; proposal_key?: string }>
+    limit?: number
+    offset?: number
+  }>(
+    `http://127.0.0.1:${portNumber}/api/memory/proposals?status=pending&sourceEventId=${acceptedSourceEventId}&limit=999&offset=-2`,
+  )
+  assert(pending.limit === 100 && pending.offset === 0, "memory proposal paging must normalize")
+  assert(
+    pending.items?.some((item) => item.id === acceptedProposal.id && item.proposal_key === acceptedKey),
+    "pending proposal API must filter by source Event",
+  )
+
+  const invalidStatus = await fetch(`http://127.0.0.1:${portNumber}/api/memory/proposals?status=running`)
+  assert(invalidStatus.status === 400, `invalid proposal status expected 400, got ${invalidStatus.status}`)
+
+  const missingReason = await fetch(
+    `http://127.0.0.1:${portNumber}/api/memory/proposals/${acceptedProposal.id}/review`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "accept", reason: "" }),
+    },
+  )
+  assert(missingReason.status === 400, `proposal review without reason expected 400, got ${missingReason.status}`)
+
+  const accepted = await postJson<{
+    eventId?: string
+    proposal?: { id?: string; status?: string; review_event_id?: string }
+    profile?: { key?: string; value?: string; source_event_id?: string }
+  }>(`http://127.0.0.1:${portNumber}/api/memory/proposals/${acceptedProposal.id}/review`, {
+    decision: "accept",
+    reason: `confirmed during ${contractTag}`,
+  })
+  assert(accepted.proposal?.status === "accepted", "accepted proposal status mismatch")
+  assert(accepted.proposal.review_event_id === accepted.eventId, "accepted proposal must reference review Event")
+  assert(accepted.profile?.key === acceptedKey, "accepted proposal must write Profile key")
+  assert(accepted.profile.source_event_id === accepted.eventId, "accepted Profile must reference review Event")
+  assert(accepted.profile.value?.includes(contractTag), "accepted Profile must preserve proposed value")
+
+  const repeatedReview = await fetch(
+    `http://127.0.0.1:${portNumber}/api/memory/proposals/${acceptedProposal.id}/review`,
+    {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ decision: "reject", reason: `repeat ${contractTag}` }),
+    },
+  )
+  assert(repeatedReview.status === 409, `repeated proposal review expected 409, got ${repeatedReview.status}`)
+
+  const rejected = await postJson<{
+    eventId?: string
+    proposal?: { status?: string; review_event_id?: string }
+    profile?: unknown
+  }>(`http://127.0.0.1:${portNumber}/api/memory/proposals/${rejectedProposal.id}/review`, {
+    decision: "reject",
+    reason: `not stable during ${contractTag}`,
+  })
+  assert(rejected.proposal?.status === "rejected", "rejected proposal status mismatch")
+  assert(rejected.proposal.review_event_id === rejected.eventId, "rejected proposal must reference review Event")
+  assert(rejected.profile === null, "rejected proposal must not return a Profile row")
+  assert(!queryOne("SELECT id FROM profile WHERE key = ?", [rejectedKey]), "rejected proposal must not write Profile")
+
+  const acceptedEvent = queryOne<{ type: string; metadata: string }>(
+    "SELECT type, metadata FROM events WHERE id = ?",
+    [accepted.eventId],
+  )
+  assert(acceptedEvent?.type === "memory_proposal_accepted", "proposal accept Event type mismatch")
+  assert(
+    (JSON.parse(acceptedEvent.metadata) as { purpose?: string }).purpose === "memory_governance",
+    "proposal review Event metadata mismatch",
+  )
+}
+
 async function verifyMemoryTimeline(portNumber: number): Promise<void> {
   const body = await getJson<{
     items?: Array<{ id?: string; date?: string; type?: string; summary?: string; source_event_id?: string | null }>
@@ -616,6 +740,7 @@ function cleanupContractRows(tag: string): void {
   run("DELETE FROM profile WHERE key = ? AND value LIKE ?", ["last_mock_message", `%${tag}%`])
   run("DELETE FROM profile WHERE key LIKE ?", [`contract_profile_correction_${tag}%`])
   run("DELETE FROM profile WHERE key LIKE ?", [`contract_state_profile_${tag}%`])
+  run("DELETE FROM profile WHERE key LIKE ?", [`contract_proposal_%_${tag}%`])
   run("DELETE FROM topics WHERE name LIKE ? OR summary LIKE ?", [`%${tag}%`, `%${tag}%`])
   run("DELETE FROM events WHERE payload LIKE ?", [`%${tag}%`])
 }

@@ -1,5 +1,10 @@
 import { randomUUID } from "crypto"
 import { query, queryOne, run, withTransaction } from "../../infra/db/pool.js"
+import {
+  createCoolingProfileProposals,
+  getMemoryProposalStats,
+  type MemoryProposalRow,
+} from "../memory-proposal/store.js"
 import type { MemoryPatch, MemoryPatchWriteOptions, ProfileUpdate, TimelineEventPatch, TopicUpdate } from "./types.js"
 import type { MemoryProjectionState } from "../event/types.js"
 
@@ -44,6 +49,7 @@ export interface MemoryPatchWriteResult {
   topics: TopicRow[]
   profile: ProfileRow[]
   timelineEvents: TimelineEventRow[]
+  proposals: MemoryProposalRow[]
 }
 
 export interface MemoryContext {
@@ -56,6 +62,7 @@ export interface MemoryStats {
   topics: number
   profile: number
   timelineEvents: number
+  pendingProposals: number
 }
 
 export interface MemoryListOptions {
@@ -98,6 +105,7 @@ export function applyMemoryPatch(patch: MemoryPatch, options: MemoryPatchWriteOp
     topics: upsertTopicUpdates(patch.topic_updates),
     profile: upsertProfileUpdates(patch.profile_updates, options),
     timelineEvents: appendTimelineEvents(patch.timeline_events, options),
+    proposals: createCoolingProfileProposals(patch.profile_updates, options.sourceEventId),
   }))
 }
 
@@ -131,6 +139,7 @@ export function getMemoryStats(): MemoryStats {
     topics: readCount("topics"),
     profile: readCount("profile"),
     timelineEvents: readCount("timeline_events"),
+    pendingProposals: getMemoryProposalStats().pending,
   }
 }
 

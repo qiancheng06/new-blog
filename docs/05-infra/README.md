@@ -134,6 +134,13 @@ through the audited Application API. Health/status expose aggregate job counts;
 neither diagnostics nor job APIs include prompts, messages, provider responses,
 or raw errors. Analysis completion logs expose counts only, not model content.
 
+Analysis Profile updates marked `cooling_required` are stored in
+`memory_proposals`, not discarded or copied into active Profile. Runtime status
+exposes only the pending proposal count. Proposal review is a synchronous local
+transaction: acceptance writes an audit Event, Profile value, and terminal
+proposal state together; rejection writes the audit Event and terminal state
+without changing Profile.
+
 Default AI gates must not call real DeepSeek or Telegram services. Use
 `LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
 offline.
