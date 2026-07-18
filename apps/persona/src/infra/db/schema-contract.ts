@@ -16,6 +16,33 @@ try {
      VALUES (?, 'web', 'message', '{}', datetime('now'), '{}')`,
   ).run("00000000-0000-4000-8000-000000000001")
   db.prepare(
+    `INSERT INTO profile (id, key, value, source_event_id)
+     VALUES (?, 'search_contract', '"fresh schema searchable value"', ?)`,
+  ).run(
+    "00000000-0000-4000-8000-000000000006",
+    "00000000-0000-4000-8000-000000000001",
+  )
+  const indexedProfile = db.prepare(
+    `SELECT entity_id, state FROM memory_search
+     WHERE memory_search MATCH '"searchable"' AND entity_type = 'profile'`,
+  ).get() as { entity_id?: string; state?: string } | undefined
+  assert(
+    indexedProfile?.entity_id === "00000000-0000-4000-8000-000000000006" && indexedProfile.state === "active",
+    "fresh schema Profile trigger must populate Memory search",
+  )
+  db.prepare("UPDATE profile SET state = 'suppressed' WHERE id = ?").run(
+    "00000000-0000-4000-8000-000000000006",
+  )
+  const suppressedIndex = db.prepare(
+    "SELECT state FROM memory_search WHERE entity_type = 'profile' AND entity_id = ?",
+  ).get("00000000-0000-4000-8000-000000000006") as { state?: string } | undefined
+  assert(suppressedIndex?.state === "suppressed", "Profile state trigger must update Memory search")
+  db.prepare("DELETE FROM profile WHERE id = ?").run("00000000-0000-4000-8000-000000000006")
+  assert(
+    !db.prepare("SELECT 1 FROM memory_search WHERE entity_id = ?").get("00000000-0000-4000-8000-000000000006"),
+    "Profile delete trigger must remove Memory search row",
+  )
+  db.prepare(
     `INSERT INTO analysis_jobs (id, source_event_id)
      VALUES (?, ?)`,
   ).run(

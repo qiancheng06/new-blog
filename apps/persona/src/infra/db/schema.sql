@@ -160,3 +160,102 @@ CREATE TABLE IF NOT EXISTS daily_summary_runs (
 
 CREATE INDEX IF NOT EXISTS idx_daily_summary_runs_status_date
   ON daily_summary_runs(status, date ASC);
+
+CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
+  entity_type UNINDEXED,
+  entity_id UNINDEXED,
+  title,
+  body,
+  state UNINDEXED,
+  source_event_id UNINDEXED,
+  memory_date UNINDEXED,
+  tokenize = 'trigram'
+);
+
+CREATE TRIGGER IF NOT EXISTS memory_search_topic_insert
+AFTER INSERT ON topics BEGIN
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('topic', NEW.id, NEW.name, NEW.summary, NEW.state, NULL, NEW.last_active_at);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_topic_update
+AFTER UPDATE ON topics BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'topic' AND entity_id = OLD.id;
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('topic', NEW.id, NEW.name, NEW.summary, NEW.state, NULL, NEW.last_active_at);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_topic_delete
+AFTER DELETE ON topics BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'topic' AND entity_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_profile_insert
+AFTER INSERT ON profile BEGIN
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('profile', NEW.id, NEW.key, NEW.value, NEW.state, NEW.source_event_id, NEW.updated_at);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_profile_update
+AFTER UPDATE ON profile BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'profile' AND entity_id = OLD.id;
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('profile', NEW.id, NEW.key, NEW.value, NEW.state, NEW.source_event_id, NEW.updated_at);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_profile_delete
+AFTER DELETE ON profile BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'profile' AND entity_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_timeline_insert
+AFTER INSERT ON timeline_events BEGIN
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('timeline', NEW.id, NEW.type, NEW.summary, 'active', NEW.source_event_id, NEW.date);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_timeline_update
+AFTER UPDATE ON timeline_events BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'timeline' AND entity_id = OLD.id;
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES ('timeline', NEW.id, NEW.type, NEW.summary, 'active', NEW.source_event_id, NEW.date);
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_timeline_delete
+AFTER DELETE ON timeline_events BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'timeline' AND entity_id = OLD.id;
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_daily_note_insert
+AFTER INSERT ON daily_notes BEGIN
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES (
+    'daily_note', NEW.id, NEW.date,
+    NEW.summary || char(10) || NEW.highlights || char(10) || NEW.topic_distribution,
+    'active', NEW.source_event_id, NEW.date
+  );
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_daily_note_update
+AFTER UPDATE ON daily_notes BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'daily_note' AND entity_id = OLD.id;
+  INSERT INTO memory_search (
+    entity_type, entity_id, title, body, state, source_event_id, memory_date
+  ) VALUES (
+    'daily_note', NEW.id, NEW.date,
+    NEW.summary || char(10) || NEW.highlights || char(10) || NEW.topic_distribution,
+    'active', NEW.source_event_id, NEW.date
+  );
+END;
+
+CREATE TRIGGER IF NOT EXISTS memory_search_daily_note_delete
+AFTER DELETE ON daily_notes BEGIN
+  DELETE FROM memory_search WHERE entity_type = 'daily_note' AND entity_id = OLD.id;
+END;

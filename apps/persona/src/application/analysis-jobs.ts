@@ -169,7 +169,7 @@ function buildRetryPrompts(event: EventRow): {
   const payload = JSON.parse(event.payload) as Record<string, unknown>
   const userText = typeof payload.text === "string" ? payload.text : ""
   const recentEvents = getRecentEvents(21).filter((item) => item.id !== event.id)
-  const prompts = buildPrompts({ recentEvents })
+  const prompts = buildPrompts({ recentEvents, memoryQuery: userText })
   return {
     analysisSystemPrompt: prompts.analysisSystemPrompt,
     historyText: prompts.historyText,

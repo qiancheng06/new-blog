@@ -7,6 +7,7 @@ import {
 } from "../memory-proposal/store.js"
 import type { MemoryPatch, MemoryPatchWriteOptions, ProfileUpdate, TimelineEventPatch, TopicUpdate } from "./types.js"
 import type { MemoryProjectionState } from "../event/types.js"
+import { searchMemory, type MemorySearchResult } from "./search.js"
 
 export type MemoryListState = MemoryProjectionState | "all"
 
@@ -56,6 +57,7 @@ export interface MemoryContext {
   topics: TopicRow[]
   profile: ProfileRow[]
   timelineEvents: TimelineEventRow[]
+  relevant: MemorySearchResult[]
 }
 
 export interface MemoryStats {
@@ -109,7 +111,13 @@ export function applyMemoryPatch(patch: MemoryPatch, options: MemoryPatchWriteOp
   }))
 }
 
-export function getMemoryContext(options: { topicLimit?: number; profileLimit?: number; timelineLimit?: number } = {}): MemoryContext {
+export function getMemoryContext(options: {
+  topicLimit?: number
+  profileLimit?: number
+  timelineLimit?: number
+  query?: string
+  relevantLimit?: number
+} = {}): MemoryContext {
   const topicLimit = normalizeLimit(options.topicLimit ?? 8)
   const profileLimit = normalizeLimit(options.profileLimit ?? 12)
   const timelineLimit = normalizeLimit(options.timelineLimit ?? 8)
@@ -131,6 +139,7 @@ export function getMemoryContext(options: { topicLimit?: number; profileLimit?: 
       `SELECT * FROM timeline_events ORDER BY date DESC, created_at DESC LIMIT ?`,
       [timelineLimit]
     ),
+    relevant: readRelevantMemory(options.query, options.relevantLimit),
   }
 }
 
@@ -291,25 +300,34 @@ export function updateTopicState(options: {
 
 export function buildMemoryContextText(context: MemoryContext = getMemoryContext()): string {
   const lines: string[] = []
+  const relevantIds = new Set(context.relevant.map((item) => `${item.entityType}:${item.entityId}`))
 
-  if (context.profile.length > 0) {
+  if (context.relevant.length > 0) {
+    lines.push("Relevant memory:")
+    for (const item of context.relevant) lines.push(`- ${formatRelevantMemory(item)}`)
+  }
+
+  const remainingProfile = context.profile.filter((item) => !relevantIds.has(`profile:${item.id}`))
+  if (remainingProfile.length > 0) {
     lines.push("Profile:")
-    for (const item of context.profile) {
+    for (const item of remainingProfile) {
       lines.push(`- ${item.key}: ${formatProfileValue(item.value)}`)
     }
   }
 
-  if (context.topics.length > 0) {
+  const remainingTopics = context.topics.filter((item) => !relevantIds.has(`topic:${item.id}`))
+  if (remainingTopics.length > 0) {
     lines.push("Topics:")
-    for (const topic of context.topics) {
+    for (const topic of remainingTopics) {
       const summary = topic.summary ? ` - ${topic.summary}` : ""
       lines.push(`- ${topic.name}${summary}`)
     }
   }
 
-  if (context.timelineEvents.length > 0) {
+  const remainingTimeline = context.timelineEvents.filter((item) => !relevantIds.has(`timeline:${item.id}`))
+  if (remainingTimeline.length > 0) {
     lines.push("Timeline:")
-    for (const event of context.timelineEvents) {
+    for (const event of remainingTimeline) {
       lines.push(`- ${event.date} [${event.type}] ${event.summary}`)
     }
   }
@@ -333,6 +351,14 @@ export function upsertProfileUpdates(
     .filter((update): update is ProfileUpdate => update !== null)
     .map((update) => upsertProfile(update, options))
     .filter((row): row is ProfileRow => row !== null)
+}
+
+function formatRelevantMemory(item: MemorySearchResult): string {
+  const text = item.text.replace(/\s+/g, " ").trim().slice(0, 600)
+  if (item.entityType === "profile") return `[Profile] ${item.title}: ${formatProfileValue(item.text).slice(0, 600)}`
+  if (item.entityType === "topic") return `[Topic] ${item.title}${text ? ` - ${text}` : ""}`
+  if (item.entityType === "timeline") return `[Timeline ${item.date ?? ""}] ${item.title}: ${text}`
+  return `[Daily note ${item.date ?? item.title}] ${text}`
 }
 
 export function appendTimelineEvents(
@@ -515,4 +541,14 @@ function readSourceCount(tableName: "profile" | "timeline_events", sourceExists:
      WHERE ${condition}`
   )
   return row ? Number(row.count) : 0
+}
+
+function readRelevantMemory(searchText: string | undefined, limit: number | undefined): MemorySearchResult[] {
+  if (!searchText?.trim()) return []
+  try {
+    return searchMemory(searchText, { limit: limit ?? 6 })
+  } catch {
+    console.error("[memory search] retrieval unavailable; using recent Memory fallback")
+    return []
+  }
 }

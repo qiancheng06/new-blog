@@ -1,10 +1,11 @@
 import type { EventRow } from "../../domain/event/store.js"
-import { buildMemoryContextText } from "../../domain/memory/index.js"
+import { buildMemoryContextText, getMemoryContext } from "../../domain/memory/index.js"
 import { ANALYSIS_PROMPT, COMPANION_PROMPT } from "./persona.js"
 
 export interface PromptContext {
   recentEvents?: EventRow[]
   memoryText?: string
+  memoryQuery?: string
 }
 
 export interface BuiltPrompts {
@@ -15,7 +16,7 @@ export interface BuiltPrompts {
 }
 
 export function buildPrompts(context: PromptContext = {}): BuiltPrompts {
-  const memoryText = context.memoryText ?? buildMemoryContextText()
+  const memoryText = context.memoryText ?? buildMemoryContextText(getMemoryContext({ query: context.memoryQuery }))
   const recentConversationText = buildHistoryContext(context.recentEvents ?? [])
   const historyText = buildAnalysisContextText({
     memoryText,

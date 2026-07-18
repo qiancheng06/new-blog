@@ -141,6 +141,14 @@ transaction: acceptance writes an audit Event, Profile value, and terminal
 proposal state together; rejection writes the audit Event and terminal state
 without changing Profile.
 
+Memory retrieval uses SQLite FTS5 with the trigram tokenizer. `memory_search` is
+a rebuildable projection over Profile, Topics, Timeline, and Daily Notes. Schema
+triggers synchronize writes and `initializeDb()` reconstructs the index on each
+runtime start, including upgrades from databases created before search existed.
+Database readiness requires the virtual table. Prompt retrieval falls back to
+recent Memory when an index query fails, while `/api/memory/search` remains an
+explicit diagnostic surface.
+
 Default AI gates must not call real DeepSeek or Telegram services. Use
 `LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
 offline.

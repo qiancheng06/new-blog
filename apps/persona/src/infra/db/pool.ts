@@ -40,17 +40,11 @@ export function withTransaction<T>(work: () => T): T {
 export function initializeDb(): void {
   const sql = readFileSync(schemaPath, "utf-8")
 
-  const statements = sql
-    .split(";")
-    .map((s) => s.trim())
-    .filter((s) => s.length > 0 && !s.startsWith("--"))
-
-  for (const stmt of statements) {
-    _db.exec(stmt + ";")
-  }
+  _db.exec(sql)
 
   migrateProjectionState()
   migrateDailyNotes()
+  rebuildMemorySearchIndex()
 
   console.log("database initialized")
 }
@@ -78,6 +72,39 @@ function migrateDailyNotes(): void {
   ensureColumn("daily_notes", "finalized_at", "TEXT")
   _db.exec("UPDATE daily_notes SET updated_at = created_at WHERE updated_at = '';")
   _db.exec("CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);")
+}
+
+function rebuildMemorySearchIndex(): void {
+  _db.transaction(() => {
+    _db.exec("DELETE FROM memory_search;")
+    _db.exec(
+      `INSERT INTO memory_search (
+         entity_type, entity_id, title, body, state, source_event_id, memory_date
+       )
+       SELECT 'topic', id, name, summary, state, NULL, last_active_at FROM topics`,
+    )
+    _db.exec(
+      `INSERT INTO memory_search (
+         entity_type, entity_id, title, body, state, source_event_id, memory_date
+       )
+       SELECT 'profile', id, key, value, state, source_event_id, updated_at FROM profile`,
+    )
+    _db.exec(
+      `INSERT INTO memory_search (
+         entity_type, entity_id, title, body, state, source_event_id, memory_date
+       )
+       SELECT 'timeline', id, type, summary, 'active', source_event_id, date FROM timeline_events`,
+    )
+    _db.exec(
+      `INSERT INTO memory_search (
+         entity_type, entity_id, title, body, state, source_event_id, memory_date
+       )
+       SELECT 'daily_note', id, date,
+              summary || char(10) || highlights || char(10) || topic_distribution,
+              'active', source_event_id, date
+       FROM daily_notes`,
+    )
+  })()
 }
 
 function ensureColumn(tableName: "profile" | "topics" | "daily_notes", columnName: string, definition: string): void {

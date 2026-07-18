@@ -68,6 +68,8 @@ inserted.
   tests, debug panels, and future management UI.
 - `buildMemoryContextText()`: formats the current memory context into a compact
   text block that Persona can include in its system prompt.
+- `searchMemory(query, { limit })`: searches active Profile, Topic, Timeline,
+  and Daily Note projections through the derived SQLite FTS index.
 
 This API does not mutate Events. The caller is responsible for inserting the
 Event first and passing the saved Event id as `sourceEventId`.
@@ -106,8 +108,10 @@ and objects; their SQLite columns remain JSON text.
 calling Companion:
 
 1. Application saves the incoming Event.
-2. AI runtime loads recent Memory through `buildMemoryContextText()`.
-3. Companion receives the base prompt plus long-term memory context.
+2. AI runtime searches Memory using the current user text and also loads bounded
+   recent active Memory.
+3. Companion receives relevant results first, followed by deduplicated recent
+   long-term context.
 4. Analysis runs asynchronously and returns a `memory_patch`.
 5. Analysis calls may overlap, but Memory commits follow input reservation order.
 6. Memory writes stable patch items and pending cooled proposals with the saved
@@ -140,6 +144,26 @@ Profile corrections explicitly bypass this automatic stale-source guard.
 This is the current minimal memory loop. It is intentionally simple: Memory
 decides how rows are read and written, while Persona only consumes formatted
 context and proposes future patches.
+
+## Query-aware retrieval
+
+`memory_search` is a derived SQLite FTS5 table using the trigram tokenizer. It
+indexes active-state metadata for Profile, Topic, Timeline, and Daily Note
+projections. Source tables remain authoritative:
+
+- insert/update/delete triggers synchronize runtime writes
+- `initializeDb()` rebuilds the complete index from source projections
+- exact substring matches rank first; trigram term matches provide broader
+  Chinese and Latin recall
+- one- and two-character searches use the exact substring path
+- archived or suppressed Profile/Topic rows remain indexed with their state but
+  are excluded from all search and Prompt retrieval
+- pending/rejected proposals are never indexed
+- Prompt retrieval catches index failures and falls back to bounded recent
+  Memory; the explicit search API still reports failures for diagnosis
+
+Relevant results are capped and each formatted item is truncated before Prompt
+assembly. FTS rows are not provenance and must never be edited directly.
 
 ## Cooling and proposal review
 
@@ -190,6 +214,7 @@ through SQLite files or domain stores directly. The current read routes are:
 - `GET /api/memory/profile?limit=&offset=&key=`
 - `GET /api/memory/timeline?limit=&offset=&type=&date=&sourceEventId=`
 - `GET /api/memory/sources`
+- `GET /api/memory/search?q=&limit=`
 - `GET /api/memory/proposals?status=&sourceEventId=&limit=&offset=`
 
 These routes are implemented through `apps/persona/src/application/memory.ts`.

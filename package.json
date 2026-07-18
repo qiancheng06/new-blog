@@ -31,6 +31,7 @@
     "contract:runtime-startup": "tsx apps/persona/src/main/runtime-startup-contract.ts",
     "contract:real-mode-docs": "tsx apps/persona/src/application/real-mode-docs-contract.ts",
     "contract:memory-transaction": "tsx apps/persona/src/application/memory-transaction-contract.ts",
+    "contract:memory-search": "tsx apps/persona/src/application/memory-search-contract.ts",
     "contract:daily-summary": "tsx apps/persona/src/application/daily-summary-contract.ts",
     "contract:daily-summary-scheduler": "tsx apps/persona/src/application/daily-summary-scheduler-contract.ts",
     "contract:obsidian-archive": "tsx apps/persona/src/application/obsidian-archive-contract.ts",

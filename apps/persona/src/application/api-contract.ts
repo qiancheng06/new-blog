@@ -26,6 +26,7 @@ try {
   await verifyEvents(port)
   await verifyStatus(port)
   await verifyMemoryOverview(port)
+  await verifyMemorySearch(port)
   await verifyMemoryTopics(port)
   await verifyMemoryProfile(port)
   await verifyMemoryProfileCorrection(port)
@@ -369,6 +370,39 @@ async function verifyMemoryOverview(portNumber: number): Promise<void> {
   assert(Array.isArray(body.timelineEvents), "memory.timelineEvents must be array")
 }
 
+async function verifyMemorySearch(portNumber: number): Promise<void> {
+  const body = await getJson<{
+    items?: Array<{
+      entityType?: string
+      entityId?: string
+      title?: string
+      text?: string
+      sourceEventId?: string | null
+      date?: string | null
+    }>
+    limit?: number
+  }>(`http://127.0.0.1:${portNumber}/api/memory/search?q=${encodeURIComponent(contractTag)}&limit=999`)
+
+  assert(body.limit === 50, "memory search limit must be clamped to 50")
+  assert(Array.isArray(body.items) && body.items.length > 0, "memory search must return indexed contract Memory")
+  for (const item of body.items) {
+    assert(
+      item.entityType === "profile" || item.entityType === "topic" ||
+      item.entityType === "timeline" || item.entityType === "daily_note",
+      "memory search entity type mismatch",
+    )
+    assert(typeof item.entityId === "string" && item.entityId.length > 0, "memory search entity id missing")
+    assert(typeof item.title === "string" && typeof item.text === "string", "memory search text shape mismatch")
+  }
+
+  const missing = await fetch(`http://127.0.0.1:${portNumber}/api/memory/search`)
+  assert(missing.status === 400, `missing memory search query expected 400, got ${missing.status}`)
+  const tooLong = await fetch(
+    `http://127.0.0.1:${portNumber}/api/memory/search?q=${encodeURIComponent("x".repeat(501))}`,
+  )
+  assert(tooLong.status === 400, `oversized memory search query expected 400, got ${tooLong.status}`)
+}
+
 async function verifyMemoryTopics(portNumber: number): Promise<void> {
   const body = await getJson<{
     items?: Array<{ id?: string; name?: string; summary?: string; message_count?: number }>
@@ -597,6 +631,13 @@ async function verifyMemoryProposals(portNumber: number): Promise<void> {
   assert(rejectedProposal?.status === "pending", "second cooled Profile update must create a pending proposal")
   assert(acceptedWrite.profile.length === 0, "pending proposal must not write Profile")
   assert(!queryOne("SELECT id FROM profile WHERE key = ?", [acceptedKey]), "pending value must stay outside Profile")
+  const beforeReviewSearch = await getJson<{
+    items?: Array<{ entityType?: string; title?: string }>
+  }>(`http://127.0.0.1:${portNumber}/api/memory/search?q=${encodeURIComponent(acceptedKey)}`)
+  assert(
+    !beforeReviewSearch.items?.some((item) => item.entityType === "profile" && item.title === acceptedKey),
+    "pending proposal must stay outside search API",
+  )
 
   const pending = await getJson<{
     items?: Array<{ id?: string; source_event_id?: string; status?: string; proposal_key?: string }>
@@ -637,6 +678,13 @@ async function verifyMemoryProposals(portNumber: number): Promise<void> {
   assert(accepted.profile?.key === acceptedKey, "accepted proposal must write Profile key")
   assert(accepted.profile.source_event_id === accepted.eventId, "accepted Profile must reference review Event")
   assert(accepted.profile.value?.includes(contractTag), "accepted Profile must preserve proposed value")
+  const afterReviewSearch = await getJson<{
+    items?: Array<{ entityType?: string; title?: string }>
+  }>(`http://127.0.0.1:${portNumber}/api/memory/search?q=${encodeURIComponent(acceptedKey)}`)
+  assert(
+    afterReviewSearch.items?.some((item) => item.entityType === "profile" && item.title === acceptedKey),
+    "accepted proposal must become visible to search API",
+  )
 
   const repeatedReview = await fetch(
     `http://127.0.0.1:${portNumber}/api/memory/proposals/${acceptedProposal.id}/review`,

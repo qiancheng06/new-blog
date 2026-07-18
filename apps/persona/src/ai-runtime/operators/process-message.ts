@@ -17,7 +17,7 @@ export async function processMessage(
   const payload = JSON.parse(eventRow.payload) as Record<string, unknown>
   const userText = (payload.text as string) || ""
   const recentEvents = getRecentEvents(21).filter((event) => event.id !== eventRow.id)
-  const prompts = buildPrompts({ recentEvents })
+  const prompts = buildPrompts({ recentEvents, memoryQuery: userText })
   const memoryCommit = reserveOrderedMemoryCommit()
   const companion = dependencies.callCompanion ?? callCompanion
   const analysis = dependencies.callAnalysis ?? callAnalysis

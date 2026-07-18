@@ -435,6 +435,37 @@ Response `200`:
 }
 ```
 
+### `GET /api/memory/search`
+
+Searches governed Memory projections using exact substring and FTS5/trigram
+retrieval. Query params:
+
+```ts
+{
+  q: string,       // required, 1-500 characters
+  limit?: number   // default 10, maximum 50
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: Array<{
+    entityType: "profile" | "topic" | "timeline" | "daily_note",
+    entityId: string,
+    title: string,
+    text: string,
+    sourceEventId: string | null,
+    date: string | null
+  }>,
+  limit: number
+}
+```
+
+Only active Profile/Topic rows are returned. Pending/rejected proposals are not
+indexed. Missing or oversized queries return `400`.
+
 ### `GET /api/memory/proposals`
 
 Lists cooled Profile candidates without promoting them into AI context.
@@ -582,6 +613,8 @@ body returns `topic`.
   governed projection-state write paths. They append governance Events before
   changing row state. The Event and projection change commit atomically.
 - Pending or rejected proposals never enter Profile or Companion context.
+- Search reads only the derived index through Application/Memory APIs. Direct
+  FTS access is not a supported interface.
 
 ## Safe paths
 

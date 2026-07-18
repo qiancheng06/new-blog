@@ -12,6 +12,7 @@ import {
   getMemoryOverview,
   getMemoryProfile,
   getMemoryProposals,
+  getMemorySearch,
   getMemorySourceInspection,
   getMemoryStatusStats,
   getMemoryTimelineEvents,
@@ -269,6 +270,17 @@ function handleMemoryProposals(url: URL, res: ServerResponse) {
   }
 }
 
+function handleMemorySearch(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getMemorySearch({
+      query: readText(url, "q") ?? "",
+      limit: readNumber(url, "limit"),
+    }))
+  } catch (err) {
+    handleMemoryWriteError(err, res)
+  }
+}
+
 async function handleMemoryProfileCorrection(req: IncomingMessage, res: ServerResponse) {
   const parsed = await readJsonObject<{ key?: string; value?: unknown; reason?: string }>(req, res)
   if (!parsed) return
@@ -386,6 +398,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/api/memory/proposals" && req.method === "GET") {
       return handleMemoryProposals(requestUrl, res)
+    }
+    if (url === "/api/memory/search" && req.method === "GET") {
+      return handleMemorySearch(requestUrl, res)
     }
     const memoryProposalReviewMatch = /^\/api\/memory\/proposals\/([^/]+)\/review$/.exec(url)
     if (memoryProposalReviewMatch && req.method === "POST") {

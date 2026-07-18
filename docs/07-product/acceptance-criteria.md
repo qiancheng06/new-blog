@@ -46,6 +46,10 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - `cooling_required` Profile updates persist as reviewable proposals and remain
   outside active Profile/Companion context until an audited acceptance; review
   rollback and one-time decisions are covered by no-network contracts.
+- Query-aware Memory retrieval covers Profile, Topic, Timeline, and Daily Note
+  projections; Chinese trigram/short-query behavior, source-driven index rebuild,
+  state filtering, proposal isolation, and Prompt ordering have a no-network
+  contract.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
 - Real-mode cleanup contract test for tagged evaluation data preview and safe timeline-only cleanup.
 - Workspace entrypoint contract test for the served `http://127.0.0.1:5173/` primary UI path and legacy HTML boundaries.
@@ -59,6 +63,8 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run contract:db-schema` for fresh-install schema and constraint failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
 - `npm.cmd run contract:api` for Application API request/response shape failures.
+- `npm.cmd run contract:memory-search` for FTS synchronization, query-aware
+  Prompt retrieval, Chinese matching, state filtering, and proposal isolation.
 - `npm.cmd run contract:conversation-jobs` for Companion execution recovery,
   Web idempotency, and retry audit failures.
 - `npm.cmd run contract:telegram` for Telegram command mapping, no-reply boundary,
@@ -160,4 +166,4 @@ These remain future product-level gates:
 - Real DeepSeek conversation quality evaluation.
 - Telegram end-to-end runtime verification.
 - Long-running reliability test.
-- Workspace proposal-review UI and broader Memory search/edit workflows.
+- Workspace proposal-review/search UI and future semantic embedding ranking.

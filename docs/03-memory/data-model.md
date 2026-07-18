@@ -98,6 +98,22 @@ Profile，而是进入 `memory_proposals` 等待显式接受或拒绝，避免�
 | archived_at | TIMESTAMPTZ | latest archive completion |
 | finalized_at | TIMESTAMPTZ | automatic previous-day closure marker |
 | created_at | TIMESTAMPTZ | |
+
+### memory_search (derived FTS5 projection)
+
+| Column | Type | Notes |
+|------|------|------|
+| entity_type | UNINDEXED TEXT | profile / topic / timeline / daily_note |
+| entity_id | UNINDEXED UUID | source projection identity |
+| title | FTS TEXT | key, topic name, type, or note date |
+| body | FTS TEXT | JSON value, summary, or note content |
+| state | UNINDEXED TEXT | active / archived / suppressed |
+| source_event_id | UNINDEXED UUID | source provenance where available |
+| memory_date | UNINDEXED TEXT | recency tie-breaker |
+
+`memory_search` is never a source of truth. Triggers synchronize source writes
+and startup rebuilds the entire index. Search and Prompt retrieval always filter
+`state = active`; proposals are not indexed.
 | updated_at | TIMESTAMPTZ | |
 
 ### conversation_jobs
@@ -132,8 +148,8 @@ Profile，而是进入 `memory_proposals` 等待显式接受或拒绝，避免�
 
 ## Memory patch persistence
 
-`AnalysisResult.memory_patch` is persisted by the Memory domain without changing
-the current SQLite schema:
+`AnalysisResult.memory_patch` is persisted by the Memory domain through the
+current SQLite projections:
 
 - `topic_updates` maps to `topics`. `name` is unique, so writes are upserts:
   new topics are inserted, existing topics refresh `last_active_at`, increment

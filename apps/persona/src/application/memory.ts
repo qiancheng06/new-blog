@@ -19,6 +19,9 @@ import {
   type TimelineListOptions,
   type TopicListOptions,
   type TopicRow,
+  searchMemory,
+  normalizeMemorySearchQuery,
+  type MemorySearchResult,
 } from "../domain/memory/index.js"
 import {
   getMemoryProposalById,
@@ -87,6 +90,11 @@ export interface MemoryProposalReviewResult {
   profile: ProfileRow | null
 }
 
+export interface MemorySearchResponse {
+  items: MemorySearchResult[]
+  limit: number
+}
+
 export function getMemoryOverview(options: {
   topicLimit?: number
   profileLimit?: number
@@ -139,6 +147,15 @@ export function getMemoryProposals(
     items: listMemoryProposals({ ...options, ...paging }),
     ...paging,
   }
+}
+
+export function getMemorySearch(input: { query: string; limit?: number }): MemorySearchResponse {
+  const rawQuery = input.query.trim()
+  if (!rawQuery) throw new MemoryValidationError("memory search query is required")
+  if (rawQuery.length > 500) throw new MemoryValidationError("memory search query is too long")
+  const query = normalizeMemorySearchQuery(rawQuery)
+  const limit = clampSearchLimit(input.limit)
+  return { items: searchMemory(query, { limit }), limit }
 }
 
 export function correctMemoryProfile(input: ProfileCorrectionInput): ProfileCorrectionResult {
@@ -287,6 +304,11 @@ function normalizeOffset(value: number | undefined): number {
 export function parseMemoryListState(value: string | undefined): MemoryListState | undefined {
   if (value === "active" || value === "archived" || value === "suppressed" || value === "all") return value
   return undefined
+}
+
+function clampSearchLimit(value: number | undefined): number {
+  if (typeof value !== "number" || !Number.isFinite(value)) return 10
+  return Math.min(50, Math.max(1, Math.floor(value)))
 }
 
 export function parseMemoryProposalStatus(value: string | undefined): MemoryProposalStatus | undefined {

@@ -69,6 +69,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:memory-transaction",
   },
   {
+    name: "Governed Memory search and retrieval contract test",
+    command: "npm.cmd run contract:memory-search",
+  },
+  {
     name: "Daily Summary end-to-end contract test",
     command: "npm.cmd run contract:daily-summary",
   },
@@ -187,6 +191,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/api-contract.ts",
     "apps/persona/src/application/real-mode-docs-contract.ts",
     "apps/persona/src/application/memory-transaction-contract.ts",
+    "apps/persona/src/application/memory-search-contract.ts",
     "apps/persona/src/application/daily-summary-contract.ts",
     "apps/persona/src/application/daily-summary-scheduler.ts",
     "apps/persona/src/application/daily-summary-scheduler-contract.ts",
@@ -213,6 +218,7 @@ function runRootStructureCheck(): void {
     "apps/persona/src/infra/diagnostics/runtime-diagnostics.ts",
     "apps/persona/src/infra/diagnostics/runtime-diagnostics-contract.ts",
     "apps/persona/src/domain/memory/inspect-memory.ts",
+    "apps/persona/src/domain/memory/search.ts",
     "apps/persona/src/domain/memory/cleanup-real-mode-tests.ts",
     "apps/persona/src/domain/memory/cleanup-real-mode-tests-contract.ts",
     "docs/00-overview/README.md",
