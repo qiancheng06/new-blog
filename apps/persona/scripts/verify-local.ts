@@ -41,6 +41,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:analysis-jobs",
   },
   {
+    name: "Component runtime health contract test",
+    command: "npm.cmd run contract:runtime-health",
+  },
+  {
     name: "No-network runtime burst contract test",
     command: "npm.cmd run contract:runtime-burst",
   },
@@ -181,6 +185,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/process-message-ordering-contract.ts",
     "apps/persona/src/application/analysis-jobs.ts",
     "apps/persona/src/application/analysis-job-contract.ts",
+    "apps/persona/src/application/runtime-health.ts",
+    "apps/persona/src/application/runtime-health-contract.ts",
     "apps/persona/src/domain/analysis-job/store.ts",
     "apps/persona/src/ai-runtime/prompts/prompt-fixture.ts",
     "apps/persona/src/infra/config/config-contract.ts",

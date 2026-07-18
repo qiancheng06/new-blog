@@ -3,6 +3,7 @@ import { startApiServer, stopApiServer, type ApiServerOptions } from "../interfa
 import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
 import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
+import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
 import type { Server } from "http"
 
 type TelegramModule = typeof import("../interface/telegram/bot.js")
@@ -34,13 +35,16 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
+    setTelegramRuntimeStatus("starting")
     telegramModulePromise = import("../interface/telegram/bot.js")
     void telegramModulePromise.then(({ startBot }) => {
       return startBot()
     }).catch((err) => {
+      setTelegramRuntimeStatus("failed")
       console.error("[telegram startup error]", err instanceof Error ? err.message : err)
     })
   } else {
+    setTelegramRuntimeStatus("disabled")
     console.log("TELEGRAM_TOKEN not set, skipping telegram bot")
   }
 

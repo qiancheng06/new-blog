@@ -22,6 +22,7 @@ import {
   parseMemoryListState,
 } from "../../application/memory.js"
 import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
+import { getRuntimeHealthSnapshot, summarizeRuntimeHealth } from "../../application/runtime-health.js"
 import {
   AnalysisJobConflictError,
   AnalysisJobNotFoundError,
@@ -107,12 +108,21 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
 }
 
 function handleHealth(_req: IncomingMessage, res: ServerResponse) {
+  const counters = getSafeHealthCounters()
   json(res, 200, {
     status: "ok",
     uptime: process.uptime(),
-    events_today: countConversationEventsToday(),
+    events_today: counters.eventsToday,
     background_tasks: { pending: getPendingBackgroundTaskCount() },
-    analysis_jobs: getAnalysisJobsStatus(),
+    analysis_jobs: counters.analysisJobs,
+  })
+}
+
+function handleReady(_req: IncomingMessage, res: ServerResponse) {
+  const health = getRuntimeHealthSnapshot()
+  json(res, health.ready ? 200 : 503, {
+    status: health.ready ? "ready" : "not_ready",
+    components: health.components,
   })
 }
 
@@ -122,14 +132,33 @@ function handleEvents(_req: IncomingMessage, res: ServerResponse) {
 }
 
 function handleStatus(_req: IncomingMessage, res: ServerResponse) {
-  const recentEvents = getRecentConversationEvents(5)
+  let health = getRuntimeHealthSnapshot()
+  let eventsToday = 0
+  let memory = { topics: 0, profile: 0, timelineEvents: 0 }
+  let recentEvents: ReturnType<typeof getRecentConversationEvents> = []
+
+  if (health.components.database.status === "ok") {
+    try {
+      eventsToday = countConversationEventsToday()
+      memory = getMemoryStatusStats()
+      recentEvents = getRecentConversationEvents(5)
+    } catch {
+      health = summarizeRuntimeHealth({
+        ...health.components,
+        database: { status: "failed" },
+      })
+    }
+  }
+
   json(res, 200, {
-    status: "ok",
+    status: health.status,
+    ready: health.ready,
+    components: health.components,
     uptime: process.uptime(),
-    events_today: countConversationEventsToday(),
-    background_tasks: { pending: getPendingBackgroundTaskCount() },
-    analysis_jobs: getAnalysisJobsStatus(),
-    memory: getMemoryStatusStats(),
+    events_today: eventsToday,
+    background_tasks: { pending: health.components.background_tasks.pending },
+    analysis_jobs: health.components.analysis.jobs,
+    memory,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
       source: event.source,
@@ -257,6 +286,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/health" && req.method === "GET") {
       return handleHealth(req, res)
+    }
+    if (url === "/ready" && req.method === "GET") {
+      return handleReady(req, res)
     }
     if (url === "/api/events" && req.method === "GET") {
       return handleEvents(req, res)
@@ -478,6 +510,23 @@ function handleDailySummaryByDate(date: string, res: ServerResponse) {
     json(res, 200, { note: getDailySummary(date) })
   } catch (err) {
     handleDailySummaryError(err, res)
+  }
+}
+
+function getSafeHealthCounters(): {
+  eventsToday: number
+  analysisJobs: { pending: number; running: number; succeeded: number; failed: number }
+} {
+  try {
+    return {
+      eventsToday: countConversationEventsToday(),
+      analysisJobs: getAnalysisJobsStatus(),
+    }
+  } catch {
+    return {
+      eventsToday: 0,
+      analysisJobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
+    }
   }
 }
 

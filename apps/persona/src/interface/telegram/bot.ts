@@ -7,6 +7,7 @@ import {
 } from "../../application/conversation.js"
 import { buildTelegramEvent } from "./events.js"
 import { isTelegramChatAllowed } from "./access.js"
+import { setTelegramRuntimeStatus } from "../../application/runtime-health.js"
 
 export const bot = new Bot(config.telegramToken)
 
@@ -87,6 +88,8 @@ bot.on("message:text", async (ctx: Context) => {
 export async function startBot(): Promise<void> {
   if (pollingPromise) return pollingPromise
 
+  setTelegramRuntimeStatus("starting")
+
   if (!errorHandlerInstalled) {
     bot.catch((err) => {
       console.error("[telegram bot error]", err.error instanceof Error ? err.error.message : err.error)
@@ -95,7 +98,14 @@ export async function startBot(): Promise<void> {
   }
 
   const started = bot.start()
-  const tracked = started.finally(() => {
+  setTelegramRuntimeStatus("running")
+  const tracked = started.then(
+    () => { setTelegramRuntimeStatus("stopped") },
+    (err) => {
+      setTelegramRuntimeStatus("failed")
+      throw err
+    },
+  ).finally(() => {
     if (pollingPromise === tracked) pollingPromise = null
   })
   pollingPromise = tracked
@@ -109,4 +119,7 @@ export async function stopBot(): Promise<void> {
     await bot.stop()
   }
   await activePolling?.catch(() => undefined)
+  if (!config.telegramToken) setTelegramRuntimeStatus("disabled")
+  else if (bot.isRunning()) setTelegramRuntimeStatus("running")
+  else setTelegramRuntimeStatus("stopped")
 }

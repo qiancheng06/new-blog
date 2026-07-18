@@ -115,6 +115,24 @@ Success response `200`:
 }
 ```
 
+`/health` is the process liveness probe. It remains `200` with the stable legacy
+shape even when a dependency check fails; dependency readiness belongs to
+`/ready`.
+
+### `GET /ready`
+
+Returns `200` with `status: "ready"` when SQLite schema access and the selected
+LLM configuration are available. It returns `503` with `status: "not_ready"`
+when either core component fails. Telegram, Obsidian, failed Analysis jobs, and
+pending background work remain visible but do not block readiness.
+
+```ts
+{
+  status: "ready" | "not_ready",
+  components: RuntimeComponents
+}
+```
+
 The operation writes only Persona's managed Markdown block, preserves content
 outside that block, appends a `system/daily_note_exported` audit Event, and then
 records the relative path and audit Event id on the Daily Note projection. A
@@ -141,7 +159,9 @@ Response `200`:
 
 ```ts
 {
-  status: "ok",
+  status: "ok" | "degraded" | "not_ready",
+  ready: boolean,
+  components: RuntimeComponents,
   uptime: number,
   events_today: number,
   background_tasks: {
@@ -167,6 +187,12 @@ Response `200`:
   }>
 }
 ```
+
+`RuntimeComponents` contains only bounded states and counts: database, LLM
+provider/mode, Telegram lifecycle, Obsidian availability, Analysis job counts,
+and pending background task count. It never includes configured paths, tokens,
+prompts, message content, provider output, or raw errors. Optional component
+failure changes the overall status to `degraded` without changing `ready`.
 
 ### `GET /api/analysis-jobs`
 
@@ -417,7 +443,8 @@ body returns `topic`.
 
 - Import `createApiServer`, `startApiServer`, and `stopApiServer` from `apps/persona/src/interface/api/server.ts`.
 - Bind to port `0` or a test-specific port through `startApiServer({ port: 0 })`.
-- Call `GET /health` to verify process and database counters.
+- Call `GET /health` to verify process liveness.
+- Call `GET /ready` to verify core database and LLM configuration readiness.
 - Call `GET /api/events` to verify read-side routing.
 - Close the returned server with `stopApiServer(server)` or `server.close()`.
 
@@ -458,4 +485,7 @@ Run the stricter HTTP contract test:
 npm.cmd run contract:api
 ```
 
-The contract test starts the API on `127.0.0.1:3103`, verifies `/health`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only `/api/memory*` routes, `OPTIONS`, and `404`, then deletes its smoke rows and closes the server.
+The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
+`/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
+`/api/memory*` routes, `OPTIONS`, and `404`, then deletes its smoke rows and
+closes the server.

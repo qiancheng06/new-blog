@@ -24,6 +24,7 @@
     "contract:ordered-memory": "tsx apps/persona/src/application/ordered-memory-commit-contract.ts",
     "contract:process-ordering": "tsx apps/persona/src/application/process-message-ordering-contract.ts",
     "contract:analysis-jobs": "tsx apps/persona/src/application/analysis-job-contract.ts",
+    "contract:runtime-health": "tsx apps/persona/src/application/runtime-health-contract.ts",
     "contract:runtime-burst": "tsx apps/persona/src/application/runtime-burst-contract.ts",
     "contract:runtime-startup": "tsx apps/persona/src/main/runtime-startup-contract.ts",
     "contract:real-mode-docs": "tsx apps/persona/src/application/real-mode-docs-contract.ts",

@@ -92,9 +92,17 @@ be an explicit deployment choice behind upstream authentication.
 
 `SIGINT`, `SIGTERM`, and programmatic `runtime.stop()` use the same graceful
 shutdown path. Persona stops accepting API and Telegram input, then waits up to
-25 seconds for tracked Analysis/Memory background work to settle. `/health` and
-`/api/status` expose only the pending task count; task inputs and private content
-are never included.
+25 seconds for tracked Analysis/Memory background work to settle. `/health` is
+the stable process liveness probe; `/ready` checks the SQLite schema and LLM
+configuration; `/api/status` adds optional component degradation and operational
+counters. These endpoints expose only bounded states and counts. Task inputs,
+configured paths, private content, provider output, secrets, and raw errors are
+never included.
+
+Telegram and Obsidian are optional. A failed Telegram polling lifecycle, an
+unavailable configured vault, or failed Analysis jobs marks `/api/status` as
+`degraded` while `/ready` remains successful. Database or LLM configuration
+failure makes `/ready` return `503`.
 
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried

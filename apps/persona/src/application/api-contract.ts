@@ -4,6 +4,7 @@ const port = Number(process.env.API_PORT) || 3103
 process.env.LLM_PROVIDER = "mock"
 process.env.API_PORT = String(port)
 process.env.TELEGRAM_TOKEN = ""
+process.env.OBSIDIAN_VAULT_PATH = ""
 
 const { initializeDb, queryOne, run } = await import("../infra/db/pool.js")
 const { startApiServer, stopApiServer } = await import("../interface/api/server.js")
@@ -15,6 +16,7 @@ try {
   await waitForHealth(port)
   await verifyOptions(port)
   await verifyHealth(port)
+  await verifyReady(port)
   await verifyNotFound(port)
   await verifyInvalidChat(port)
   await verifyValidChat(port)
@@ -67,6 +69,18 @@ async function verifyHealth(portNumber: number): Promise<void> {
   assert(typeof body.analysis_jobs.running === "number", "health.analysis_jobs.running must be number")
   assert(typeof body.analysis_jobs.succeeded === "number", "health.analysis_jobs.succeeded must be number")
   assert(typeof body.analysis_jobs.failed === "number", "health.analysis_jobs.failed must be number")
+}
+
+async function verifyReady(portNumber: number): Promise<void> {
+  const response = await fetch(`http://127.0.0.1:${portNumber}/ready`)
+  assert(response.status === 200, `ready expected 200, got ${response.status}`)
+  const body = await response.json() as {
+    status?: string
+    components?: RuntimeComponents
+  }
+
+  assert(body.status === "ready", "ready.status must be ready")
+  verifyRuntimeComponents(body.components, "ready")
 }
 
 async function verifyNotFound(portNumber: number): Promise<void> {
@@ -175,6 +189,8 @@ async function verifyEvents(portNumber: number): Promise<void> {
 async function verifyStatus(portNumber: number): Promise<void> {
   const body = await getJson<{
     status?: string
+    ready?: boolean
+    components?: RuntimeComponents
     uptime?: number
     events_today?: number
     background_tasks?: { pending?: number }
@@ -183,7 +199,9 @@ async function verifyStatus(portNumber: number): Promise<void> {
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
-  assert(body.status === "ok", "status.status must be ok")
+  assert(body.status === "ok" || body.status === "degraded", "status.status must be ok or degraded")
+  assert(body.ready === true, "status.ready must be true")
+  verifyRuntimeComponents(body.components, "status")
   assert(typeof body.uptime === "number", "status.uptime must be number")
   assert(typeof body.events_today === "number", "status.events_today must be number")
   assert(typeof body.background_tasks?.pending === "number", "status.background_tasks.pending must be number")
@@ -200,6 +218,29 @@ async function verifyStatus(portNumber: number): Promise<void> {
     assert(typeof event.timestamp === "string", "recent event timestamp must be string")
     assert(typeof event.preview === "string", "recent event preview must be string")
   }
+}
+
+interface RuntimeComponents {
+  database?: { status?: string }
+  llm?: { status?: string; provider?: string; mode?: string }
+  telegram?: { status?: string }
+  obsidian?: { status?: string }
+  analysis?: {
+    status?: string
+    jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
+  }
+  background_tasks?: { status?: string; pending?: number }
+}
+
+function verifyRuntimeComponents(components: RuntimeComponents | undefined, route: string): void {
+  assert(components?.database?.status === "ok", `${route} database component must be ok`)
+  assert(components.llm?.status === "ok", `${route} LLM component must be ok`)
+  assert(components.llm.provider === "mock", `${route} LLM provider must be mock`)
+  assert(components.llm.mode === "mock", `${route} LLM mode must be mock`)
+  assert(components.telegram?.status === "disabled", `${route} Telegram component must be disabled`)
+  assert(components.obsidian?.status === "disabled", `${route} Obsidian component must be disabled`)
+  assert(typeof components.analysis?.jobs?.failed === "number", `${route} Analysis failed count must be number`)
+  assert(typeof components.background_tasks?.pending === "number", `${route} background pending count must be number`)
 }
 
 async function verifyMemoryOverview(portNumber: number): Promise<void> {
