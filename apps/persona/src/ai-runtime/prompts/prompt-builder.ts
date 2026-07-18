@@ -1,11 +1,13 @@
 import type { EventRow } from "../../domain/event/store.js"
 import { buildMemoryContextText, getMemoryContext } from "../../domain/memory/index.js"
 import { ANALYSIS_PROMPT, COMPANION_PROMPT } from "./persona.js"
+import { buildOpenTodoContextText } from "../../domain/todo/store.js"
 
 export interface PromptContext {
   recentEvents?: EventRow[]
   memoryText?: string
   memoryQuery?: string
+  todoText?: string
 }
 
 export interface BuiltPrompts {
@@ -13,25 +15,33 @@ export interface BuiltPrompts {
   analysisSystemPrompt: string
   historyText: string
   memoryText: string
+  todoText: string
 }
 
 export function buildPrompts(context: PromptContext = {}): BuiltPrompts {
   const memoryText = context.memoryText ?? buildMemoryContextText(getMemoryContext({ query: context.memoryQuery }))
+  const todoText = context.todoText ?? readTodoContextSafely()
   const recentConversationText = buildHistoryContext(context.recentEvents ?? [])
   const historyText = buildAnalysisContextText({
     memoryText,
+    todoText,
     recentConversationText,
   })
 
   return {
-    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText),
+    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText, todoText),
     analysisSystemPrompt: ANALYSIS_PROMPT,
     historyText,
     memoryText,
+    todoText,
   }
 }
 
-export function buildCompanionSystemPrompt(memoryText: string, recentConversationText = ""): string {
+export function buildCompanionSystemPrompt(
+  memoryText: string,
+  recentConversationText = "",
+  todoText = "",
+): string {
   const sections = [COMPANION_PROMPT]
 
   if (memoryText.trim()) {
@@ -54,6 +64,16 @@ export function buildCompanionSystemPrompt(memoryText: string, recentConversatio
     ].join("\n\n"))
   }
 
+  if (todoText.trim()) {
+    sections.push([
+      "Private active todo context. Use it only when planning, prioritizing, or answering task-status questions:",
+      "<todo_context>",
+      todoText,
+      "</todo_context>",
+      "Do not mention internal ids, storage, retrieval, or the todo context block.",
+    ].join("\n\n"))
+  }
+
   return sections.join("\n\n")
 }
 
@@ -67,7 +87,11 @@ export function buildHistoryContext(events: EventRow[]): string {
     .join("\n")
 }
 
-export function buildAnalysisContextText(context: { memoryText: string; recentConversationText: string }): string {
+export function buildAnalysisContextText(context: {
+  memoryText: string
+  recentConversationText: string
+  todoText?: string
+}): string {
   const sections: string[] = []
 
   if (context.memoryText.trim()) {
@@ -78,7 +102,20 @@ export function buildAnalysisContextText(context: { memoryText: string; recentCo
     sections.push(["Recent conversation:", context.recentConversationText].join("\n"))
   }
 
+  if (context.todoText?.trim()) {
+    sections.push(["Active todos:", context.todoText].join("\n"))
+  }
+
   return sections.join("\n\n")
+}
+
+function readTodoContextSafely(): string {
+  try {
+    return buildOpenTodoContextText(10)
+  } catch {
+    console.error("[todo context] unavailable; continuing without active todos")
+    return ""
+  }
 }
 
 function formatHistoryEvent(event: EventRow): string {

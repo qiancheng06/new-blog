@@ -214,6 +214,13 @@ Response `200`:
     timelineEvents: number,
     pendingProposals: number
   },
+  todos: {
+    open: number,
+    done: number,
+    cancelled: number,
+    overdue: number,
+    dueToday: number
+  },
   recent_events: Array<{
     id: string,
     source: string,
@@ -232,6 +239,53 @@ time, failure count, and aggregate persisted run counts. It never includes
 configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.
+
+### Todo lifecycle APIs
+
+Todo is a user-managed Workspace entity, not a Memory projection. Creation is
+represented by an immutable `todo` Event and a mutable `todos` row. Both writes
+commit in one transaction, including Todo commands received from Telegram.
+
+`POST /api/todos` creates a Todo:
+
+```ts
+// request
+{ title: string, dueDate?: "YYYY-MM-DD" | null }
+
+// response 201
+{ eventId: string, todo: Todo }
+```
+
+`GET /api/todos` returns `{ items, limit, offset }`. Optional query parameters
+are `status=open|done|cancelled|all`, `dueBefore=YYYY-MM-DD`,
+`dueAfter=YYYY-MM-DD`, `limit`, and `offset`. `GET /api/todos/:id` returns one
+Todo or `404`.
+
+`POST /api/todos/:id/state` applies a reason-required state transition:
+
+```ts
+// request
+{ status: "open" | "done" | "cancelled", reason: string }
+
+// response 200
+{ eventId: string, todo: Todo }
+```
+
+Allowed transitions are `open -> done|cancelled` and
+`done|cancelled -> open`. Repeating the current state or requesting another
+terminal state returns `409`. Every accepted transition appends one of
+`todo_completed`, `todo_cancelled`, or `todo_reopened` before updating the
+projection in the same transaction.
+
+Telegram `/t` and `/todo` commands use the same projection path and remain
+idempotent across redelivery. A valid final `@YYYY-MM-DD` token becomes the due
+date, for example `/todo submit report @2026-08-01`; invalid date suffixes stay
+in the title.
+
+Only open Todos enter the private Companion and Analysis context. The bounded
+context contains title and optional due date, never internal ids. Completed and
+cancelled Todos are excluded. This contextual use does not make Todo part of
+long-term Memory or its search index.
 
 ### `GET /api/conversation-jobs`
 
@@ -664,5 +718,12 @@ npm.cmd run contract:api
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
-`/api/memory*` routes, `OPTIONS`, and `404`, then deletes its smoke rows and
-closes the server.
+`/api/memory*` routes, the Todo lifecycle routes, `OPTIONS`, and `404`, then
+deletes its smoke rows and closes the server.
+
+Run the focused Todo lifecycle, Telegram projection, prompt-boundary, and
+transaction rollback contract with:
+
+```bash
+npm.cmd run contract:todos
+```

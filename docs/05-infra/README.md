@@ -128,6 +128,15 @@ API can start a new attempt. Job rows expose only bounded status, counts, error
 codes, and Event ids. They never persist prompts, replies, provider output, raw
 errors, or browser idempotency keys.
 
+Todo capture uses the same durable Event boundary. A Web or Telegram `todo`
+Event and its `todos` projection commit together, while completion, cancellation,
+and reopening append audit Events and update the projection atomically. Telegram
+redelivery reuses the source Event and projection. Runtime startup idempotently
+restores missing projections for valid historical `todo` Events and reports only
+aggregate restored/skipped counts. `/api/status` exposes only
+aggregate Todo counts; prompt context exposes only bounded open titles and due
+dates, never Todo ids or terminal items.
+
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried
 through the audited Application API. Health/status expose aggregate job counts;

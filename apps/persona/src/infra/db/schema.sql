@@ -74,6 +74,29 @@ CREATE TABLE IF NOT EXISTS projects (
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
+CREATE TABLE IF NOT EXISTS todos (
+  id TEXT PRIMARY KEY,
+  source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 500),
+  due_date TEXT,
+  status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled')),
+  state_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  state_reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  cancelled_at TEXT,
+  CHECK (due_date IS NULL OR due_date GLOB '[0-9][0-9][0-9][0-9]-[0-9][0-9]-[0-9][0-9]'),
+  CHECK (
+    (status = 'open' AND completed_at IS NULL AND cancelled_at IS NULL) OR
+    (status = 'done' AND completed_at IS NOT NULL AND cancelled_at IS NULL) OR
+    (status = 'cancelled' AND completed_at IS NULL AND cancelled_at IS NOT NULL)
+  )
+);
+
+CREATE INDEX IF NOT EXISTS idx_todos_status_due
+  ON todos(status, due_date ASC, created_at DESC);
+
 CREATE TABLE IF NOT EXISTS profile (
   id TEXT PRIMARY KEY,
   key TEXT NOT NULL UNIQUE,

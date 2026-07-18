@@ -33,6 +33,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:telegram-idempotency",
   },
   {
+    name: "Todo lifecycle and atomic projection contract test",
+    command: "npm.cmd run contract:todos",
+  },
+  {
     name: "Ordered asynchronous Memory commit contract test",
     command: "npm.cmd run contract:ordered-memory",
   },
@@ -200,6 +204,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/infra/obsidian/daily-note-exporter.ts",
     "apps/persona/src/application/runtime-burst-contract.ts",
     "apps/persona/src/application/telegram-idempotency-contract.ts",
+    "apps/persona/src/application/todos.ts",
+    "apps/persona/src/application/todo-contract.ts",
     "apps/persona/src/application/ordered-memory-commit.ts",
     "apps/persona/src/application/ordered-memory-commit-contract.ts",
     "apps/persona/src/application/process-message-ordering-contract.ts",
@@ -208,6 +214,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/conversation-jobs.ts",
     "apps/persona/src/application/conversation-job-contract.ts",
     "apps/persona/src/domain/conversation-job/store.ts",
+    "apps/persona/src/domain/todo/store.ts",
+    "apps/persona/src/domain/todo/validation.ts",
     "apps/persona/src/domain/memory-proposal/store.ts",
     "apps/persona/src/application/runtime-health.ts",
     "apps/persona/src/application/runtime-health-contract.ts",

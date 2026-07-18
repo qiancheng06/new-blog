@@ -25,6 +25,7 @@ try {
   await verifyIdempotentChat(port)
   await verifyEvents(port)
   await verifyStatus(port)
+  await verifyTodos(port)
   await verifyMemoryOverview(port)
   await verifyMemorySearch(port)
   await verifyMemoryTopics(port)
@@ -288,6 +289,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     analysis_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
     conversation_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
     memory?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
+    todos?: { open?: number; done?: number; cancelled?: number; overdue?: number; dueToday?: number }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
@@ -303,6 +305,11 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.memory?.profile === "number", "status.memory.profile must be number")
   assert(typeof body.memory?.timelineEvents === "number", "status.memory.timelineEvents must be number")
   assert(typeof body.memory.pendingProposals === "number", "status.memory.pendingProposals must be number")
+  assert(typeof body.todos?.open === "number", "status.todos.open must be number")
+  assert(typeof body.todos.done === "number", "status.todos.done must be number")
+  assert(typeof body.todos.cancelled === "number", "status.todos.cancelled must be number")
+  assert(typeof body.todos.overdue === "number", "status.todos.overdue must be number")
+  assert(typeof body.todos.dueToday === "number", "status.todos.dueToday must be number")
   assert(Array.isArray(body.recent_events), "status.recent_events must be array")
 
   for (const event of body.recent_events) {
@@ -312,6 +319,119 @@ async function verifyStatus(portNumber: number): Promise<void> {
     assert(typeof event.timestamp === "string", "recent event timestamp must be string")
     assert(typeof event.preview === "string", "recent event preview must be string")
   }
+}
+
+async function verifyTodos(portNumber: number): Promise<void> {
+  const endpoint = `http://127.0.0.1:${portNumber}/api/todos`
+  for (const body of [
+    {},
+    { title: { value: `${contractTag}-invalid-title` } },
+    { title: `${contractTag}-invalid-due`, dueDate: { value: "2099-04-01" } },
+    { title: `${contractTag}-invalid-date`, dueDate: "2099-02-30" },
+  ]) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Todo create expected 400, got ${response.status}`)
+  }
+
+  const created = await postJson<{
+    eventId?: string
+    todo?: TodoContractRow
+  }>(endpoint, { title: `  ${contractTag} API task  `, dueDate: "2099-04-01" })
+  assert(typeof created.eventId === "string", "Todo create eventId must be string")
+  assert(typeof created.todo?.id === "string", "Todo create id must be string")
+  assert(created.todo.title === `${contractTag} API task`, "Todo create title must be normalized")
+  assert(created.todo.due_date === "2099-04-01", "Todo create due date mismatch")
+  assert(created.todo.status === "open", "Todo create status must be open")
+  assert(created.todo.source_event_id === created.eventId, "Todo create must expose Event provenance")
+
+  const source = queryOne<{ source: string; type: string; payload: string }>(
+    "SELECT source, type, payload FROM events WHERE id = ?",
+    [created.eventId],
+  )
+  assert(source?.source === "web" && source.type === "todo", "Todo create must append a web Todo Event")
+  assert(JSON.parse(source.payload).text === `${contractTag} API task`, "Todo source Event payload mismatch")
+
+  const page = await getJson<{ items?: TodoContractRow[]; limit?: number; offset?: number }>(
+    `${endpoint}?status=open&dueBefore=2099-04-01&limit=500&offset=0`,
+  )
+  assert(page.limit === 100 && page.offset === 0, "Todo list must normalize pagination")
+  assert(page.items?.some((todo) => todo.id === created.todo?.id), "Todo list filters must include matching Todo")
+
+  const detail = await getJson<{ todo?: TodoContractRow }>(`${endpoint}/${created.todo.id}`)
+  assert(detail.todo?.id === created.todo.id, "Todo detail id mismatch")
+
+  for (const path of ["?status=running", "?dueBefore=2099-02-30"]) {
+    const response = await fetch(`${endpoint}${path}`)
+    assert(response.status === 400, `invalid Todo list filter expected 400, got ${response.status}`)
+  }
+  const missing = await fetch(`${endpoint}/missing-todo`)
+  assert(missing.status === 404, `missing Todo expected 404, got ${missing.status}`)
+
+  for (const body of [
+    { status: "done" },
+    { status: "running", reason: `${contractTag} invalid status` },
+    { status: { value: "done" }, reason: `${contractTag} invalid shape` },
+    { status: "done", reason: { value: `${contractTag} invalid reason` } },
+  ]) {
+    const response = await fetch(`${endpoint}/${created.todo.id}/state`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Todo state expected 400, got ${response.status}`)
+  }
+
+  const completed = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `${endpoint}/${created.todo.id}/state`,
+    { status: "done", reason: `${contractTag} completed through API` },
+  )
+  assert(completed.todo?.status === "done" && completed.todo.completed_at, "Todo completion response mismatch")
+  assertTodoAuditEvent(completed.eventId, "todo_completed", `${contractTag} completed through API`)
+
+  const duplicateCompletion = await fetch(`${endpoint}/${created.todo.id}/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "done", reason: `${contractTag} duplicate completion` }),
+  })
+  assert(duplicateCompletion.status === 409, `duplicate Todo completion expected 409, got ${duplicateCompletion.status}`)
+
+  const reopened = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `${endpoint}/${created.todo.id}/state`,
+    { status: "open", reason: `${contractTag} reopened through API` },
+  )
+  assert(reopened.todo?.status === "open" && reopened.todo.completed_at === null, "Todo reopen response mismatch")
+  assertTodoAuditEvent(reopened.eventId, "todo_reopened", `${contractTag} reopened through API`)
+
+  const cancelled = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `${endpoint}/${created.todo.id}/state`,
+    { status: "cancelled", reason: `${contractTag} cancelled through API` },
+  )
+  assert(cancelled.todo?.status === "cancelled" && cancelled.todo.cancelled_at, "Todo cancellation response mismatch")
+  assertTodoAuditEvent(cancelled.eventId, "todo_cancelled", `${contractTag} cancelled through API`)
+}
+
+interface TodoContractRow {
+  id: string
+  source_event_id: string
+  title: string
+  due_date: string | null
+  status: "open" | "done" | "cancelled"
+  completed_at: string | null
+  cancelled_at: string | null
+}
+
+function assertTodoAuditEvent(eventId: string | undefined, type: string, reason: string): void {
+  assert(typeof eventId === "string", `${type} Event id must be string`)
+  const event = queryOne<{ source: string; type: string; payload: string }>(
+    "SELECT source, type, payload FROM events WHERE id = ?",
+    [eventId],
+  )
+  assert(event?.source === "web" && event.type === type, `${type} audit Event mismatch`)
+  assert(JSON.parse(event.payload).reason === reason, `${type} audit reason mismatch`)
 }
 
 interface RuntimeComponents {
@@ -784,6 +904,7 @@ async function waitForHealth(portNumber: number): Promise<void> {
 }
 
 function cleanupContractRows(tag: string): void {
+  run("DELETE FROM todos WHERE title LIKE ?", [`%${tag}%`])
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${tag}%`])
   run("DELETE FROM profile WHERE key = ? AND value LIKE ?", ["last_mock_message", `%${tag}%`])
   run("DELETE FROM profile WHERE key LIKE ?", [`contract_profile_correction_${tag}%`])

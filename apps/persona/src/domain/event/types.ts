@@ -23,6 +23,7 @@ export const TelegramPayload = z.object({
   text: z.string(),
   message_id: z.number(),
   reply_to: z.number().optional(),
+  due_date: z.string().optional(),
 })
 export type TelegramPayload = z.infer<typeof TelegramPayload>
 
@@ -208,6 +209,43 @@ export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrect
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
     metadata: { purpose: "memory_governance" },
+  }
+}
+
+export interface WebTodoPayload {
+  text: string
+  due_date?: string
+}
+
+export function createWebTodoEvent(payload: WebTodoPayload): Event {
+  return {
+    source: "web",
+    type: "todo",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface TodoStateChangePayload {
+  todo_id: string
+  source_event_id: string
+  status: "open" | "done" | "cancelled"
+  reason: string
+}
+
+export function createTodoStateChangeEvent(payload: TodoStateChangePayload): Event {
+  const type = payload.status === "done"
+    ? "todo_completed"
+    : payload.status === "cancelled"
+      ? "todo_cancelled"
+      : "todo_reopened"
+  return {
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
   }
 }
 

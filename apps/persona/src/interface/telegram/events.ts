@@ -1,4 +1,5 @@
 import { createTelegramEvent, type Event, type TelegramEventType, type TelegramPayload } from "../../domain/event/types.js"
+import { isTodoDueDate } from "../../domain/todo/validation.js"
 
 export const COMMAND_PREFIXES: Record<string, TelegramEventType> = {
   "/n": "note",
@@ -23,6 +24,7 @@ export interface TelegramMessageInput {
 export interface TelegramCommandParseResult {
   type: TelegramEventType
   content: string
+  dueDate?: string
 }
 
 export interface TelegramEventBuildResult {
@@ -36,6 +38,10 @@ export function parseTelegramCommand(text: string): TelegramCommandParseResult |
   const commandName = command.toLowerCase().split("@", 1)[0]
   const type = COMMAND_PREFIXES[commandName]
   if (!type || !rest) return null
+  if (type === "todo") {
+    const todo = parseTodoContent(rest)
+    return { type, content: todo.content, ...(todo.dueDate ? { dueDate: todo.dueDate } : {}) }
+  }
   return { type, content: rest }
 }
 
@@ -47,6 +53,7 @@ export function buildTelegramEvent(input: TelegramMessageInput): TelegramEventBu
     text: cmd ? cmd.content : input.text,
     message_id: input.messageId,
     ...(input.replyTo ? { reply_to: input.replyTo } : {}),
+    ...(cmd?.dueDate ? { due_date: cmd.dueDate } : {}),
   }
 
   const event = createTelegramEvent(payload, cmd ? cmd.type : "message")
@@ -59,4 +66,10 @@ export function buildTelegramEvent(input: TelegramMessageInput): TelegramEventBu
     event,
     shouldReply: !cmd,
   }
+}
+
+function parseTodoContent(content: string): { content: string; dueDate?: string } {
+  const match = /^(.*?)\s+@(\d{4}-\d{2}-\d{2})$/.exec(content)
+  if (!match || !match[1].trim() || !isTodoDueDate(match[2])) return { content }
+  return { content: match[1].trim(), dueDate: match[2] }
 }

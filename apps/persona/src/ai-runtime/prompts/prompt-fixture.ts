@@ -24,6 +24,7 @@ const memoryText = [
   "Timeline:",
   "- 2026-07-03 [insight] Architecture boundaries matter.",
 ].join("\n")
+const todoText = "- [due 2099-04-01] finish the Todo contract"
 
 const recentEvents: EventRow[] = [
   createEvent("system-note", "note", "not user visible"),
@@ -40,12 +41,15 @@ const longHistoryEvents: EventRow[] = [
   }),
 ]
 
-const prompts = buildPrompts({ memoryText, recentEvents })
+const prompts = buildPrompts({ memoryText, recentEvents, todoText })
 
 assert(prompts.memoryText === memoryText, "buildPrompts must preserve provided memoryText")
+assert(prompts.todoText === todoText, "buildPrompts must preserve provided todoText")
 assert(prompts.analysisSystemPrompt.includes("JSON"), "analysis prompt must demand JSON output")
 assert(prompts.historyText.includes("Private long-term memory context:"), "historyText must include memory context")
 assert(prompts.historyText.includes("Recent conversation:"), "historyText must include recent conversation")
+assert(prompts.historyText.includes("Active todos:"), "historyText must include active Todo context")
+assert(prompts.historyText.includes("finish the Todo contract"), "historyText must include active Todo title")
 assert(prompts.historyText.includes("older message"), "historyText must include older message")
 assert(prompts.historyText.includes("previous reply"), "historyText must include previous Companion reply")
 assert(prompts.historyText.includes("latest message"), "historyText must include latest message")
@@ -54,6 +58,8 @@ assert(prompts.companionSystemPrompt.includes("<conversation_history>"), "compan
 assert(prompts.companionSystemPrompt.includes("User: older message"), "companion prompt must include prior user text")
 assert(prompts.companionSystemPrompt.includes("Companion: previous reply"), "companion prompt must include prior Companion reply")
 assert(prompts.companionSystemPrompt.includes("Do not mention the history block"), "companion prompt must hide history internals")
+assert(prompts.companionSystemPrompt.includes("<todo_context>"), "companion prompt must wrap active Todo context")
+assert(prompts.companionSystemPrompt.includes("Do not mention internal ids"), "companion prompt must hide Todo internals")
 
 const companionWithMemory = buildCompanionSystemPrompt(memoryText)
 assert(companionWithMemory.includes("<memory_context>"), "companion prompt must wrap memory context")
@@ -64,6 +70,7 @@ assert(companionWithMemory.includes("JSON"), "companion prompt should forbid JSO
 
 const companionWithoutMemory = buildCompanionSystemPrompt("")
 assert(!companionWithoutMemory.includes("<memory_context>"), "empty memory must not add memory context block")
+assert(!companionWithoutMemory.includes("<todo_context>"), "empty Todo context must not add Todo context block")
 
 const historyOnly = buildHistoryContext(recentEvents)
 assert(historyOnly.includes("User: older message"), "history context must label older user message")
@@ -71,9 +78,10 @@ assert(historyOnly.includes("Companion: previous reply"), "history context must 
 assert(historyOnly.includes("User: latest message"), "history context must label latest user message")
 assert(!historyOnly.includes("not user visible"), "history context must ignore non-message events")
 
-const analysisContext = buildAnalysisContextText({ memoryText, recentConversationText: historyOnly })
+const analysisContext = buildAnalysisContextText({ memoryText, recentConversationText: historyOnly, todoText })
 assert(analysisContext.includes("Private long-term memory context:"), "analysis context must label memory")
 assert(analysisContext.includes("Recent conversation:"), "analysis context must label history")
+assert(analysisContext.includes("Active todos:"), "analysis context must label active Todos")
 
 const longHistory = buildHistoryContext(longHistoryEvents)
 const longHistoryLines = longHistory.split(/\r?\n/)

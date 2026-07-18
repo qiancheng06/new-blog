@@ -9,6 +9,8 @@ import {
   type ConversationJob,
 } from "./conversation-jobs.js"
 import { withTransaction } from "../infra/db/pool.js"
+import { captureTodoEvent } from "./todos.js"
+import type { TodoRow } from "../domain/todo/store.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -18,6 +20,7 @@ export interface ConversationResult {
   companionReply?: string
   replyEvent?: EventRow
   job?: ConversationJob
+  todo?: TodoRow
 }
 
 export interface ConversationOptions {
@@ -33,18 +36,19 @@ export async function handleConversationEvent(
   const shouldReply = options.shouldReply !== false
   const input = withTransaction(() => {
     const inserted = insertEventOnce(event)
+    const todo = captureTodoEvent(inserted.event)
     const shouldEnsureJob = shouldReply && (inserted.inserted || options.resumeDuplicate === true)
     const job = shouldEnsureJob ? ensureConversationJobForEvent(inserted.event.id) : undefined
-    return { ...inserted, job }
+    return { ...inserted, job, todo }
   })
   const saved = input.event
 
   if (!shouldReply) {
-    return { event: saved, duplicate: !input.inserted }
+    return { event: saved, duplicate: !input.inserted, todo: input.todo ?? undefined }
   }
 
   if (!input.inserted && options.resumeDuplicate !== true) {
-    return { event: saved, duplicate: true, job: input.job }
+    return { event: saved, duplicate: true, job: input.job, todo: input.todo ?? undefined }
   }
 
   const execution = !input.inserted && input.job?.status === "failed"
@@ -56,6 +60,7 @@ export async function handleConversationEvent(
     companionReply: execution.companionReply,
     replyEvent: execution.replyEvent,
     job: execution.job,
+    todo: input.todo ?? undefined,
   }
 }
 

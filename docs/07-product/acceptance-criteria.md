@@ -23,6 +23,9 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
 - No-network Telegram contract test for command text-to-Event mapping, command
   no-reply boundaries, and real-mode evaluation metadata labeling.
+- No-network Todo lifecycle contract for Web and Telegram capture, deterministic
+  redelivery, due-date validation, audited state transitions, prompt visibility,
+  and source Event/projection transaction rollback.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
@@ -69,6 +72,8 @@ Use individual commands only for focused diagnosis:
   Web idempotency, and retry audit failures.
 - `npm.cmd run contract:telegram` for Telegram command mapping, no-reply boundary,
   and evaluation run labeling failures.
+- `npm.cmd run contract:todos` for Todo projection, lifecycle, private prompt
+  context, Telegram idempotency, and atomic rollback failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
   health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint

@@ -121,6 +121,39 @@ try {
     "Memory proposal confidence must remain bounded",
   )
 
+  db.prepare(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'web', 'todo', '{}', datetime('now'), '{}')`,
+  ).run("00000000-0000-4000-8000-000000000007")
+  db.prepare(
+    `INSERT INTO todos (id, source_event_id, title, due_date)
+     VALUES (?, ?, 'schema contract Todo', '2099-04-01')`,
+  ).run(
+    "00000000-0000-4000-8000-000000000008",
+    "00000000-0000-4000-8000-000000000007",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE todos SET status = 'running'").run(),
+    "Todos must reject unknown statuses",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE todos SET status = 'done'").run(),
+    "Completed Todos must require a completion timestamp",
+  )
+  db.prepare(
+    `UPDATE todos
+     SET status = 'done', state_event_id = ?, state_reason = 'schema contract',
+         completed_at = datetime('now')
+     WHERE id = ?`,
+  ).run(
+    "00000000-0000-4000-8000-000000000005",
+    "00000000-0000-4000-8000-000000000008",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE todos SET due_date = '2099/04/01'").run(),
+    "Todo due dates must use the ISO date shape",
+  )
+
   db.prepare("INSERT INTO daily_summary_runs (date) VALUES ('2099-01-01')").run()
   for (const errorCode of ["", "generation_error", "archive_error", "state_error", "interrupted"]) {
     db.prepare("UPDATE daily_summary_runs SET error_code = ? WHERE date = '2099-01-01'").run(errorCode)

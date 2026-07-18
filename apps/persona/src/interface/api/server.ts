@@ -57,6 +57,17 @@ import {
   getDailySummaries,
   getDailySummary,
 } from "../../application/daily-summary.js"
+import {
+  TodoConflictError,
+  TodoNotFoundError,
+  TodoValidationError,
+  changeTodoStatus,
+  createTodo,
+  getTodo,
+  getTodos,
+  getTodosStatus,
+  parseTodoStatus,
+} from "../../application/todos.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -181,12 +192,14 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   let health = getRuntimeHealthSnapshot()
   let eventsToday = 0
   let memory = { topics: 0, profile: 0, timelineEvents: 0, pendingProposals: 0 }
+  let todos = { open: 0, done: 0, cancelled: 0, overdue: 0, dueToday: 0 }
   let recentEvents: ReturnType<typeof getRecentConversationEvents> = []
 
   if (health.components.database.status === "ok") {
     try {
       eventsToday = countConversationEventsToday()
       memory = getMemoryStatusStats()
+      todos = getTodosStatus()
       recentEvents = getRecentConversationEvents(5)
     } catch {
       health = summarizeRuntimeHealth({
@@ -206,6 +219,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     analysis_jobs: health.components.analysis.jobs,
     conversation_jobs: health.components.conversation.jobs,
     memory,
+    todos,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
       source: event.source,
@@ -255,6 +269,54 @@ function handleMemoryTimeline(url: URL, res: ServerResponse) {
 
 function handleMemorySources(_url: URL, res: ServerResponse) {
   json(res, 200, getMemorySourceInspection())
+}
+
+function handleTodos(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getTodos({
+      status: parseTodoStatus(readText(url, "status")),
+      dueBefore: readText(url, "dueBefore"),
+      dueAfter: readText(url, "dueAfter"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleTodoError(err, res)
+  }
+}
+
+function handleTodoById(id: string, res: ServerResponse) {
+  try {
+    json(res, 200, { todo: getTodo(id) })
+  } catch (err) {
+    handleTodoError(err, res)
+  }
+}
+
+async function handleTodoCreate(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{ title?: unknown; dueDate?: unknown }>(req, res)
+  if (!parsed) return
+  try {
+    const result = createTodo({ title: parsed.title ?? "", dueDate: parsed.dueDate })
+    json(res, 201, { eventId: result.event.id, todo: result.todo })
+  } catch (err) {
+    handleTodoError(err, res)
+  }
+}
+
+async function handleTodoState(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<{ status?: unknown; reason?: unknown }>(req, res)
+  if (!parsed) return
+  try {
+    const result = changeTodoStatus({
+      id,
+      status: parsed.status,
+      reason: parsed.reason ?? "",
+    })
+    json(res, 200, { eventId: result.event.id, todo: result.todo })
+  } catch (err) {
+    handleTodoError(err, res)
+  }
 }
 
 function handleMemoryProposals(url: URL, res: ServerResponse) {
@@ -366,6 +428,20 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
+    }
+    if (url === "/api/todos" && req.method === "GET") {
+      return handleTodos(requestUrl, res)
+    }
+    if (url === "/api/todos" && req.method === "POST") {
+      return await handleTodoCreate(req, res)
+    }
+    const todoStateMatch = /^\/api\/todos\/([^/]+)\/state$/.exec(url)
+    if (todoStateMatch && req.method === "POST") {
+      return await handleTodoState(req, todoStateMatch[1], res)
+    }
+    const todoMatch = /^\/api\/todos\/([^/]+)$/.exec(url)
+    if (todoMatch && req.method === "GET") {
+      return handleTodoById(todoMatch[1], res)
     }
     if (url === "/api/analysis-jobs" && req.method === "GET") {
       return handleAnalysisJobs(requestUrl, res)
@@ -498,6 +574,22 @@ function handleMemoryWriteError(err: unknown, res: ServerResponse): void {
     return
   }
   if (err instanceof MemoryConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleTodoError(err: unknown, res: ServerResponse): void {
+  if (err instanceof TodoValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof TodoNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof TodoConflictError) {
     json(res, 409, { error: err.message })
     return
   }

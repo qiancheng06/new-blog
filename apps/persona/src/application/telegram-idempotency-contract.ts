@@ -67,14 +67,19 @@ async function verifyCommandIdempotency(): Promise<void> {
   const command = {
     chatId,
     userId: 2002,
-    text: `/n ${contractTag} note`,
+    text: `/todo ${contractTag} task @2099-04-01`,
     messageId: messageId + 1,
   }
   const first = await handleConversationEvent(buildTelegramEvent(command).event, { shouldReply: false })
   const duplicate = await handleConversationEvent(buildTelegramEvent(command).event, { shouldReply: false })
   assert(!first.duplicate && duplicate.duplicate, "Telegram command redelivery must be deduplicated")
+  assert(first.todo?.id === duplicate.todo?.id, "Telegram Todo redelivery must reuse one projection")
+  assert(first.todo?.title === `${contractTag} task`, "Telegram Todo projection title mismatch")
+  assert(first.todo?.due_date === "2099-04-01", "Telegram Todo projection due date mismatch")
   const rows = query<{ id: string }>("SELECT id FROM events WHERE id = ?", [first.event.id])
   assert(rows.length === 1, "duplicate Telegram command must persist one Event")
+  const todos = query<{ id: string }>("SELECT id FROM todos WHERE source_event_id = ?", [first.event.id])
+  assert(todos.length === 1, "duplicate Telegram Todo command must persist one projection")
 }
 
 async function verifyLegacyEventIdentity(): Promise<void> {
@@ -115,6 +120,7 @@ function cleanupContractRows(): void {
     [`%${contractTag}%`],
   ).map((row) => row.id)
   for (const id of inputIds) {
+    run("DELETE FROM todos WHERE source_event_id = ?", [id])
     run("DELETE FROM timeline_events WHERE source_event_id = ?", [id])
     run("DELETE FROM events WHERE type = 'companion_reply' AND payload LIKE ?", [`%${id}%`])
   }

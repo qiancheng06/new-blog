@@ -4,6 +4,7 @@ import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
 import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
 import { recoverConversationJobsAtStartup } from "../application/conversation-jobs.js"
+import { backfillTodoProjections } from "../application/todos.js"
 import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
 import {
   startDailySummaryScheduler,
@@ -33,6 +34,13 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   })
 
   initializeDb()
+  const todoBackfill = backfillTodoProjections()
+  if (todoBackfill.created > 0) {
+    console.log(`[todo migration] restored ${todoBackfill.created} projection(s)`)
+  }
+  if (todoBackfill.skipped > 0) {
+    console.warn(`[todo migration] skipped ${todoBackfill.skipped} invalid historical Event(s)`)
+  }
   const recoveredConversationJobs = recoverConversationJobsAtStartup()
   if (recoveredConversationJobs > 0) {
     console.warn(`[conversation recovery] marked ${recoveredConversationJobs} interrupted job(s) as failed`)
