@@ -67,7 +67,20 @@ import {
   getTodos,
   getTodosStatus,
   parseTodoStatus,
+  assignTodoProject,
 } from "../../application/todos.js"
+import {
+  ProjectConflictError,
+  ProjectNotFoundError,
+  ProjectValidationError,
+  changeProjectDetails,
+  changeProjectStatus,
+  createProject,
+  getProject,
+  getProjects,
+  getProjectsStatus,
+  parseProjectStatus,
+} from "../../application/projects.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -193,6 +206,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   let eventsToday = 0
   let memory = { topics: 0, profile: 0, timelineEvents: 0, pendingProposals: 0 }
   let todos = { open: 0, done: 0, cancelled: 0, overdue: 0, dueToday: 0 }
+  let projects = { active: 0, paused: 0, done: 0, archived: 0 }
   let recentEvents: ReturnType<typeof getRecentConversationEvents> = []
 
   if (health.components.database.status === "ok") {
@@ -200,6 +214,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
       eventsToday = countConversationEventsToday()
       memory = getMemoryStatusStats()
       todos = getTodosStatus()
+      projects = getProjectsStatus()
       recentEvents = getRecentConversationEvents(5)
     } catch {
       health = summarizeRuntimeHealth({
@@ -220,6 +235,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     conversation_jobs: health.components.conversation.jobs,
     memory,
     todos,
+    projects,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
       source: event.source,
@@ -275,6 +291,7 @@ function handleTodos(url: URL, res: ServerResponse) {
   try {
     json(res, 200, getTodos({
       status: parseTodoStatus(readText(url, "status")),
+      projectId: readText(url, "projectId"),
       dueBefore: readText(url, "dueBefore"),
       dueAfter: readText(url, "dueAfter"),
       limit: readNumber(url, "limit"),
@@ -294,13 +311,89 @@ function handleTodoById(id: string, res: ServerResponse) {
 }
 
 async function handleTodoCreate(req: IncomingMessage, res: ServerResponse) {
-  const parsed = await readJsonObject<{ title?: unknown; dueDate?: unknown }>(req, res)
+  const parsed = await readJsonObject<{ title?: unknown; dueDate?: unknown; projectId?: unknown }>(req, res)
   if (!parsed) return
   try {
-    const result = createTodo({ title: parsed.title ?? "", dueDate: parsed.dueDate })
+    const result = createTodo({ title: parsed.title ?? "", dueDate: parsed.dueDate, projectId: parsed.projectId })
     json(res, 201, { eventId: result.event.id, todo: result.todo })
   } catch (err) {
     handleTodoError(err, res)
+  }
+}
+
+async function handleTodoProject(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<{ projectId?: unknown; reason?: unknown }>(req, res)
+  if (!parsed) return
+  try {
+    const result = assignTodoProject({ id, projectId: parsed.projectId ?? null, reason: parsed.reason })
+    json(res, 200, { eventId: result.event.id, todo: result.todo })
+  } catch (err) {
+    handleTodoError(err, res)
+  }
+}
+
+function handleProjects(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getProjects({
+      status: parseProjectStatus(readText(url, "status")),
+      topic: readText(url, "topic"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleProjectError(err, res)
+  }
+}
+
+function handleProjectById(id: string, res: ServerResponse) {
+  try {
+    json(res, 200, { project: getProject(id) })
+  } catch (err) {
+    handleProjectError(err, res)
+  }
+}
+
+async function handleProjectCreate(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{ name?: unknown; summary?: unknown; topics?: unknown }>(req, res)
+  if (!parsed) return
+  try {
+    const result = createProject({ name: parsed.name ?? "", summary: parsed.summary, topics: parsed.topics })
+    json(res, 201, { eventId: result.event.id, project: result.project })
+  } catch (err) {
+    handleProjectError(err, res)
+  }
+}
+
+async function handleProjectDetails(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<{
+    name?: unknown
+    summary?: unknown
+    topics?: unknown
+    reason?: unknown
+  }>(req, res)
+  if (!parsed) return
+  try {
+    const result = changeProjectDetails({
+      id,
+      name: parsed.name,
+      summary: parsed.summary,
+      topics: parsed.topics,
+      reason: parsed.reason,
+    })
+    json(res, 200, { eventId: result.event.id, project: result.project })
+  } catch (err) {
+    handleProjectError(err, res)
+  }
+}
+
+async function handleProjectState(req: IncomingMessage, id: string, res: ServerResponse) {
+  const parsed = await readJsonObject<{ status?: unknown; reason?: unknown }>(req, res)
+  if (!parsed) return
+  try {
+    const result = changeProjectStatus({ id, status: parsed.status, reason: parsed.reason })
+    json(res, 200, { eventId: result.event.id, project: result.project })
+  } catch (err) {
+    handleProjectError(err, res)
   }
 }
 
@@ -435,6 +528,10 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/todos" && req.method === "POST") {
       return await handleTodoCreate(req, res)
     }
+    const todoProjectMatch = /^\/api\/todos\/([^/]+)\/project$/.exec(url)
+    if (todoProjectMatch && req.method === "POST") {
+      return await handleTodoProject(req, todoProjectMatch[1], res)
+    }
     const todoStateMatch = /^\/api\/todos\/([^/]+)\/state$/.exec(url)
     if (todoStateMatch && req.method === "POST") {
       return await handleTodoState(req, todoStateMatch[1], res)
@@ -442,6 +539,24 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     const todoMatch = /^\/api\/todos\/([^/]+)$/.exec(url)
     if (todoMatch && req.method === "GET") {
       return handleTodoById(todoMatch[1], res)
+    }
+    if (url === "/api/projects" && req.method === "GET") {
+      return handleProjects(requestUrl, res)
+    }
+    if (url === "/api/projects" && req.method === "POST") {
+      return await handleProjectCreate(req, res)
+    }
+    const projectDetailsMatch = /^\/api\/projects\/([^/]+)\/details$/.exec(url)
+    if (projectDetailsMatch && req.method === "POST") {
+      return await handleProjectDetails(req, projectDetailsMatch[1], res)
+    }
+    const projectStateMatch = /^\/api\/projects\/([^/]+)\/state$/.exec(url)
+    if (projectStateMatch && req.method === "POST") {
+      return await handleProjectState(req, projectStateMatch[1], res)
+    }
+    const projectMatch = /^\/api\/projects\/([^/]+)$/.exec(url)
+    if (projectMatch && req.method === "GET") {
+      return handleProjectById(projectMatch[1], res)
     }
     if (url === "/api/analysis-jobs" && req.method === "GET") {
       return handleAnalysisJobs(requestUrl, res)
@@ -590,6 +705,22 @@ function handleTodoError(err: unknown, res: ServerResponse): void {
     return
   }
   if (err instanceof TodoConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleProjectError(err: unknown, res: ServerResponse): void {
+  if (err instanceof ProjectValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof ProjectNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof ProjectConflictError) {
     json(res, 409, { error: err.message })
     return
   }

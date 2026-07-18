@@ -25,6 +25,7 @@ try {
   await verifyIdempotentChat(port)
   await verifyEvents(port)
   await verifyStatus(port)
+  await verifyProjects(port)
   await verifyTodos(port)
   await verifyMemoryOverview(port)
   await verifyMemorySearch(port)
@@ -290,6 +291,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     conversation_jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
     memory?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
     todos?: { open?: number; done?: number; cancelled?: number; overdue?: number; dueToday?: number }
+    projects?: { active?: number; paused?: number; done?: number; archived?: number }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
@@ -310,6 +312,10 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.todos.cancelled === "number", "status.todos.cancelled must be number")
   assert(typeof body.todos.overdue === "number", "status.todos.overdue must be number")
   assert(typeof body.todos.dueToday === "number", "status.todos.dueToday must be number")
+  assert(typeof body.projects?.active === "number", "status.projects.active must be number")
+  assert(typeof body.projects.paused === "number", "status.projects.paused must be number")
+  assert(typeof body.projects.done === "number", "status.projects.done must be number")
+  assert(typeof body.projects.archived === "number", "status.projects.archived must be number")
   assert(Array.isArray(body.recent_events), "status.recent_events must be array")
 
   for (const event of body.recent_events) {
@@ -319,6 +325,180 @@ async function verifyStatus(portNumber: number): Promise<void> {
     assert(typeof event.timestamp === "string", "recent event timestamp must be string")
     assert(typeof event.preview === "string", "recent event preview must be string")
   }
+}
+
+async function verifyProjects(portNumber: number): Promise<void> {
+  const endpoint = `http://127.0.0.1:${portNumber}/api/projects`
+  for (const body of [
+    {},
+    { name: { value: `${contractTag}-invalid-project` } },
+    { name: `${contractTag}-invalid-summary`, summary: { value: "summary" } },
+    { name: `${contractTag}-invalid-topics`, topics: "architecture" },
+    { name: `${contractTag}-invalid-topic-item`, topics: [42] },
+  ]) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Project create expected 400, got ${response.status}`)
+  }
+
+  const created = await postJson<{ eventId?: string; project?: ProjectContractRow }>(endpoint, {
+    name: `  ${contractTag} API Project  `,
+    summary: "  API-managed runtime Project.  ",
+    topics: ["Architecture", "architecture", "Delivery"],
+  })
+  assert(typeof created.eventId === "string", "Project create Event id must be string")
+  assert(typeof created.project?.id === "string", "Project create id must be string")
+  assert(created.project.name === `${contractTag} API Project`, "Project create name must be normalized")
+  assert(created.project.summary === "API-managed runtime Project.", "Project create summary mismatch")
+  assert(created.project.topics.join("|") === "Architecture|Delivery", "Project create topics mismatch")
+  assert(created.project.status === "active", "Project create status must be active")
+  assert(created.project.source_event_id === created.eventId, "Project create must expose Event provenance")
+  assertProjectAuditEvent(created.eventId, "project", created.project.name)
+
+  const duplicate = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ name: created.project.name.toUpperCase() }),
+  })
+  assert(duplicate.status === 409, `duplicate Project name expected 409, got ${duplicate.status}`)
+
+  const page = await getJson<{ items?: ProjectContractRow[]; limit?: number; offset?: number }>(
+    `${endpoint}?status=active&topic=architecture&limit=500&offset=0`,
+  )
+  assert(page.limit === 100 && page.offset === 0, "Project list must normalize pagination")
+  assert(page.items?.some((project) => project.id === created.project?.id), "Project list filters must include match")
+  const detail = await getJson<{ project?: ProjectContractRow }>(`${endpoint}/${created.project.id}`)
+  assert(detail.project?.id === created.project.id, "Project detail id mismatch")
+  for (const path of ["?status=running", `/${created.project.id}/missing`]) {
+    const response = await fetch(`${endpoint}${path}`)
+    assert(response.status === (path.startsWith("?") ? 400 : 404), "invalid Project route/filter status mismatch")
+  }
+
+  for (const body of [
+    { summary: "missing reason" },
+    { summary: { value: "invalid" }, reason: `${contractTag} invalid summary` },
+    { topics: "invalid", reason: `${contractTag} invalid topics` },
+    { reason: `${contractTag} missing changes` },
+  ]) {
+    const response = await fetch(`${endpoint}/${created.project.id}/details`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Project details expected 400, got ${response.status}`)
+  }
+
+  const updated = await postJson<{ eventId?: string; project?: ProjectContractRow }>(
+    `${endpoint}/${created.project.id}/details`,
+    {
+      name: `${contractTag} API Core`,
+      summary: "Updated runtime Project.",
+      topics: ["Architecture", "Context"],
+      reason: `${contractTag} update Project details`,
+    },
+  )
+  assert(updated.project?.name === `${contractTag} API Core`, "Project details name mismatch")
+  assert(updated.project.topics.includes("Context"), "Project details topics mismatch")
+  assertProjectAuditEvent(updated.eventId, "project_details_updated", `${contractTag} update Project details`)
+
+  const paused = await postJson<{ eventId?: string; project?: ProjectContractRow }>(
+    `${endpoint}/${created.project.id}/state`,
+    { status: "paused", reason: `${contractTag} pause Project` },
+  )
+  assert(paused.project?.status === "paused", "Project pause response mismatch")
+  assertProjectAuditEvent(paused.eventId, "project_paused", `${contractTag} pause Project`)
+  await postJson(`${endpoint}/${created.project.id}/state`, {
+    status: "active",
+    reason: `${contractTag} reactivate Project`,
+  })
+
+  const secondary = await postJson<{ project?: ProjectContractRow }>(endpoint, {
+    name: `${contractTag} API Secondary`,
+    topics: ["Delivery"],
+  })
+  assert(typeof secondary.project?.id === "string", "secondary Project id must be string")
+
+  const todo = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `http://127.0.0.1:${portNumber}/api/todos`,
+    { title: `${contractTag} API Project Todo`, projectId: created.project.id, dueDate: "2099-04-02" },
+  )
+  assert(todo.todo?.project_id === created.project.id, "Todo create Project assignment mismatch")
+
+  const premature = await fetch(`${endpoint}/${created.project.id}/state`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ status: "done", reason: `${contractTag} premature Project completion` }),
+  })
+  assert(premature.status === 409, `Project with open Todo completion expected 409, got ${premature.status}`)
+
+  const moved = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `http://127.0.0.1:${portNumber}/api/todos/${todo.todo.id}/project`,
+    { projectId: secondary.project.id, reason: `${contractTag} move API Todo` },
+  )
+  assert(moved.todo?.project_id === secondary.project.id, "Todo Project API reassignment mismatch")
+  assertTodoAuditEvent(moved.eventId, "todo_project_assigned", `${contractTag} move API Todo`)
+  const unassigned = await postJson<{ eventId?: string; todo?: TodoContractRow }>(
+    `http://127.0.0.1:${portNumber}/api/todos/${todo.todo.id}/project`,
+    { projectId: null, reason: `${contractTag} unassign API Todo` },
+  )
+  assert(unassigned.todo?.project_id === null, "Todo Project API unassignment mismatch")
+  assertTodoAuditEvent(unassigned.eventId, "todo_project_unassigned", `${contractTag} unassign API Todo`)
+  await postJson(`http://127.0.0.1:${portNumber}/api/todos/${todo.todo.id}/project`, {
+    projectId: created.project.id,
+    reason: `${contractTag} restore API Todo`,
+  })
+  await postJson(`http://127.0.0.1:${portNumber}/api/todos/${todo.todo.id}/state`, {
+    status: "done",
+    reason: `${contractTag} finish API Todo`,
+  })
+
+  const completed = await postJson<{ eventId?: string; project?: ProjectContractRow }>(
+    `${endpoint}/${created.project.id}/state`,
+    { status: "done", reason: `${contractTag} complete API Project` },
+  )
+  assert(completed.project?.status === "done" && completed.project.completed_at, "Project completion response mismatch")
+  assertProjectAuditEvent(completed.eventId, "project_completed", `${contractTag} complete API Project`)
+  const terminalTodo = await fetch(`http://127.0.0.1:${portNumber}/api/todos`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({ title: `${contractTag} terminal Project Todo`, projectId: created.project.id }),
+  })
+  assert(terminalTodo.status === 409, `terminal Project Todo create expected 409, got ${terminalTodo.status}`)
+
+  await postJson(`${endpoint}/${created.project.id}/state`, {
+    status: "active",
+    reason: `${contractTag} reopen API Project`,
+  })
+  const archived = await postJson<{ eventId?: string; project?: ProjectContractRow }>(
+    `${endpoint}/${created.project.id}/state`,
+    { status: "archived", reason: `${contractTag} archive API Project` },
+  )
+  assert(archived.project?.status === "archived" && archived.project.archived_at, "Project archive response mismatch")
+  assertProjectAuditEvent(archived.eventId, "project_archived", `${contractTag} archive API Project`)
+}
+
+interface ProjectContractRow {
+  id: string
+  source_event_id: string | null
+  name: string
+  status: "active" | "paused" | "done" | "archived"
+  topics: string[]
+  summary: string
+  completed_at: string | null
+  archived_at: string | null
+}
+
+function assertProjectAuditEvent(eventId: string | undefined, type: string, marker: string): void {
+  assert(typeof eventId === "string", `${type} Event id must be string`)
+  const event = queryOne<{ source: string; type: string; payload: string }>(
+    "SELECT source, type, payload FROM events WHERE id = ?",
+    [eventId],
+  )
+  assert(event?.source === "web" && event.type === type, `${type} Project audit Event mismatch`)
+  assert(event.payload.includes(marker), `${type} Project audit payload mismatch`)
 }
 
 async function verifyTodos(portNumber: number): Promise<void> {
@@ -417,6 +597,7 @@ async function verifyTodos(portNumber: number): Promise<void> {
 interface TodoContractRow {
   id: string
   source_event_id: string
+  project_id: string | null
   title: string
   due_date: string | null
   status: "open" | "done" | "cancelled"
@@ -905,6 +1086,7 @@ async function waitForHealth(portNumber: number): Promise<void> {
 
 function cleanupContractRows(tag: string): void {
   run("DELETE FROM todos WHERE title LIKE ?", [`%${tag}%`])
+  run("DELETE FROM projects WHERE name LIKE ?", [`%${tag}%`])
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${tag}%`])
   run("DELETE FROM profile WHERE key = ? AND value LIKE ?", ["last_mock_message", `%${tag}%`])
   run("DELETE FROM profile WHERE key LIKE ?", [`contract_profile_correction_${tag}%`])

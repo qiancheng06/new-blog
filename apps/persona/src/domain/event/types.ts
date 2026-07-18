@@ -27,7 +27,7 @@ export const TelegramPayload = z.object({
 })
 export type TelegramPayload = z.infer<typeof TelegramPayload>
 
-export type TelegramEventType = "message" | "note" | "todo" | "idea" | "journal"
+export type TelegramEventType = "message" | "note" | "todo" | "project" | "idea" | "journal"
 
 export function createTelegramEvent(payload: TelegramPayload, type: TelegramEventType = "message"): Event {
   return {
@@ -215,6 +215,7 @@ export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrect
 export interface WebTodoPayload {
   text: string
   due_date?: string
+  project_id?: string
 }
 
 export function createWebTodoEvent(payload: WebTodoPayload): Event {
@@ -246,6 +247,83 @@ export function createTodoStateChangeEvent(payload: TodoStateChangePayload): Eve
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
     metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface TodoProjectAssignmentPayload {
+  todo_id: string
+  source_event_id: string
+  previous_project_id: string | null
+  project_id: string | null
+  reason: string
+}
+
+export function createTodoProjectAssignmentEvent(payload: TodoProjectAssignmentPayload): Event {
+  return {
+    source: "web",
+    type: payload.project_id ? "todo_project_assigned" : "todo_project_unassigned",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface WebProjectPayload {
+  text: string
+  summary: string
+  topics: string[]
+}
+
+export function createWebProjectEvent(payload: WebProjectPayload): Event {
+  return {
+    source: "web",
+    type: "project",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
+  }
+}
+
+export interface ProjectDetailsUpdatedPayload {
+  project_id: string
+  source_event_id: string | null
+  name: string
+  summary: string
+  topics: string[]
+  reason: string
+}
+
+export function createProjectDetailsUpdatedEvent(payload: ProjectDetailsUpdatedPayload): Event {
+  return {
+    source: "web",
+    type: "project_details_updated",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
+  }
+}
+
+export interface ProjectStateChangePayload {
+  project_id: string
+  source_event_id: string | null
+  status: "active" | "paused" | "done" | "archived"
+  reason: string
+}
+
+export function createProjectStateChangeEvent(payload: ProjectStateChangePayload): Event {
+  const type = payload.status === "active"
+    ? "project_reactivated"
+    : payload.status === "paused"
+      ? "project_paused"
+      : payload.status === "done"
+        ? "project_completed"
+        : "project_archived"
+  return {
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
   }
 }
 

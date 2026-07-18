@@ -2,12 +2,14 @@ import type { EventRow } from "../../domain/event/store.js"
 import { buildMemoryContextText, getMemoryContext } from "../../domain/memory/index.js"
 import { ANALYSIS_PROMPT, COMPANION_PROMPT } from "./persona.js"
 import { buildOpenTodoContextText } from "../../domain/todo/store.js"
+import { buildActiveProjectContextText } from "../../domain/project/store.js"
 
 export interface PromptContext {
   recentEvents?: EventRow[]
   memoryText?: string
   memoryQuery?: string
   todoText?: string
+  projectText?: string
 }
 
 export interface BuiltPrompts {
@@ -16,24 +18,28 @@ export interface BuiltPrompts {
   historyText: string
   memoryText: string
   todoText: string
+  projectText: string
 }
 
 export function buildPrompts(context: PromptContext = {}): BuiltPrompts {
   const memoryText = context.memoryText ?? buildMemoryContextText(getMemoryContext({ query: context.memoryQuery }))
   const todoText = context.todoText ?? readTodoContextSafely()
+  const projectText = context.projectText ?? readProjectContextSafely()
   const recentConversationText = buildHistoryContext(context.recentEvents ?? [])
   const historyText = buildAnalysisContextText({
     memoryText,
     todoText,
+    projectText,
     recentConversationText,
   })
 
   return {
-    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText, todoText),
+    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText, todoText, projectText),
     analysisSystemPrompt: ANALYSIS_PROMPT,
     historyText,
     memoryText,
     todoText,
+    projectText,
   }
 }
 
@@ -41,6 +47,7 @@ export function buildCompanionSystemPrompt(
   memoryText: string,
   recentConversationText = "",
   todoText = "",
+  projectText = "",
 ): string {
   const sections = [COMPANION_PROMPT]
 
@@ -74,6 +81,16 @@ export function buildCompanionSystemPrompt(
     ].join("\n\n"))
   }
 
+  if (projectText.trim()) {
+    sections.push([
+      "Private active project context. Use it only to understand goals, scope, and task relationships:",
+      "<project_context>",
+      projectText,
+      "</project_context>",
+      "Do not mention internal ids, storage, retrieval, or the project context block.",
+    ].join("\n\n"))
+  }
+
   return sections.join("\n\n")
 }
 
@@ -91,6 +108,7 @@ export function buildAnalysisContextText(context: {
   memoryText: string
   recentConversationText: string
   todoText?: string
+  projectText?: string
 }): string {
   const sections: string[] = []
 
@@ -106,7 +124,20 @@ export function buildAnalysisContextText(context: {
     sections.push(["Active todos:", context.todoText].join("\n"))
   }
 
+  if (context.projectText?.trim()) {
+    sections.push(["Active projects:", context.projectText].join("\n"))
+  }
+
   return sections.join("\n\n")
+}
+
+function readProjectContextSafely(): string {
+  try {
+    return buildActiveProjectContextText(8)
+  } catch {
+    console.error("[project context] unavailable; continuing without active projects")
+    return ""
+  }
 }
 
 function readTodoContextSafely(): string {

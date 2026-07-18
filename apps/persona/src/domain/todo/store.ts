@@ -8,6 +8,9 @@ export type TodoStatus = "open" | "done" | "cancelled"
 export interface TodoRow {
   id: string
   source_event_id: string
+  project_id: string | null
+  project_event_id: string | null
+  project_reason: string
   title: string
   due_date: string | null
   status: TodoStatus
@@ -21,6 +24,7 @@ export interface TodoRow {
 
 export interface TodoListOptions {
   status?: TodoStatus
+  projectId?: string
   dueBefore?: string
   dueAfter?: string
   limit?: number
@@ -40,11 +44,12 @@ export function ensureTodoForEvent(event: EventRow): TodoRow | null {
   const payload = parsePayload(event.payload)
   const title = normalizeTodoTitle(typeof payload.text === "string" ? payload.text : "")
   const dueDate = normalizeTodoDueDate(typeof payload.due_date === "string" ? payload.due_date : null)
+  const projectId = readExistingProjectId(payload.project_id)
   run(
-    `INSERT INTO todos (id, source_event_id, title, due_date)
-     VALUES (?, ?, ?, ?)
+    `INSERT INTO todos (id, source_event_id, project_id, title, due_date)
+     VALUES (?, ?, ?, ?, ?)
      ON CONFLICT(source_event_id) DO NOTHING`,
-    [randomUUID(), event.id, title, dueDate],
+    [randomUUID(), event.id, projectId, title, dueDate],
   )
   const todo = getTodoBySourceEventId(event.id)
   if (!todo) throw new Error("todo Event did not produce a projection")
@@ -65,6 +70,10 @@ export function listTodos(options: TodoListOptions = {}): TodoRow[] {
   if (options.status) {
     where.push("status = ?")
     params.push(options.status)
+  }
+  if (options.projectId) {
+    where.push("project_id = ?")
+    params.push(options.projectId)
   }
   if (options.dueBefore) {
     where.push("due_date IS NOT NULL AND due_date <= ?")
@@ -133,11 +142,46 @@ export function updateTodoStatus(options: {
   return result.changes === 1 ? getTodoById(options.id) : null
 }
 
+export function updateTodoProject(options: {
+  id: string
+  expectedProjectId: string | null
+  projectId: string | null
+  projectEventId: string
+  reason: string
+}): TodoRow | null {
+  const result = run(
+    `UPDATE todos
+     SET project_id = ?, project_event_id = ?, project_reason = ?, updated_at = datetime('now')
+     WHERE id = ? AND project_id IS ?`,
+    [options.projectId, options.projectEventId, options.reason, options.id, options.expectedProjectId],
+  )
+  return result.changes === 1 ? getTodoById(options.id) : null
+}
+
 export function buildOpenTodoContextText(limit = 10): string {
-  const items = listTodos({ status: "open", limit: normalizeLimit(limit) })
+  const items = query<TodoRow & { project_name: string | null }>(
+    `SELECT t.*, p.name AS project_name
+     FROM todos t
+     LEFT JOIN projects p ON p.id = t.project_id
+     WHERE t.status = 'open'
+     ORDER BY CASE WHEN t.due_date IS NULL THEN 1 ELSE 0 END, t.due_date ASC, t.created_at DESC
+     LIMIT ?`,
+    [normalizeLimit(limit)],
+  )
   return items
-    .map((todo) => `- ${todo.due_date ? `[due ${todo.due_date}] ` : ""}${todo.title}`)
+    .map((todo) => [
+      "- ",
+      todo.due_date ? `[due ${todo.due_date}] ` : "",
+      todo.project_name ? `[project ${todo.project_name}] ` : "",
+      todo.title,
+    ].join(""))
     .join("\n")
+}
+
+function readExistingProjectId(value: unknown): string | null {
+  if (typeof value !== "string" || !value.trim()) return null
+  const id = value.trim()
+  return queryOne("SELECT 1 FROM projects WHERE id = ?", [id]) ? id : null
 }
 
 function parsePayload(value: string): Record<string, unknown> {

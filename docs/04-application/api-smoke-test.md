@@ -221,6 +221,12 @@ Response `200`:
     overdue: number,
     dueToday: number
   },
+  projects: {
+    active: number,
+    paused: number,
+    done: number,
+    archived: number
+  },
   recent_events: Array<{
     id: string,
     source: string,
@@ -240,6 +246,40 @@ configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.
 
+### Project lifecycle APIs
+
+Project is a user-managed Workspace entity represented inside Persona by an
+immutable creation Event plus a mutable runtime projection. It is working
+context, not an automatically inferred Memory record.
+
+`POST /api/projects` creates an active Project:
+
+```ts
+// request
+{ name: string, summary?: string, topics?: string[] }
+
+// response 201
+{ eventId: string, project: Project }
+```
+
+`GET /api/projects` returns `{ items, limit, offset }` and accepts `status`,
+`topic`, `limit`, and `offset`. `GET /api/projects/:id` returns one Project.
+Names are case-insensitively unique.
+
+`POST /api/projects/:id/details` changes name, summary, or topics and requires a
+human reason. `POST /api/projects/:id/state` accepts `active`, `paused`, `done`,
+or `archived` plus a reason. Completing or archiving a Project with open linked
+Todos returns `409`; done/archived Projects may only return to `active`.
+Accepted changes append `project_details_updated`, `project_paused`,
+`project_completed`, `project_archived`, or `project_reactivated` Events in the
+same transaction as the projection update.
+
+Telegram `/p` and `/project` create Projects through the same idempotent Event
+boundary. Runtime startup restores missing projections from valid historical
+Project Events before restoring Todo projections. Only active Project names,
+summaries, and topic labels enter bounded private Prompt context; ids and
+non-active Projects are excluded.
+
 ### Todo lifecycle APIs
 
 Todo is a user-managed Workspace entity, not a Memory projection. Creation is
@@ -250,14 +290,14 @@ commit in one transaction, including Todo commands received from Telegram.
 
 ```ts
 // request
-{ title: string, dueDate?: "YYYY-MM-DD" | null }
+{ title: string, dueDate?: "YYYY-MM-DD" | null, projectId?: string | null }
 
 // response 201
 { eventId: string, todo: Todo }
 ```
 
 `GET /api/todos` returns `{ items, limit, offset }`. Optional query parameters
-are `status=open|done|cancelled|all`, `dueBefore=YYYY-MM-DD`,
+are `status=open|done|cancelled|all`, `projectId`, `dueBefore=YYYY-MM-DD`,
 `dueAfter=YYYY-MM-DD`, `limit`, and `offset`. `GET /api/todos/:id` returns one
 Todo or `404`.
 
@@ -276,6 +316,12 @@ Allowed transitions are `open -> done|cancelled` and
 terminal state returns `409`. Every accepted transition appends one of
 `todo_completed`, `todo_cancelled`, or `todo_reopened` before updating the
 projection in the same transaction.
+
+`POST /api/todos/:id/project` assigns or unassigns a Todo with
+`{ projectId: string | null, reason: string }`. Open Todos may belong only to
+active or paused Projects. Reopening a Todo inside a done/archived Project and
+creating a new open Todo there both return `409`. Linked Todo Prompt context
+uses the Project name, never its internal id.
 
 Telegram `/t` and `/todo` commands use the same projection path and remain
 idempotent across redelivery. A valid final `@YYYY-MM-DD` token becomes the due
@@ -718,7 +764,7 @@ npm.cmd run contract:api
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
-`/api/memory*` routes, the Todo lifecycle routes, `OPTIONS`, and `404`, then
+`/api/memory*` routes, Project/Todo lifecycle routes, `OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.
 
 Run the focused Todo lifecycle, Telegram projection, prompt-boundary, and
@@ -726,4 +772,11 @@ transaction rollback contract with:
 
 ```bash
 npm.cmd run contract:todos
+```
+
+Run the focused Project lifecycle, Todo relationship, Telegram projection,
+Prompt-boundary, migration, and rollback contract with:
+
+```bash
+npm.cmd run contract:projects
 ```

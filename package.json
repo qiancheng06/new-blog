@@ -23,6 +23,7 @@
     "contract:telegram": "tsx apps/persona/src/interface/telegram/telegram-contract.ts",
     "contract:telegram-idempotency": "tsx apps/persona/src/application/telegram-idempotency-contract.ts",
     "contract:todos": "tsx apps/persona/src/application/todo-contract.ts",
+    "contract:projects": "tsx apps/persona/src/application/project-contract.ts",
     "contract:ordered-memory": "tsx apps/persona/src/application/ordered-memory-commit-contract.ts",
     "contract:process-ordering": "tsx apps/persona/src/application/process-message-ordering-contract.ts",
     "contract:analysis-jobs": "tsx apps/persona/src/application/analysis-job-contract.ts",

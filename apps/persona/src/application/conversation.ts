@@ -11,6 +11,8 @@ import {
 import { withTransaction } from "../infra/db/pool.js"
 import { captureTodoEvent } from "./todos.js"
 import type { TodoRow } from "../domain/todo/store.js"
+import { captureProjectEvent } from "./projects.js"
+import type { ProjectRecord } from "../domain/project/store.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -21,6 +23,7 @@ export interface ConversationResult {
   replyEvent?: EventRow
   job?: ConversationJob
   todo?: TodoRow
+  project?: ProjectRecord
 }
 
 export interface ConversationOptions {
@@ -37,18 +40,30 @@ export async function handleConversationEvent(
   const input = withTransaction(() => {
     const inserted = insertEventOnce(event)
     const todo = captureTodoEvent(inserted.event)
+    const project = captureProjectEvent(inserted.event)
     const shouldEnsureJob = shouldReply && (inserted.inserted || options.resumeDuplicate === true)
     const job = shouldEnsureJob ? ensureConversationJobForEvent(inserted.event.id) : undefined
-    return { ...inserted, job, todo }
+    return { ...inserted, job, todo, project }
   })
   const saved = input.event
 
   if (!shouldReply) {
-    return { event: saved, duplicate: !input.inserted, todo: input.todo ?? undefined }
+    return {
+      event: saved,
+      duplicate: !input.inserted,
+      todo: input.todo ?? undefined,
+      project: input.project ?? undefined,
+    }
   }
 
   if (!input.inserted && options.resumeDuplicate !== true) {
-    return { event: saved, duplicate: true, job: input.job, todo: input.todo ?? undefined }
+    return {
+      event: saved,
+      duplicate: true,
+      job: input.job,
+      todo: input.todo ?? undefined,
+      project: input.project ?? undefined,
+    }
   }
 
   const execution = !input.inserted && input.job?.status === "failed"
@@ -61,6 +76,7 @@ export async function handleConversationEvent(
     replyEvent: execution.replyEvent,
     job: execution.job,
     todo: input.todo ?? undefined,
+    project: input.project ?? undefined,
   }
 }
 

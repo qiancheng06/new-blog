@@ -67,16 +67,33 @@ CREATE INDEX IF NOT EXISTS idx_topics_last_active ON topics(last_active_at DESC)
 
 CREATE TABLE IF NOT EXISTS projects (
   id TEXT PRIMARY KEY,
-  name TEXT NOT NULL UNIQUE,
-  status TEXT NOT NULL DEFAULT 'active',
-  topics TEXT NOT NULL DEFAULT '[]',
-  summary TEXT NOT NULL DEFAULT '',
-  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+  source_event_id TEXT UNIQUE REFERENCES events(id) ON DELETE SET NULL,
+  name TEXT NOT NULL UNIQUE CHECK (length(trim(name)) BETWEEN 1 AND 200),
+  status TEXT NOT NULL DEFAULT 'active' CHECK (status IN ('active', 'paused', 'done', 'archived')),
+  topics TEXT NOT NULL DEFAULT '[]' CHECK (json_valid(topics) AND json_type(topics) = 'array'),
+  summary TEXT NOT NULL DEFAULT '' CHECK (length(summary) <= 4000),
+  state_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  state_reason TEXT NOT NULL DEFAULT '',
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  updated_at TEXT NOT NULL DEFAULT (datetime('now')),
+  completed_at TEXT,
+  archived_at TEXT,
+  CHECK (
+    (status IN ('active', 'paused') AND completed_at IS NULL AND archived_at IS NULL) OR
+    (status = 'done' AND completed_at IS NOT NULL AND archived_at IS NULL) OR
+    (status = 'archived' AND completed_at IS NULL AND archived_at IS NOT NULL)
+  )
 );
+
+CREATE INDEX IF NOT EXISTS idx_projects_status_updated
+  ON projects(status, updated_at DESC);
 
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
+  project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  project_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  project_reason TEXT NOT NULL DEFAULT '',
   title TEXT NOT NULL CHECK (length(trim(title)) BETWEEN 1 AND 500),
   due_date TEXT,
   status TEXT NOT NULL DEFAULT 'open' CHECK (status IN ('open', 'done', 'cancelled')),

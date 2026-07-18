@@ -4,10 +4,12 @@ import { isTodoDueDate } from "../../domain/todo/validation.js"
 export const COMMAND_PREFIXES: Record<string, TelegramEventType> = {
   "/n": "note",
   "/t": "todo",
+  "/p": "project",
   "/i": "idea",
   "/j": "journal",
   "/note": "note",
   "/todo": "todo",
+  "/project": "project",
   "/idea": "idea",
   "/journal": "journal",
 }

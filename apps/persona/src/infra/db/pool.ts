@@ -2,6 +2,7 @@ import DatabaseConstructor from "better-sqlite3"
 import { join, dirname } from "path"
 import { fileURLToPath } from "url"
 import { readFileSync, existsSync, mkdirSync } from "fs"
+import { migrateProjectTodoSchema } from "./project-todo-migration.js"
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -43,6 +44,7 @@ export function initializeDb(): void {
   _db.exec(sql)
 
   migrateProjectionState()
+  migrateProjectTodoSchema(_db)
   migrateDailyNotes()
   rebuildMemorySearchIndex()
 
@@ -107,7 +109,11 @@ function rebuildMemorySearchIndex(): void {
   })()
 }
 
-function ensureColumn(tableName: "profile" | "topics" | "daily_notes", columnName: string, definition: string): void {
+function ensureColumn(
+  tableName: "profile" | "topics" | "daily_notes",
+  columnName: string,
+  definition: string,
+): void {
   const columns = _db.prepare(`PRAGMA table_info(${tableName})`).all() as Array<{ name: string }>
   if (columns.some((column) => column.name === columnName)) return
   _db.exec(`ALTER TABLE ${tableName} ADD COLUMN ${columnName} ${definition};`)

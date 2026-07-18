@@ -1,13 +1,18 @@
 import { config } from "../infra/config/index.js"
 import { query, withTransaction } from "../infra/db/pool.js"
 import { insertEvent, type EventRow } from "../domain/event/store.js"
-import { createTodoStateChangeEvent, createWebTodoEvent } from "../domain/event/types.js"
+import {
+  createTodoProjectAssignmentEvent,
+  createTodoStateChangeEvent,
+  createWebTodoEvent,
+} from "../domain/event/types.js"
 import {
   ensureTodoForEvent,
   getTodoById,
   getTodoStats,
   listTodos,
   updateTodoStatus,
+  updateTodoProject,
   type TodoListOptions,
   type TodoRow,
   type TodoStats,
@@ -18,6 +23,7 @@ import {
   normalizeTodoTitle,
   TodoValueError,
 } from "../domain/todo/validation.js"
+import { getProjectById, type ProjectRecord } from "../domain/project/store.js"
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -85,12 +91,14 @@ export function backfillTodoProjections(eventIds?: string[]): TodoBackfillResult
   return { scanned: candidates.length, created, skipped }
 }
 
-export function createTodo(input: { title: unknown; dueDate?: unknown }): TodoCreateResult {
+export function createTodo(input: { title: unknown; dueDate?: unknown; projectId?: unknown }): TodoCreateResult {
   const normalized = normalizeInput(input)
   return withTransaction(() => {
+    if (normalized.projectId) assertProjectAcceptsOpenTodos(readProject(normalized.projectId))
     const event = insertEvent(createWebTodoEvent({
       text: normalized.title,
       ...(normalized.dueDate ? { due_date: normalized.dueDate } : {}),
+      ...(normalized.projectId ? { project_id: normalized.projectId } : {}),
     }))
     const todo = ensureTodoForEvent(event)
     if (!todo) throw new Error("todo creation Event did not produce a projection")
@@ -104,6 +112,7 @@ export function getTodos(options: TodoListOptions = {}): TodoPage {
   return {
     items: listTodos({
       ...options,
+      projectId: normalizeOptionalProjectId(options.projectId),
       dueBefore: normalizeOptionalDate(options.dueBefore),
       dueAfter: normalizeOptionalDate(options.dueAfter),
       limit,
@@ -132,16 +141,18 @@ export function changeTodoStatus(input: {
   reason: unknown
 }): TodoStateChangeResult {
   const id = input.id.trim()
-  const reason = typeof input.reason === "string" ? input.reason.trim() : ""
+  const reason = normalizeReason(input.reason)
   if (!id) throw new TodoValidationError("todo id is required")
   if (!isTodoStatus(input.status)) throw new TodoValidationError("todo status is invalid")
-  if (!reason) throw new TodoValidationError("reason is required")
   const status = input.status
 
   return withTransaction(() => {
     const current = getTodoById(id)
     if (!current) throw new TodoNotFoundError("todo not found")
     assertTransition(current.status, status)
+    if (status === "open" && current.project_id) {
+      assertProjectAcceptsOpenTodos(readProject(current.project_id))
+    }
     const event = insertEvent(createTodoStateChangeEvent({
       todo_id: current.id,
       source_event_id: current.source_event_id,
@@ -160,15 +171,54 @@ export function changeTodoStatus(input: {
   })
 }
 
+export function assignTodoProject(input: {
+  id: string
+  projectId: unknown
+  reason: unknown
+}): TodoStateChangeResult {
+  const id = input.id.trim()
+  const projectId = normalizeProjectId(input.projectId)
+  const reason = normalizeReason(input.reason)
+  if (!id) throw new TodoValidationError("todo id is required")
+
+  return withTransaction(() => {
+    const current = getTodoById(id)
+    if (!current) throw new TodoNotFoundError("todo not found")
+    if (current.project_id === projectId) throw new TodoConflictError("todo already has the requested project")
+    if (projectId) {
+      const project = readProject(projectId)
+      if (current.status === "open") assertProjectAcceptsOpenTodos(project)
+    }
+
+    const event = insertEvent(createTodoProjectAssignmentEvent({
+      todo_id: current.id,
+      source_event_id: current.source_event_id,
+      previous_project_id: current.project_id,
+      project_id: projectId,
+      reason,
+    }))
+    const todo = updateTodoProject({
+      id: current.id,
+      expectedProjectId: current.project_id,
+      projectId,
+      projectEventId: event.id,
+      reason,
+    })
+    if (!todo) throw new TodoConflictError("todo project changed concurrently")
+    return { event, todo }
+  })
+}
+
 export function parseTodoStatus(value: string | undefined): TodoStatus | undefined {
   if (value === undefined || value === "all") return undefined
   if (isTodoStatus(value)) return value
   throw new TodoValidationError("todo status is invalid")
 }
 
-function normalizeInput(input: { title: unknown; dueDate?: unknown }): {
+function normalizeInput(input: { title: unknown; dueDate?: unknown; projectId?: unknown }): {
   title: string
   dueDate: string | null
+  projectId: string | null
 } {
   if (typeof input.title !== "string") throw new TodoValidationError("todo title is required")
   if (input.dueDate !== undefined && input.dueDate !== null && typeof input.dueDate !== "string") {
@@ -178,10 +228,41 @@ function normalizeInput(input: { title: unknown; dueDate?: unknown }): {
     return {
       title: normalizeTodoTitle(input.title),
       dueDate: normalizeTodoDueDate(input.dueDate as string | null | undefined),
+      projectId: normalizeProjectId(input.projectId),
     }
   } catch (err) {
     if (err instanceof TodoValueError) throw new TodoValidationError(err.message)
     throw err
+  }
+}
+
+function normalizeOptionalProjectId(value: string | undefined): string | undefined {
+  if (value === undefined) return undefined
+  return normalizeProjectId(value) ?? undefined
+}
+
+function normalizeProjectId(value: unknown): string | null {
+  if (value === undefined || value === null) return null
+  if (typeof value !== "string") throw new TodoValidationError("project id is invalid")
+  return value.trim() || null
+}
+
+function normalizeReason(value: unknown): string {
+  const reason = typeof value === "string" ? value.trim() : ""
+  if (!reason) throw new TodoValidationError("reason is required")
+  if (reason.length > 500) throw new TodoValidationError("reason is too long")
+  return reason
+}
+
+function readProject(id: string): ProjectRecord {
+  const project = getProjectById(id)
+  if (!project) throw new TodoNotFoundError("project not found")
+  return project
+}
+
+function assertProjectAcceptsOpenTodos(project: ProjectRecord): void {
+  if (project.status !== "active" && project.status !== "paused") {
+    throw new TodoConflictError("project does not accept open todos")
   }
 }
 

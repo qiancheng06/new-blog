@@ -5,6 +5,7 @@ const evaluationRunId = "eval-telegram-contract"
 
 verifyCommandParsing()
 verifyCommandEventBuild()
+verifyProjectCommandEventBuild()
 verifyMessageEventBuild()
 verifyStableEventIdentity()
 verifyChatAllowlist()
@@ -14,6 +15,8 @@ console.log("telegram contract ok")
 function verifyCommandParsing(): void {
   assert(parseTelegramCommand("/n keep this")?.type === "note", "/n should parse as note")
   assert(parseTelegramCommand("/t check Workspace")?.type === "todo", "/t should parse as todo")
+  assert(parseTelegramCommand("/p Persona OS")?.type === "project", "/p should parse as project")
+  assert(parseTelegramCommand("/project Persona OS")?.content === "Persona OS", "/project content mismatch")
   const datedTodo = parseTelegramCommand("/todo check Workspace @2099-04-01")
   assert(datedTodo?.content === "check Workspace", "Todo due suffix must be removed from content")
   assert(datedTodo?.dueDate === "2099-04-01", "Todo due suffix must be parsed")
@@ -67,6 +70,19 @@ function verifyMessageEventBuild(): void {
   assert(result.event.type === "message", "message event type mismatch")
   assert(result.event.payload.text === "normal companion message", "message payload text mismatch")
   assert(Object.keys(result.event.metadata).length === 0, "blank evaluation id should not add metadata")
+}
+
+function verifyProjectCommandEventBuild(): void {
+  const result = buildTelegramEvent({
+    chatId: 1001,
+    userId: 2002,
+    text: "/project Persona OS MVP",
+    messageId: 3007,
+  })
+
+  assert(result.shouldReply === false, "Project commands must not request Companion replies")
+  assert(result.event.type === "project", "Project command Event type mismatch")
+  assert(result.event.payload.text === "Persona OS MVP", "Project command payload mismatch")
 }
 
 function verifyStableEventIdentity(): void {

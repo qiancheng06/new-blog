@@ -137,6 +137,13 @@ aggregate restored/skipped counts. `/api/status` exposes only
 aggregate Todo counts; prompt context exposes only bounded open titles and due
 dates, never Todo ids or terminal items.
 
+Project capture follows the same Event/projection pattern. Runtime startup
+backfills valid historical Project Events before Todo backfill so relationships
+can be restored safely. Project lifecycle and detail changes are atomic with
+their audit Events. `/api/status` exposes aggregate lifecycle counts; private
+Prompt context includes only bounded active names, summaries, and topic labels.
+Project and Todo remain outside the FTS Memory index.
+
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried
 through the audited Application API. Health/status expose aggregate job counts;

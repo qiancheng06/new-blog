@@ -52,27 +52,30 @@ Infrastructure
 - Workspace VitePress 配置和组件：`apps/workspace/.vitepress/`
 - Obsidian/VitePress 同步脚本：`apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js`
 - Persona OS TypeScript 源码：`apps/persona/src/`
-- HTTP API：`POST /api/chat`, `GET /api/events`, `GET /health`
-- Telegram Bot 基础入口
-- Event 入库和查询
-- Companion 同步回复
-- Research/Critic/Archivist 异步分析调用
-- SQLite 运行时数据库和基础 Memory 表
+- HTTP API：对话、状态、Memory 治理/检索、Daily Summary、Project、Todo 和任务恢复接口
+- Telegram Bot：可信聊天白名单、稳定 Event 身份、消息与 `/note`、`/todo`、`/project` 命令
+- Event 入库、幂等查询，以及 Conversation/Analysis 可恢复执行状态
+- Companion 用户可见回复；Research/Critic/Archivist 结构化分析保持私有
+- Topic/Profile/Timeline 完整写回、Profile 冷却提案与可审计治理
+- FTS5/trigram Memory 检索和当前消息 query-aware Context
+- 前一日 Daily Summary 自动收口、失败恢复和 Obsidian Daily Note 原子归档
+- Project/Todo 用户管理投影、生命周期审计、关系约束和私有工作上下文
+- SQLite 运行时数据库、升级迁移、组件健康状态和完整离线契约门
 
-## 半实现
+## 仍待闭环
 
-- Memory 表已存在，但分析结果尚未完整写回 Topic/Profile/Timeline
-- Context 目前主要依赖最近事件，尚未形成独立 Context Builder
-- Daily Note 表已存在，但每日总结流程尚未闭环
-- Obsidian 是长期目标层，但 Persona OS 到 Obsidian 的记忆同步尚未完成
-- Event Bus 目前是架构方向，还不是独立模块
+- Workspace Markdown Project/Todo 与 Persona 运行时投影尚未自动双向同步；当前通过 Application API 管理 Persona 投影
+- Obsidian 自动归档当前只覆盖 Daily Note，Topic/Profile/Project 的可读导出尚未实现
+- Event Bus 仍是模块化单体内的编排边界，不是独立队列或服务
+- Context Builder 已由 Memory 检索、最近对话、Active Project 和 Open Todo 组成，但还没有 mode/delivery 策略层
+- 真实 Telegram、Workspace 浏览器和 30 天持续运行仍需人工环境验收
 
 ## 愿景设计
 
 - PostgreSQL 作为长期运行时主库
 - Next.js 作为未来 Workspace + BFF 壳层
-- 更完整的 Application 编排层
-- Daily Summary 到 Obsidian 的稳定写入
+- mode/delivery/novelty 策略层
+- 更广的受治理 Obsidian 导出
 - 多 AI 协作开发空间
 
 这些愿景不得绕过当前 MVP 原则直接落地。

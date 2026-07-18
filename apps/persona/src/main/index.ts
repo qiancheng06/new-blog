@@ -5,6 +5,7 @@ import { drainBackgroundTasks } from "../application/background-tasks.js"
 import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
 import { recoverConversationJobsAtStartup } from "../application/conversation-jobs.js"
 import { backfillTodoProjections } from "../application/todos.js"
+import { backfillProjectProjections } from "../application/projects.js"
 import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
 import {
   startDailySummaryScheduler,
@@ -34,6 +35,16 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   })
 
   initializeDb()
+  const projectBackfill = backfillProjectProjections()
+  if (projectBackfill.created > 0) {
+    console.log(`[project migration] restored ${projectBackfill.created} projection(s)`)
+  }
+  if (projectBackfill.reused > 0) {
+    console.log(`[project migration] reused ${projectBackfill.reused} existing projection(s)`)
+  }
+  if (projectBackfill.skipped > 0) {
+    console.warn(`[project migration] skipped ${projectBackfill.skipped} invalid historical Event(s)`)
+  }
   const todoBackfill = backfillTodoProjections()
   if (todoBackfill.created > 0) {
     console.log(`[todo migration] restored ${todoBackfill.created} projection(s)`)

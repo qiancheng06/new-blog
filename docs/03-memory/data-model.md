@@ -35,11 +35,40 @@
 | 列名 | 类型 | 说明 |
 |------|------|------|
 | id | UUID PK | |
-| name | VARCHAR(255) | |
-| status | VARCHAR(32) | active / paused / done |
-| topics | UUID[] | |
+| source_event_id | UUID UNIQUE | immutable creation provenance |
+| name | VARCHAR(200) UNIQUE | user-managed Project name |
+| status | VARCHAR(32) | active / paused / done / archived |
+| topics | JSON array | user-managed Topic labels |
 | summary | TEXT | |
+| state_event_id | UUID | latest lifecycle audit Event |
+| state_reason | TEXT | required lifecycle reason |
+| created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
+| completed_at | TIMESTAMPTZ | done-state timestamp |
+| archived_at | TIMESTAMPTZ | archived-state timestamp |
+
+Project is a user-managed working projection, not an inferred long-term Memory
+record. Active Projects can be used as private Prompt context without entering
+`memory_search`.
+
+### todos
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | |
+| source_event_id | UUID UNIQUE | immutable creation provenance |
+| project_id | UUID FK nullable | optional Project relationship |
+| project_event_id | UUID FK nullable | latest assignment audit Event |
+| project_reason | TEXT | latest assignment reason |
+| title | VARCHAR(500) | user-managed task title |
+| due_date | DATE nullable | optional local due date |
+| status | TEXT | open / done / cancelled |
+| state_event_id | UUID FK nullable | latest lifecycle audit Event |
+| state_reason | TEXT | latest lifecycle reason |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+| completed_at | TIMESTAMPTZ | done-state timestamp |
+| cancelled_at | TIMESTAMPTZ | cancelled-state timestamp |
 
 ### profile
 
