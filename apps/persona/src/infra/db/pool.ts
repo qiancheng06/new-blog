@@ -75,6 +75,7 @@ function migrateDailyNotes(): void {
   ensureColumn("daily_notes", "archive_path", "TEXT")
   ensureColumn("daily_notes", "archive_event_id", "TEXT REFERENCES events(id)")
   ensureColumn("daily_notes", "archived_at", "TEXT")
+  ensureColumn("daily_notes", "finalized_at", "TEXT")
   _db.exec("UPDATE daily_notes SET updated_at = created_at WHERE updated_at = '';")
   _db.exec("CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);")
 }

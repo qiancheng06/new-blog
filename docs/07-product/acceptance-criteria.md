@@ -17,14 +17,17 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 
 - Persona backend TypeScript build.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
-- No-network API contract test for `/health`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
+- No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
 - No-network Telegram contract test for command text-to-Event mapping, command
   no-reply boundaries, and real-mode evaluation metadata labeling.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
-  entrypoint, `/health` readiness, pending-work observability, and graceful
+  entrypoint, liveness/readiness, pending-work observability, and graceful
   `stop()` draining behavior.
+- No-network automatic Daily Summary contract for per-date single-flight,
+  finalization, archive-stage recovery, retry state, timezone scheduling, and
+  graceful scheduler stop.
 - No-network real-mode docs contract test for required P16 checklist/template
   sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
@@ -53,6 +56,8 @@ Use individual commands only for focused diagnosis:
   health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint
   startup, health readiness, and shutdown regressions.
+- `npm.cmd run contract:daily-summary-scheduler` for automatic previous-day
+  finalization, idempotency, archive recovery, and schedule regressions.
 - `npm.cmd run contract:real-mode-docs` for real-mode checklist/template drift
   that could hide a P16 gate or weaken evidence boundaries.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
@@ -145,4 +150,3 @@ These remain future product-level gates:
 - Telegram end-to-end runtime verification.
 - Long-running reliability test.
 - User-editable Memory/Profile management.
-- Daily summary and Obsidian write-back loop.

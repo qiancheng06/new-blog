@@ -17,6 +17,8 @@ assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback"
 assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
 assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
 assert(mockConfig.dailyNoteDirectory === "persona/daily-notes", "Daily Note directory default mismatch")
+assert(mockConfig.dailySummaryEnabled, "Daily Summary scheduler should be enabled by default")
+assert(mockConfig.dailySummaryTime === "00:05", "Daily Summary schedule default mismatch")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
@@ -131,6 +133,34 @@ for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "pers
     `invalid Daily Note directory should fail validation: ${invalidDirectory}`,
   )
 }
+
+const disabledDailySummary = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_DAILY_SUMMARY_ENABLED: "false",
+  PERSONA_DAILY_SUMMARY_TIME: "23:45",
+})
+assert(!disabledDailySummary.dailySummaryEnabled, "Daily Summary scheduler should accept false")
+assert(disabledDailySummary.dailySummaryTime === "23:45", "Daily Summary schedule should preserve valid time")
+
+for (const invalidTime of ["24:00", "9:30", "12:60", "noon"]) {
+  const invalidDailySummaryTime = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    PERSONA_DAILY_SUMMARY_TIME: invalidTime,
+  })
+  assert(
+    validateRuntimeConfig(invalidDailySummaryTime).some((error) => error.includes("PERSONA_DAILY_SUMMARY_TIME")),
+    `invalid Daily Summary time should fail validation: ${invalidTime}`,
+  )
+}
+
+const invalidDailySummaryEnabled = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_DAILY_SUMMARY_ENABLED: "sometimes",
+})
+assert(
+  validateRuntimeConfig(invalidDailySummaryEnabled).some((error) => error.includes("PERSONA_DAILY_SUMMARY_ENABLED")),
+  "invalid Daily Summary enabled flag should fail validation",
+)
 
 console.log("infra config contract ok")
 

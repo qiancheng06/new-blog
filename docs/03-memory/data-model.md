@@ -73,7 +73,27 @@ Profile 更新只能渐进写入。带 `cooling_required` 的 patch 当前不会
 | summary | TEXT | 日总结 |
 | highlights | TEXT[] | |
 | topic_distribution | JSONB | |
+| source_event_id | UUID | latest `summary_ready` provenance |
+| archive_path | TEXT | relative Obsidian path |
+| archive_event_id | UUID | latest `daily_note_exported` provenance |
+| archived_at | TIMESTAMPTZ | latest archive completion |
+| finalized_at | TIMESTAMPTZ | automatic previous-day closure marker |
 | created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+### daily_summary_runs
+
+| Column | Type | Notes |
+|------|------|------|
+| date | DATE PK | local Daily Note date |
+| status | TEXT | pending / running / succeeded / failed |
+| attempt_count | INTEGER | monotonic attempt number |
+| error_code | TEXT | bounded recovery code only |
+| archive_requested | BOOLEAN | current optional archive policy |
+| started_at | TIMESTAMPTZ | latest attempt start |
+| finished_at | TIMESTAMPTZ | latest terminal transition |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
 
 ## Memory patch persistence
 

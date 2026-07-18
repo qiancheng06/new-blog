@@ -132,6 +132,7 @@ function seedDailyNote(date: string, summary: string): void {
     highlights: [`${contractTag} highlight`],
     topicDistribution: { architecture: 2, memory: 1 },
     sourceEventId: sourceEvent.id,
+    finalized: true,
   })
 }
 

@@ -4,6 +4,10 @@ import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
 import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
 import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
+import {
+  startDailySummaryScheduler,
+  type DailySummaryScheduler,
+} from "../application/daily-summary-scheduler.js"
 import type { Server } from "http"
 
 type TelegramModule = typeof import("../interface/telegram/bot.js")
@@ -11,6 +15,7 @@ type TelegramModule = typeof import("../interface/telegram/bot.js")
 export interface PersonaRuntimeOptions {
   api?: ApiServerOptions
   telegram?: boolean
+  dailySummary?: boolean
 }
 
 export interface PersonaRuntime {
@@ -32,6 +37,9 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
     console.warn(`[analysis recovery] marked ${recoveredAnalysisJobs} interrupted job(s) as failed`)
   }
   const apiServer = startApiServer(options.api)
+  const dailySummaryScheduler = startDailySummaryScheduler({
+    enabled: options.dailySummary ?? config.dailySummaryEnabled ?? false,
+  })
   let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
@@ -50,7 +58,7 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
 
   let stopPromise: Promise<void> | null = null
   const stop = (): Promise<void> => {
-    stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise)
+    stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise, dailySummaryScheduler)
     return stopPromise
   }
 
@@ -83,7 +91,9 @@ if (process.env.PERSONA_MAIN_AUTOSTART !== "0") {
 async function stopPersonaRuntime(
   apiServer: Server,
   telegramModulePromise: Promise<TelegramModule> | null,
+  dailySummaryScheduler: DailySummaryScheduler,
 ): Promise<void> {
+  dailySummaryScheduler.stop()
   const stopResults = await Promise.allSettled([
     stopApiServer(apiServer),
     telegramModulePromise

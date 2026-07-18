@@ -21,7 +21,7 @@ CREATE TABLE IF NOT EXISTS analysis_jobs (
   source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,
   status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
   attempt_count INTEGER NOT NULL DEFAULT 0,
-  error_code TEXT NOT NULL DEFAULT '',
+  error_code TEXT NOT NULL DEFAULT '' CHECK (error_code IN ('', 'generation_error', 'archive_error', 'state_error', 'interrupted')),
   retry_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   started_at TEXT,
@@ -92,8 +92,24 @@ CREATE TABLE IF NOT EXISTS daily_notes (
   archive_path TEXT,
   archive_event_id TEXT REFERENCES events(id),
   archived_at TEXT,
+  finalized_at TEXT,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
   updated_at TEXT NOT NULL DEFAULT (datetime('now'))
 );
 
 CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);
+
+CREATE TABLE IF NOT EXISTS daily_summary_runs (
+  date TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NOT NULL DEFAULT '',
+  archive_requested INTEGER NOT NULL DEFAULT 0 CHECK (archive_requested IN (0, 1)),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_daily_summary_runs_status_date
+  ON daily_summary_runs(status, date ASC);

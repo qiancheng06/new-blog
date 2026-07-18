@@ -24,6 +24,14 @@ const optionalFailure = summarizeRuntimeHealth(components({
     status: "degraded",
     jobs: { pending: 0, running: 0, succeeded: 2, failed: 1 },
   },
+  daily_summary: {
+    status: "idle",
+    targetDate: null,
+    lastCompletedDate: "2026-07-17",
+    nextRunAt: "2026-07-19T00:05:00.000Z",
+    failureCount: 0,
+    runs: { pending: 0, running: 0, succeeded: 1, failed: 0 },
+  },
 }))
 assert(optionalFailure.status === "degraded", "optional component failure must degrade runtime")
 assert(optionalFailure.ready, "optional component failure must not block readiness")
@@ -38,6 +46,19 @@ const llmFailure = summarizeRuntimeHealth(components({
 assert(llmFailure.status === "not_ready", "LLM misconfiguration must make runtime not ready")
 assert(!llmFailure.ready, "LLM misconfiguration must block readiness")
 
+const schedulerFailure = summarizeRuntimeHealth(components({
+  daily_summary: {
+    status: "failed",
+    targetDate: "2026-07-17",
+    lastCompletedDate: null,
+    nextRunAt: "2026-07-18T00:20:00.000Z",
+    failureCount: 1,
+    runs: { pending: 0, running: 0, succeeded: 0, failed: 1 },
+  },
+}))
+assert(schedulerFailure.status === "degraded", "Daily Summary failure must degrade runtime")
+assert(schedulerFailure.ready, "Daily Summary failure must not block core readiness")
+
 setTelegramRuntimeStatus("starting")
 const runtimeSnapshot = getRuntimeHealthSnapshot()
 assert(runtimeSnapshot.ready, "mock runtime snapshot must be ready")
@@ -47,6 +68,8 @@ assert(runtimeSnapshot.components.llm.mode === "mock", "runtime LLM mode must be
 assert(runtimeSnapshot.components.telegram.status === "starting", "Telegram runtime status must be tracked")
 assert(runtimeSnapshot.components.obsidian.status === "disabled", "empty Obsidian config must be disabled")
 assert(typeof runtimeSnapshot.components.analysis.jobs.failed === "number", "analysis failed count must be numeric")
+assert(runtimeSnapshot.components.daily_summary.status === "disabled", "Daily Summary scheduler must default to disabled in contract")
+assert(typeof runtimeSnapshot.components.daily_summary.runs.failed === "number", "Daily Summary failed run count must be numeric")
 assert(typeof runtimeSnapshot.components.background_tasks.pending === "number", "background task count must be numeric")
 assert(!JSON.stringify(runtimeSnapshot).includes(process.cwd()), "runtime snapshot must not expose repository paths")
 
@@ -62,6 +85,14 @@ function components(overrides: Partial<RuntimeHealthComponents> = {}): RuntimeHe
     analysis: {
       status: "ok",
       jobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
+    },
+    daily_summary: {
+      status: "disabled",
+      targetDate: null,
+      lastCompletedDate: null,
+      nextRunAt: null,
+      failureCount: 0,
+      runs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
     },
     background_tasks: { status: "ok", pending: 0 },
     ...overrides,

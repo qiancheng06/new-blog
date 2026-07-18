@@ -229,6 +229,14 @@ interface RuntimeComponents {
     status?: string
     jobs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
   }
+  daily_summary?: {
+    status?: string
+    targetDate?: string | null
+    lastCompletedDate?: string | null
+    nextRunAt?: string | null
+    failureCount?: number
+    runs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
+  }
   background_tasks?: { status?: string; pending?: number }
 }
 
@@ -240,6 +248,9 @@ function verifyRuntimeComponents(components: RuntimeComponents | undefined, rout
   assert(components.telegram?.status === "disabled", `${route} Telegram component must be disabled`)
   assert(components.obsidian?.status === "disabled", `${route} Obsidian component must be disabled`)
   assert(typeof components.analysis?.jobs?.failed === "number", `${route} Analysis failed count must be number`)
+  assert(components.daily_summary?.status === "disabled", `${route} Daily Summary scheduler must be disabled`)
+  assert(typeof components.daily_summary.failureCount === "number", `${route} Daily Summary failure count must be number`)
+  assert(typeof components.daily_summary.runs?.failed === "number", `${route} Daily Summary failed run count must be number`)
   assert(typeof components.background_tasks?.pending === "number", `${route} background pending count must be number`)
 }
 

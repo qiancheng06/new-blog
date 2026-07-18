@@ -87,6 +87,14 @@ Daily Note per local calendar date. Application generation follows these rules:
   `archived_at` on the projection and appends a `daily_note_exported` Event
 - regenerating a date clears those archive fields so stale archive state is not
   presented as current; the next archive request refreshes the managed block
+- manual generation leaves `finalized_at` empty; the runtime scheduler sets it
+  only when closing the previous local date
+- a finalized note is an idempotency marker for automatic generation; an
+  unarchived finalized note lets recovery resume at Obsidian archive without
+  repeating the model call
+- `daily_summary_runs` persists one scheduler state machine per target date;
+  interrupted `running` attempts become retryable after restart and retain only
+  bounded error codes, never note content or provider output
 
 The public read shape parses `highlights` and `topic_distribution` into arrays
 and objects; their SQLite columns remain JSON text.

@@ -22,6 +22,7 @@ const recoveryJob = ensureAnalysisJob(recoveryEvent.id)
 const runtime = startPersonaRuntime({
   api: { port },
   telegram: false,
+  dailySummary: false,
 })
 
 try {

@@ -22,6 +22,8 @@ const result = spawnSync(
       API_PORT: "3001",
       API_HOST: "127.0.0.1",
       PERSONA_ALLOWED_ORIGINS: "http://127.0.0.1:5173",
+      PERSONA_TIME_ZONE: "Asia/Shanghai",
+      PERSONA_DAILY_SUMMARY_TIME: "00:05",
       OBSIDIAN_VAULT_PATH: "C:\\definitely\\missing\\vault",
     },
   },
@@ -36,6 +38,8 @@ assert(output.includes("[OK] OPENAI_API_KEY"), "DeepSeek key status missing")
 assert(output.includes("[OK] TELEGRAM_TOKEN"), "Telegram token status missing")
 assert(output.includes("[OK] TELEGRAM_ALLOWED_CHAT_IDS"), "Telegram allowlist status missing")
 assert(output.includes("[OK] API_HOST"), "loopback API host status missing")
+assert(output.includes("[OK] Daily Summary scheduler"), "Daily Summary scheduler status missing")
+assert(output.includes("enabled at 00:05 (Asia/Shanghai)"), "Daily Summary schedule detail mismatch")
 assert(output.includes("[WARN] Obsidian vault"), "missing vault should be a warning")
 assert(output.includes("sk-...[redacted]"), "DeepSeek key should be redacted")
 assert(output.includes("telegram-token...[redacted]"), "Telegram token should be redacted")

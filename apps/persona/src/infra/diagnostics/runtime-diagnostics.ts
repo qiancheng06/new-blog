@@ -80,6 +80,14 @@ function configChecks(): Check[] {
       : "not required while Telegram is disabled",
   })
 
+  result.push({
+    name: "Daily Summary scheduler",
+    status: validationErrors.some((error) => error.includes("PERSONA_DAILY_SUMMARY_")) ? "fail" : "ok",
+    detail: config.dailySummaryEnabled
+      ? `enabled at ${config.dailySummaryTime} (${config.timeZone})`
+      : "disabled",
+  })
+
   return result
 }
 

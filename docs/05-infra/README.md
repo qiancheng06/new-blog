@@ -37,6 +37,11 @@ defaults to `Asia/Shanghai`. The provider receives only the bounded context for
 the selected local date. Mock mode returns a deterministic Daily Note without a
 network call.
 
+`PERSONA_DAILY_SUMMARY_ENABLED` defaults to `true` and
+`PERSONA_DAILY_SUMMARY_TIME` defaults to `00:05`. The full Persona runtime uses
+that local time to finalize the previous date. Set the enabled flag to `false`
+when a process should expose only manual Daily Summary APIs.
+
 ## Local Backend Entrypoints
 
 - `npm run dev:backend` starts the real local Persona runtime on port 3001, including API and Telegram bot wiring.
@@ -100,9 +105,20 @@ configured paths, private content, provider output, secrets, and raw errors are
 never included.
 
 Telegram and Obsidian are optional. A failed Telegram polling lifecycle, an
-unavailable configured vault, or failed Analysis jobs marks `/api/status` as
-`degraded` while `/ready` remains successful. Database or LLM configuration
-failure makes `/ready` return `503`.
+unavailable configured vault, failed automatic Daily Summary run, or failed
+Analysis jobs marks `/api/status` as `degraded` while `/ready` remains
+successful. Database or LLM configuration failure makes `/ready` return `503`.
+
+Automatic Daily Summary generation is tracked as graceful-shutdown background
+work. It is single-flight per date and marks a Daily Note finalized only after a
+successful full-day generation. If Obsidian archiving then fails, retries resume
+from the archive stage without another model call. The `daily_summary_runs`
+state machine survives restarts, recovers interrupted attempts, and processes
+the oldest incomplete date first. Retry delays grow from 15 minutes to a maximum
+of 6 hours. Runtime status exposes only dates, counts, and bounded states; it
+never includes raw errors or note content. Unfinished runs adopt the current
+archive setting at startup, so disabling Obsidian releases an archive-only
+failure.
 
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried

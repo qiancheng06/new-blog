@@ -25,6 +25,25 @@ Response `200`:
 }
 ```
 
+`/health` is the process liveness probe. It remains `200` with the stable legacy
+shape even when a dependency check fails; dependency readiness belongs to
+`/ready`.
+
+### `GET /ready`
+
+Returns `200` with `status: "ready"` when SQLite schema access and the selected
+LLM configuration are available. It returns `503` with `status: "not_ready"`
+when either core component fails. Telegram, Obsidian, Daily Summary scheduling,
+failed Analysis jobs, and pending background work remain visible but do not
+block readiness.
+
+```ts
+{
+  status: "ready" | "not_ready",
+  components: RuntimeComponents
+}
+```
+
 ### `POST /api/chat`
 
 Request:
@@ -73,6 +92,7 @@ Success response `200`:
     archivePath: string | null,
     archiveEventId: string | null,
     archivedAt: string | null,
+    finalizedAt: string | null,
     createdAt: string,
     updatedAt: string
   },
@@ -84,6 +104,8 @@ Success response `200`:
 Generation reads only the bounded user/Companion event window for that local
 date. It atomically appends a `system/summary_ready` Event and upserts the unique
 Daily Note. Refreshing a date preserves the Note id and appends a new audit Event.
+Manual generation leaves `finalizedAt` empty. The runtime scheduler finalizes the
+previous local date after its configured close time.
 
 ### `GET /api/daily-summaries`
 
@@ -112,24 +134,6 @@ Success response `200`:
   archiveEventId: string,
   relativePath: string,
   status: "created" | "updated" | "unchanged"
-}
-```
-
-`/health` is the process liveness probe. It remains `200` with the stable legacy
-shape even when a dependency check fails; dependency readiness belongs to
-`/ready`.
-
-### `GET /ready`
-
-Returns `200` with `status: "ready"` when SQLite schema access and the selected
-LLM configuration are available. It returns `503` with `status: "not_ready"`
-when either core component fails. Telegram, Obsidian, failed Analysis jobs, and
-pending background work remain visible but do not block readiness.
-
-```ts
-{
-  status: "ready" | "not_ready",
-  components: RuntimeComponents
 }
 ```
 
@@ -189,10 +193,27 @@ Response `200`:
 ```
 
 `RuntimeComponents` contains only bounded states and counts: database, LLM
-provider/mode, Telegram lifecycle, Obsidian availability, Analysis job counts,
-and pending background task count. It never includes configured paths, tokens,
-prompts, message content, provider output, or raw errors. Optional component
-failure changes the overall status to `degraded` without changing `ready`.
+provider/mode, Telegram lifecycle, Obsidian availability, Daily Summary
+scheduler state, Analysis job counts, and pending background task count. The
+Daily Summary component exposes only status, target/completed dates, next run
+time, failure count, and aggregate persisted run counts. It never includes
+configured paths, tokens, prompts, message content, provider output, or raw
+errors. Optional component failure changes the overall status to `degraded`
+without changing `ready`.
+
+## Automatic Daily Summary
+
+The full Persona runtime automatically closes the previous local date at
+`PERSONA_DAILY_SUMMARY_TIME` (default `00:05`) when
+`PERSONA_DAILY_SUMMARY_ENABLED` is true. It generates and finalizes the note,
+then archives it when an Obsidian vault is configured. A finalized note is not
+generated again. If generation succeeded but archive failed, the retry resumes
+at archive without another model call. Run state is persisted per local date;
+startup recovers interrupted attempts and processes the oldest incomplete date
+first. Failures use bounded exponential retry, and graceful shutdown cancels
+future timers while draining the active task. Unfinished runs adopt the current
+Obsidian archive setting after restart, so disabling the optional integration
+can release a previous archive failure.
 
 ### `GET /api/analysis-jobs`
 

@@ -2,6 +2,7 @@ import { lstatSync, realpathSync } from "fs"
 import { isAbsolute, relative, sep } from "path"
 import { getAnalysisJobsStatus } from "./analysis-jobs.js"
 import { getPendingBackgroundTaskCount } from "./background-tasks.js"
+import { getDailySummarySchedulerSnapshot } from "./daily-summary-scheduler.js"
 import {
   config,
   isSupportedProvider,
@@ -25,6 +26,14 @@ export interface RuntimeHealthComponents {
     status: "ok" | "degraded"
     jobs: { pending: number; running: number; succeeded: number; failed: number }
   }
+  daily_summary: {
+    status: "disabled" | "idle" | "running" | "failed" | "stopped"
+    targetDate: string | null
+    lastCompletedDate: string | null
+    nextRunAt: string | null
+    failureCount: number
+    runs: { pending: number; running: number; succeeded: number; failed: number }
+  }
   background_tasks: {
     status: "ok" | "busy"
     pending: number
@@ -46,6 +55,7 @@ export function setTelegramRuntimeStatus(status: TelegramRuntimeStatus): void {
 export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
   const jobs = getSafeAnalysisStatus()
   const pendingBackgroundTasks = getPendingBackgroundTaskCount()
+  const dailySummary = getDailySummarySchedulerSnapshot()
   return summarizeRuntimeHealth({
     database: getDatabaseStatus(),
     llm: getLlmStatus(config),
@@ -55,6 +65,7 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
       status: jobs.failed > 0 ? "degraded" : "ok",
       jobs,
     },
+    daily_summary: dailySummary,
     background_tasks: {
       status: pendingBackgroundTasks > 0 ? "busy" : "ok",
       pending: pendingBackgroundTasks,
@@ -70,7 +81,9 @@ export function summarizeRuntimeHealth(components: RuntimeHealthComponents): Run
     components.telegram.status === "failed" ||
     components.telegram.status === "stopped" ||
     components.obsidian.status === "unavailable" ||
-    components.analysis.status === "degraded"
+    components.analysis.status === "degraded" ||
+    components.daily_summary.status === "failed" ||
+    components.daily_summary.status === "stopped"
   )
   return { status: degraded ? "degraded" : "ok", ready, components }
 }
@@ -81,9 +94,12 @@ function getDatabaseStatus(): RuntimeHealthComponents["database"] {
       `SELECT COUNT(*) AS count
        FROM sqlite_master
        WHERE type = 'table'
-         AND name IN ('events', 'profile', 'topics', 'timeline_events', 'daily_notes', 'analysis_jobs')`,
+         AND name IN (
+           'events', 'profile', 'topics', 'timeline_events', 'daily_notes',
+           'analysis_jobs', 'daily_summary_runs'
+         )`,
     )
-    return { status: Number(row?.count) === 6 ? "ok" : "failed" }
+    return { status: Number(row?.count) === 7 ? "ok" : "failed" }
   } catch {
     return { status: "failed" }
   }

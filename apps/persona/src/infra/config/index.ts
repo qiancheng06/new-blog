@@ -13,6 +13,8 @@ export interface RuntimeConfig {
   timeZone: string
   obsidianVaultPath: string
   dailyNoteDirectory: string
+  dailySummaryEnabled: boolean | null
+  dailySummaryTime: string
 }
 
 export interface RuntimeConfigValidationOptions {
@@ -39,6 +41,8 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
     obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
     dailyNoteDirectory: env.PERSONA_DAILY_NOTE_DIR?.trim() || "persona/daily-notes",
+    dailySummaryEnabled: parseBoolean(env.PERSONA_DAILY_SUMMARY_ENABLED, true),
+    dailySummaryTime: env.PERSONA_DAILY_SUMMARY_TIME?.trim() || "00:05",
   }
 }
 
@@ -71,6 +75,14 @@ export function validateRuntimeConfig(
 
   if (!isSafeRelativeDirectory(runtimeConfig.dailyNoteDirectory)) {
     errors.push("PERSONA_DAILY_NOTE_DIR must be a relative directory without '.' or '..' segments.")
+  }
+
+  if (!isLocalTime(runtimeConfig.dailySummaryTime)) {
+    errors.push("PERSONA_DAILY_SUMMARY_TIME must use 24-hour HH:mm format.")
+  }
+
+  if (runtimeConfig.dailySummaryEnabled === null) {
+    errors.push("PERSONA_DAILY_SUMMARY_ENABLED must be true or false.")
   }
 
   if (options.requireLlm && runtimeConfig.llmProvider !== "mock" && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
@@ -144,10 +156,23 @@ function isValidTimeZone(value: string): boolean {
   }
 }
 
+function parseBoolean(value: string | undefined, fallback: boolean): boolean | null {
+  if (value === undefined || value.trim() === "") return fallback
+  const normalized = value.trim().toLowerCase()
+  if (["true", "1", "yes", "on"].includes(normalized)) return true
+  if (["false", "0", "no", "off"].includes(normalized)) return false
+  return null
+}
+
 function isSafeRelativeDirectory(value: string): boolean {
   if (!value || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\")) return false
   const segments = value.split(/[\\/]+/)
   return segments.length > 0 && segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+}
+
+function isLocalTime(value: string): boolean {
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  return Boolean(match && Number(match[1]) <= 23 && Number(match[2]) <= 59)
 }
 
 export const config = loadRuntimeConfig()
