@@ -89,6 +89,16 @@ import {
   getWorkingState,
   getWorkingStateStatus,
 } from "../../application/working-state.js"
+import {
+  CaptureNotFoundError,
+  CaptureValidationError,
+  createCapture,
+  getCapture,
+  getCaptures,
+  getCapturesStatus,
+  parseCaptureSource,
+  parseCaptureType,
+} from "../../application/captures.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -215,6 +225,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   let memory = { topics: 0, profile: 0, timelineEvents: 0, pendingProposals: 0 }
   let todos = { open: 0, done: 0, cancelled: 0, overdue: 0, dueToday: 0 }
   let projects = { active: 0, paused: 0, done: 0, archived: 0 }
+  let captures = { notes: 0, ideas: 0, journals: 0 }
   let workingState: ReturnType<typeof getWorkingStateStatus> = {
     mode: "S1",
     hasCurrentProject: false,
@@ -229,6 +240,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
       memory = getMemoryStatusStats()
       todos = getTodosStatus()
       projects = getProjectsStatus()
+      captures = getCapturesStatus()
       workingState = getWorkingStateStatus()
       recentEvents = getRecentConversationEvents(5)
     } catch {
@@ -251,6 +263,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     memory,
     todos,
     projects,
+    captures,
     working_state: workingState,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
@@ -425,6 +438,63 @@ function handleWorkingState(res: ServerResponse) {
   }
 }
 
+function handleCaptures(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getCaptures({
+      type: parseCaptureType(readText(url, "type")),
+      source: parseCaptureSource(readText(url, "source")),
+      query: readText(url, "q"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleCaptureError(err, res)
+  }
+}
+
+function handleCaptureById(id: string, res: ServerResponse) {
+  try {
+    json(res, 200, { capture: getCapture(id) })
+  } catch (err) {
+    handleCaptureError(err, res)
+  }
+}
+
+async function handleCaptureCreate(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{
+    type?: unknown
+    text?: unknown
+    requestId?: unknown
+  }>(req, res)
+  if (!parsed) return
+
+  let requestId: string | undefined
+  try {
+    requestId = resolveIdempotencyKey(req, parsed.requestId)
+  } catch (err) {
+    if (err instanceof ChatRequestValidationError) return json(res, 400, { error: err.message })
+    throw err
+  }
+
+  try {
+    const result = await createCapture({
+      type: parsed.type,
+      text: parsed.text,
+      requestId,
+    })
+    json(res, result.duplicate ? 200 : 202, {
+      capture: result.capture,
+      duplicate: result.duplicate,
+    })
+  } catch (err) {
+    if (err instanceof EventIdentityConflictError) {
+      json(res, 409, { error: "idempotency key conflict" })
+      return
+    }
+    handleCaptureError(err, res)
+  }
+}
+
 async function handleWorkingStateChange(req: IncomingMessage, res: ServerResponse) {
   const parsed = await readJsonObject<{
     currentProjectId?: unknown
@@ -578,6 +648,16 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/api/working-state" && req.method === "POST") {
       return await handleWorkingStateChange(req, res)
+    }
+    if (url === "/api/captures" && req.method === "GET") {
+      return handleCaptures(requestUrl, res)
+    }
+    if (url === "/api/captures" && req.method === "POST") {
+      return await handleCaptureCreate(req, res)
+    }
+    const captureMatch = /^\/api\/captures\/([^/]+)$/.exec(url)
+    if (captureMatch && req.method === "GET") {
+      return handleCaptureById(captureMatch[1], res)
     }
     if (url === "/api/todos" && req.method === "GET") {
       return handleTodos(requestUrl, res)
@@ -795,6 +875,18 @@ function handleWorkingStateError(err: unknown, res: ServerResponse): void {
   }
   if (err instanceof WorkingStateConflictError) {
     json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleCaptureError(err: unknown, res: ServerResponse): void {
+  if (err instanceof CaptureValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof CaptureNotFoundError) {
+    json(res, 404, { error: err.message })
     return
   }
   throw err

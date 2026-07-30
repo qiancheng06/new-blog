@@ -13,6 +13,13 @@ import { captureTodoEvent } from "./todos.js"
 import type { TodoRow } from "../domain/todo/store.js"
 import { captureProjectEvent } from "./projects.js"
 import type { ProjectRecord } from "../domain/project/store.js"
+import { isCaptureSource, isCaptureType } from "../domain/capture/validation.js"
+import {
+  ensureAnalysisJobForEvent,
+  executeAnalysisJobForStoredEvent,
+  getAnalysisJobForEvent,
+  type AnalysisJob,
+} from "./analysis-jobs.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -24,6 +31,7 @@ export interface ConversationResult {
   job?: ConversationJob
   todo?: TodoRow
   project?: ProjectRecord
+  analysisJob?: AnalysisJob
 }
 
 export interface ConversationOptions {
@@ -41,18 +49,32 @@ export async function handleConversationEvent(
     const inserted = insertEventOnce(event)
     const todo = captureTodoEvent(inserted.event)
     const project = captureProjectEvent(inserted.event)
+    const isSilentCapture = (
+      !shouldReply &&
+      isCaptureType(inserted.event.type) &&
+      isCaptureSource(inserted.event.source)
+    )
+    const analysisJob = isSilentCapture
+      ? inserted.inserted
+        ? ensureAnalysisJobForEvent(inserted.event.id)
+        : getAnalysisJobForEvent(inserted.event.id) ?? undefined
+      : undefined
     const shouldEnsureJob = shouldReply && (inserted.inserted || options.resumeDuplicate === true)
     const job = shouldEnsureJob ? ensureConversationJobForEvent(inserted.event.id) : undefined
-    return { ...inserted, job, todo, project }
+    return { ...inserted, job, todo, project, analysisJob }
   })
   const saved = input.event
 
   if (!shouldReply) {
+    const analysisJob = input.inserted && input.analysisJob
+      ? executeAnalysisJobForStoredEvent(saved, { callAnalysis: options.dependencies?.callAnalysis })
+      : input.analysisJob
     return {
       event: saved,
       duplicate: !input.inserted,
       todo: input.todo ?? undefined,
       project: input.project ?? undefined,
+      analysisJob,
     }
   }
 

@@ -60,6 +60,11 @@ Workspace 可观测面板如果需要展示后端在线状态、事件概览或�
 
 Working State 通过 `GET/POST /api/working-state` 进入 Application。写入必须携带原因并先追加审计 Event；Project 进入 done/archived 时，Application 会在同一事务内清除对应的当前 Project。该状态只作为私有 Prompt 工作上下文，不进入长期 Memory。
 
+Note、Idea、Journal 通过 `POST /api/captures` 或 Telegram 命令进入同一
+Capture 编排。Application 原子保存 Event 和 Analysis job，不调用
+Companion；Workspace 可通过只读 Capture API 查看安全字段和后台分析状态。
+失败任务继续使用现有 `POST /api/analysis-jobs/:id/retry` 恢复。
+
 ## Telegram redelivery contract
 
 `handleConversationEvent` persists inputs through an insert-once boundary. The

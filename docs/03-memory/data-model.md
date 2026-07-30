@@ -18,6 +18,12 @@
 | metadata | JSONB | 来源元数据 |
 | created_at | TIMESTAMPTZ | 入库时间 |
 
+`note`、`idea`、`journal` Capture 直接使用不可变 Event，不创建可编辑的
+Capture 投影表。Web 与 Telegram Capture 会原子创建一个
+`analysis_jobs` 记录，后台 Analysis 成功后才通过来源 Event id 写入
+Topic/Profile/Timeline。面向 Workspace 的读取模型会解析文本并隐藏原始
+Telegram 标识和 Event payload。
+
 ### topics
 
 | 列名 | 类型 | 说明 |

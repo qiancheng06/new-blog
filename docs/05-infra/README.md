@@ -137,6 +137,13 @@ aggregate restored/skipped counts. `/api/status` exposes only
 aggregate Todo counts; prompt context exposes only bounded open titles and due
 dates, never Todo ids or terminal items.
 
+Note, Idea, and Journal captures use immutable Events without a separate mutable
+table. Web idempotency keys use a namespace distinct from chat requests. Event
+insertion and pending Analysis job creation are atomic; the no-reply Analysis
+attempt then uses the existing ordered Memory commit and recovery machinery.
+Capture list/detail APIs expose text and bounded job state, never raw payload,
+Telegram chat/user/message identifiers, provider output, or errors.
+
 Project capture follows the same Event/projection pattern. Runtime startup
 backfills valid historical Project Events before Todo backfill so relationships
 can be restored safely. Project lifecycle and detail changes are atomic with

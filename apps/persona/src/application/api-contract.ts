@@ -31,6 +31,7 @@ try {
   await verifyIdempotentChat(port)
   await verifyEvents(port)
   await verifyStatus(port)
+  await verifyCaptures(port)
   await verifyProjects(port)
   await verifyWorkingState(port)
   await verifyTodos(port)
@@ -299,6 +300,7 @@ async function verifyStatus(portNumber: number): Promise<void> {
     memory?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
     todos?: { open?: number; done?: number; cancelled?: number; overdue?: number; dueToday?: number }
     projects?: { active?: number; paused?: number; done?: number; archived?: number }
+    captures?: { notes?: number; ideas?: number; journals?: number }
     working_state?: {
       mode?: string
       hasCurrentProject?: boolean
@@ -329,6 +331,9 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.projects.paused === "number", "status.projects.paused must be number")
   assert(typeof body.projects.done === "number", "status.projects.done must be number")
   assert(typeof body.projects.archived === "number", "status.projects.archived must be number")
+  assert(typeof body.captures?.notes === "number", "status.captures.notes must be number")
+  assert(typeof body.captures.ideas === "number", "status.captures.ideas must be number")
+  assert(typeof body.captures.journals === "number", "status.captures.journals must be number")
   assert(body.working_state?.mode === "S1", "status.working_state.mode must be S1")
   assert(
     typeof body.working_state.hasCurrentProject === "boolean",
@@ -351,6 +356,132 @@ async function verifyStatus(portNumber: number): Promise<void> {
     assert(typeof event.timestamp === "string", "recent event timestamp must be string")
     assert(typeof event.preview === "string", "recent event preview must be string")
   }
+}
+
+async function verifyCaptures(portNumber: number): Promise<void> {
+  const endpoint = `http://127.0.0.1:${portNumber}/api/captures`
+  for (const body of [
+    {},
+    { type: "todo", text: `${contractTag} invalid Capture type` },
+    { type: "note", text: "" },
+    { type: "note", text: { value: `${contractTag} invalid Capture text` } },
+    { type: "note", text: `${contractTag} invalid request id`, requestId: 42 },
+  ]) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Capture create expected 400, got ${response.status}`)
+  }
+
+  const requestId = `${contractTag}-capture-request`
+  const createdResponse = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "note",
+      text: `  ${contractTag} searchable API Capture  `,
+      requestId,
+    }),
+  })
+  assert(createdResponse.status === 202, `new Capture expected 202, got ${createdResponse.status}`)
+  const created = await createdResponse.json() as {
+    capture?: CaptureContractRow
+    duplicate?: boolean
+  }
+  assert(created.duplicate === false, "new Capture must not be marked duplicate")
+  assert(typeof created.capture?.id === "string", "Capture id must be string")
+  assert(created.capture.type === "note" && created.capture.source === "web", "Capture identity mismatch")
+  assert(created.capture.text === `${contractTag} searchable API Capture`, "Capture text normalization mismatch")
+  assert(
+    created.capture.analysis?.status === "running" || created.capture.analysis?.status === "succeeded",
+    "Capture response must expose background Analysis state",
+  )
+  assert(!("payload" in created.capture), "Capture API must not expose raw Event payload")
+  assert(!JSON.stringify(created.capture).includes("chat_id"), "Capture API must hide Telegram identifiers")
+  assert(
+    !queryOne("SELECT 1 FROM conversation_jobs WHERE source_event_id = ?", [created.capture.id]),
+    "Capture API must not create a Conversation job",
+  )
+
+  const replayResponse = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "note",
+      text: `${contractTag} searchable API Capture`,
+      requestId,
+    }),
+  })
+  assert(replayResponse.status === 200, `Capture replay expected 200, got ${replayResponse.status}`)
+  const replay = await replayResponse.json() as { capture?: CaptureContractRow; duplicate?: boolean }
+  assert(replay.duplicate === true && replay.capture?.id === created.capture.id, "Capture replay mismatch")
+  assert(replay.capture.analysis?.jobId === created.capture.analysis?.jobId, "Capture replay must reuse Analysis job")
+
+  const conflict = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      type: "note",
+      text: `${contractTag} changed API Capture`,
+      requestId,
+    }),
+  })
+  assert(conflict.status === 409, `changed Capture replay expected 409, got ${conflict.status}`)
+
+  const idea = await postJson<{ capture?: CaptureContractRow }>(endpoint, {
+    type: "idea",
+    text: `${contractTag} API idea`,
+  })
+  assert(idea.capture?.type === "idea", "Idea Capture type mismatch")
+
+  for (const path of ["?type=todo", "?source=system"]) {
+    const response = await fetch(`${endpoint}${path}`)
+    assert(response.status === 400, `invalid Capture filter expected 400, got ${response.status}`)
+  }
+  const page = await getJson<{ items?: CaptureContractRow[]; limit?: number; offset?: number }>(
+    `${endpoint}?type=note&source=web&q=${encodeURIComponent(`${contractTag} searchable`)}&limit=500&offset=-1`,
+  )
+  assert(page.limit === 100 && page.offset === 0, "Capture pagination normalization mismatch")
+  assert(page.items?.length === 1 && page.items[0].id === created.capture.id, "Capture filters must return match")
+  const detail = await getJson<{ capture?: CaptureContractRow }>(`${endpoint}/${created.capture.id}`)
+  assert(detail.capture?.text === created.capture.text, "Capture detail mismatch")
+  const missing = await fetch(`${endpoint}/missing-capture`)
+  assert(missing.status === 404, `missing Capture expected 404, got ${missing.status}`)
+
+  const completed = await waitForCaptureAnalysis(portNumber, created.capture.id)
+  assert(completed.analysis?.status === "succeeded", "Capture Analysis must complete")
+  assert(
+    queryOne("SELECT 1 FROM timeline_events WHERE source_event_id = ?", [created.capture.id]),
+    "Capture Analysis must write source-linked Memory",
+  )
+}
+
+interface CaptureContractRow {
+  id: string
+  source: "web" | "telegram"
+  type: "note" | "idea" | "journal"
+  text: string
+  timestamp: string
+  createdAt: string
+  analysis: {
+    jobId: string
+    status: "pending" | "running" | "succeeded" | "failed"
+    errorCode: string | null
+  } | null
+}
+
+async function waitForCaptureAnalysis(portNumber: number, id: string): Promise<CaptureContractRow> {
+  for (let attempt = 0; attempt < 50; attempt += 1) {
+    const detail = await getJson<{ capture?: CaptureContractRow }>(
+      `http://127.0.0.1:${portNumber}/api/captures/${id}`,
+    )
+    if (detail.capture?.analysis?.status === "succeeded") return detail.capture
+    if (detail.capture?.analysis?.status === "failed") throw new Error("Capture Analysis failed")
+    await delay(50)
+  }
+  throw new Error("Capture Analysis did not complete")
 }
 
 async function verifyProjects(portNumber: number): Promise<void> {

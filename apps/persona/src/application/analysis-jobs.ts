@@ -4,6 +4,7 @@ import {
   beginAnalysisJobAttempt,
   ensureAnalysisJob,
   getAnalysisJobById,
+  getAnalysisJobBySourceEventId,
   getAnalysisJobStats,
   listAnalysisJobs,
   markAnalysisJobFailed,
@@ -43,6 +44,31 @@ export interface AnalysisRetryResult {
 export class AnalysisJobValidationError extends Error {}
 export class AnalysisJobNotFoundError extends Error {}
 export class AnalysisJobConflictError extends Error {}
+
+export function ensureAnalysisJobForEvent(sourceEventId: string): AnalysisJob {
+  return toAnalysisJob(ensureAnalysisJob(sourceEventId))
+}
+
+export function getAnalysisJobForEvent(sourceEventId: string): AnalysisJob | null {
+  const job = getAnalysisJobBySourceEventId(sourceEventId)
+  return job ? toAnalysisJob(job) : null
+}
+
+export function executeAnalysisJobForStoredEvent(
+  sourceEvent: EventRow,
+  dependencies: { callAnalysis?: typeof callAnalysis } = {},
+): AnalysisJob {
+  const job = ensureAnalysisJob(sourceEvent.id)
+  if (job.status !== "pending") return toAnalysisJob(job)
+  const prompts = buildStoredEventPrompts(sourceEvent)
+  const reservation = reserveOrderedMemoryCommit()
+  const analyze = dependencies.callAnalysis ?? callAnalysis
+  return scheduleAnalysisAttempt(
+    job,
+    reservation,
+    () => analyze(prompts.analysisSystemPrompt, prompts.userText, prompts.historyText),
+  )
+}
 
 export function scheduleAnalysisForEvent(options: {
   sourceEventId: string
@@ -90,7 +116,7 @@ export function retryAnalysisJob(idValue: string): AnalysisRetryResult {
     return event
   })
 
-  const prompts = buildRetryPrompts(sourceEvent)
+  const prompts = buildStoredEventPrompts(sourceEvent)
   const reservation = reserveOrderedMemoryCommit()
   const running = scheduleAnalysisAttempt(
     getAnalysisJobById(job.id)!,
@@ -161,7 +187,7 @@ function completeAnalysisJob(job: AnalysisJobRow, result: AnalysisResult): void 
   })
 }
 
-function buildRetryPrompts(event: EventRow): {
+function buildStoredEventPrompts(event: EventRow): {
   analysisSystemPrompt: string
   historyText: string
   userText: string

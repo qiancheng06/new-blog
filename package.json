@@ -25,6 +25,7 @@
     "contract:todos": "tsx apps/persona/src/application/todo-contract.ts",
     "contract:projects": "tsx apps/persona/src/application/project-contract.ts",
     "contract:working-state": "tsx apps/persona/src/application/working-state-contract.ts",
+    "contract:captures": "tsx apps/persona/src/application/capture-contract.ts",
     "contract:ordered-memory": "tsx apps/persona/src/application/ordered-memory-commit-contract.ts",
     "contract:process-ordering": "tsx apps/persona/src/application/process-message-ordering-contract.ts",
     "contract:analysis-jobs": "tsx apps/persona/src/application/analysis-job-contract.ts",

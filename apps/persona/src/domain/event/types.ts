@@ -3,6 +3,7 @@ import { z } from "zod"
 
 const TELEGRAM_EVENT_NAMESPACE = Buffer.from("a82228d5fc664f4983ef70fbc9006e10", "hex")
 const WORKSPACE_EVENT_NAMESPACE = Buffer.from("1aa87ef80f9d4d778c807f5479026caf", "hex")
+const WEB_CAPTURE_EVENT_NAMESPACE = Buffer.from("ac51f67c382e4e3f8c8a1fc27edfa2a4", "hex")
 
 export const EventSource = z.enum(["telegram", "system", "web"])
 export type EventSource = z.infer<typeof EventSource>
@@ -188,6 +189,39 @@ export function createWorkspaceEvent(payload: WorkspacePayload, options: { reque
 export function createWorkspaceEventId(requestId: string): string {
   const hash = createHash("sha1")
     .update(WORKSPACE_EVENT_NAMESPACE)
+    .update(requestId, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export interface WebCapturePayload {
+  text: string
+}
+
+export function createWebCaptureEvent(
+  type: "note" | "idea" | "journal",
+  payload: WebCapturePayload,
+  options: { requestId?: string } = {},
+): Event {
+  return {
+    id: options.requestId ? createWebCaptureEventId(options.requestId) : undefined,
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "capture",
+      visibility: "user",
+    },
+  }
+}
+
+export function createWebCaptureEventId(requestId: string): string {
+  const hash = createHash("sha1")
+    .update(WEB_CAPTURE_EVENT_NAMESPACE)
     .update(requestId, "utf-8")
     .digest()
   hash[6] = (hash[6] & 0x0f) | 0x50

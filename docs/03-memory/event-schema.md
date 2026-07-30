@@ -79,6 +79,19 @@ job id, source Event id, and bounded reason (`manual` or
 `idempotent_replay`). Companion outputs remain separate immutable
 `system/companion_reply` Events linked by `in_reply_to`.
 
+## Capture events
+
+Web and Telegram use immutable `note`, `idea`, and `journal` Events for
+reply-free capture. Web creates accept `requestId` or `Idempotency-Key`; a
+dedicated deterministic namespace makes replay safe without colliding with chat
+requests. A reused key with changed type or text is a conflict.
+
+The source Event and its pending Analysis job commit in one transaction.
+Analysis runs in the background and may write governed Topic, Profile, and
+Timeline memory with source provenance. It never creates a Conversation job or
+`companion_reply`. Todo and Project commands remain outside this automatic
+Capture-to-Memory path.
+
 ## Memory proposal review events
 
 Analysis output marked `cooling_required` is persisted as a pending Memory

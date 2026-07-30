@@ -45,6 +45,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:working-state",
   },
   {
+    name: "Immutable Capture and background Memory contract test",
+    command: "npm.cmd run contract:captures",
+  },
+  {
     name: "Ordered asynchronous Memory commit contract test",
     command: "npm.cmd run contract:ordered-memory",
   },
@@ -218,6 +222,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/project-contract.ts",
     "apps/persona/src/application/working-state.ts",
     "apps/persona/src/application/working-state-contract.ts",
+    "apps/persona/src/application/captures.ts",
+    "apps/persona/src/application/capture-contract.ts",
     "apps/persona/src/application/ordered-memory-commit.ts",
     "apps/persona/src/application/ordered-memory-commit-contract.ts",
     "apps/persona/src/application/process-message-ordering-contract.ts",
@@ -232,6 +238,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/domain/project/validation.ts",
     "apps/persona/src/domain/working-state/store.ts",
     "apps/persona/src/domain/working-state/validation.ts",
+    "apps/persona/src/domain/capture/store.ts",
+    "apps/persona/src/domain/capture/validation.ts",
     "apps/persona/src/domain/memory-proposal/store.ts",
     "apps/persona/src/application/runtime-health.ts",
     "apps/persona/src/application/runtime-health-contract.ts",

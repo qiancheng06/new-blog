@@ -32,6 +32,9 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network Working State contract for normalized partial updates, S1-only
   mode enforcement, audit provenance, private Prompt context, Project terminal
   auto-clear, state restoration, and transaction rollback.
+- No-network Capture contract for Web/Telegram note, idea, and journal
+  idempotency; reply-free durable Analysis; source-linked Memory writes;
+  privacy-safe retrieval; and Event/job transaction rollback.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
@@ -84,6 +87,8 @@ Use individual commands only for focused diagnosis:
   migration, private Prompt context, and atomic rollback failures.
 - `npm.cmd run contract:working-state` for persisted focus, S1 enforcement,
   private Prompt context, Project terminal linkage, and atomic rollback failures.
+- `npm.cmd run contract:captures` for immutable Capture intake, no-reply
+  Analysis, safe retrieval, Memory provenance, idempotency, and rollback failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
   health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint

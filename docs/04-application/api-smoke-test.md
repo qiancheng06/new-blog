@@ -227,6 +227,11 @@ Response `200`:
     done: number,
     archived: number
   },
+  captures: {
+    notes: number,
+    ideas: number,
+    journals: number
+  },
   working_state: {
     mode: "S1",
     hasCurrentProject: boolean,
@@ -251,6 +256,55 @@ time, failure count, and aggregate persisted run counts. It never includes
 configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.
+
+### Capture APIs
+
+Capture is an immutable `note`, `idea`, or `journal` Event. It has no editable
+projection and never produces a Companion reply.
+
+`POST /api/captures` accepts Web input:
+
+```ts
+// request
+{
+  type: "note" | "idea" | "journal",
+  text: string,
+  requestId?: string
+}
+
+// response 202 for a new Capture; 200 for an idempotent replay
+{
+  duplicate: boolean,
+  capture: {
+    id: string,
+    source: "web" | "telegram",
+    type: "note" | "idea" | "journal",
+    text: string,
+    timestamp: string,
+    createdAt: string,
+    analysis: {
+      jobId: string,
+      status: "pending" | "running" | "succeeded" | "failed",
+      errorCode: string | null
+    }
+  }
+}
+```
+
+`Idempotency-Key` may replace `requestId`; when both are supplied they must
+match. Reusing a key with changed type or text returns `409`. The source Event
+and pending Analysis job commit atomically. Analysis runs without a Conversation
+job or `companion_reply`, and successful Memory writes retain the Capture Event
+as provenance. Failed jobs use the existing Analysis retry API.
+
+`GET /api/captures` returns `{ items, limit, offset }`. Optional query parameters
+are `type=note|idea|journal|all`, `source=web|telegram|all`, `q`, `limit`, and
+`offset`. `GET /api/captures/:id` returns one Capture or `404`. These read models
+never expose raw Event payload, Telegram chat/user/message identifiers, prompts,
+or provider output.
+
+Telegram `/n`/`/note`, `/i`/`/idea`, and `/j`/`/journal` reuse this reply-free
+Analysis path. Todo and Project commands do not.
 
 ### Working State APIs
 
@@ -819,7 +873,7 @@ npm.cmd run contract:api
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
-`/api/memory*` routes, Working State and Project/Todo lifecycle routes,
+`/api/memory*` routes, Capture reads/writes, Working State and Project/Todo lifecycle routes,
 `OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.
 
@@ -842,4 +896,11 @@ linkage, and rollback contract with:
 
 ```bash
 npm.cmd run contract:working-state
+```
+
+Run the focused immutable Capture, Telegram/Web idempotency, reply-free Analysis,
+Memory provenance, safe read-model, and rollback contract with:
+
+```bash
+npm.cmd run contract:captures
 ```
