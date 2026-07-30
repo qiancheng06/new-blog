@@ -29,6 +29,9 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network Project lifecycle contract for creation/detail/state audits,
   Project-Todo integrity, Telegram redelivery, private Prompt visibility,
   historical backfill, and transaction rollback.
+- No-network Working State contract for normalized partial updates, S1-only
+  mode enforcement, audit provenance, private Prompt context, Project terminal
+  auto-clear, state restoration, and transaction rollback.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
@@ -79,6 +82,8 @@ Use individual commands only for focused diagnosis:
   context, Telegram idempotency, and atomic rollback failures.
 - `npm.cmd run contract:projects` for Project lifecycle, Todo relationship,
   migration, private Prompt context, and atomic rollback failures.
+- `npm.cmd run contract:working-state` for persisted focus, S1 enforcement,
+  private Prompt context, Project terminal linkage, and atomic rollback failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
   health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint

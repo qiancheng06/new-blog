@@ -41,6 +41,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:projects",
   },
   {
+    name: "Persisted and audited Working State contract test",
+    command: "npm.cmd run contract:working-state",
+  },
+  {
     name: "Ordered asynchronous Memory commit contract test",
     command: "npm.cmd run contract:ordered-memory",
   },
@@ -212,6 +216,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/application/todo-contract.ts",
     "apps/persona/src/application/projects.ts",
     "apps/persona/src/application/project-contract.ts",
+    "apps/persona/src/application/working-state.ts",
+    "apps/persona/src/application/working-state-contract.ts",
     "apps/persona/src/application/ordered-memory-commit.ts",
     "apps/persona/src/application/ordered-memory-commit-contract.ts",
     "apps/persona/src/application/process-message-ordering-contract.ts",
@@ -224,6 +230,8 @@ function runRootStructureCheck(): void {
     "apps/persona/src/domain/todo/validation.ts",
     "apps/persona/src/domain/project/store.ts",
     "apps/persona/src/domain/project/validation.ts",
+    "apps/persona/src/domain/working-state/store.ts",
+    "apps/persona/src/domain/working-state/validation.ts",
     "apps/persona/src/domain/memory-proposal/store.ts",
     "apps/persona/src/application/runtime-health.ts",
     "apps/persona/src/application/runtime-health-contract.ts",

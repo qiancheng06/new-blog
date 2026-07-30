@@ -7,7 +7,7 @@
 ## MVP 事件类型
 
 ```typescript
-type EventSource = 'telegram' | 'system'
+type EventSource = 'telegram' | 'system' | 'web'
 
 interface Event {
   id: string
@@ -50,7 +50,7 @@ interface SystemEvent {
 ## 扩展原则
 
 - 新增 Event 类型继承基础 Event 接口，不修改已有类型
-- 未来 Web 接入时新增 `source: 'web'`
+- Web/Application 命令使用 `source: 'web'`
 - 未来 Worker 产出时新增 `source: 'worker'`
 
 ## Telegram event identity
@@ -93,3 +93,14 @@ decision, and required reason. It intentionally does not duplicate the proposed
 value. Both Event types use `metadata.purpose = "memory_governance"` and
 `metadata.visibility = "user"`. The review Event and proposal transition are
 atomic; acceptance also writes Profile in the same transaction.
+
+## Working State events
+
+Reason-required Working State changes append `working_state_updated` before
+updating the singleton projection. Completing or archiving the selected Project
+also appends `working_state_project_cleared`. The Project lifecycle Event,
+Working State Event, and both projection updates share one transaction.
+
+Both Events use `metadata.purpose = "working_state"` and
+`metadata.visibility = "user"`. Their payloads contain state values or Project
+provenance needed for audit, while private Prompt context omits internal ids.

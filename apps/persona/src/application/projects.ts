@@ -3,6 +3,7 @@ import { insertEvent, type EventRow } from "../domain/event/store.js"
 import {
   createProjectDetailsUpdatedEvent,
   createProjectStateChangeEvent,
+  createWorkingStateProjectClearedEvent,
   createWebProjectEvent,
 } from "../domain/event/types.js"
 import {
@@ -25,6 +26,10 @@ import {
   normalizeProjectTopics,
   ProjectValueError,
 } from "../domain/project/validation.js"
+import {
+  clearCurrentProject,
+  getWorkingStateRecord,
+} from "../domain/working-state/store.js"
 
 const DEFAULT_LIMIT = 20
 const MAX_LIMIT = 100
@@ -43,6 +48,7 @@ export interface ProjectCreateResult {
 export interface ProjectChangeResult {
   event: EventRow
   project: ProjectRecord
+  workingStateEvent?: EventRow
 }
 
 export interface ProjectBackfillResult {
@@ -229,7 +235,21 @@ export function changeProjectStatus(input: {
       reason,
     })
     if (!project) throw new ProjectConflictError("project status changed concurrently")
-    return { event, project }
+    let workingStateEvent: EventRow | undefined
+    if ((status === "done" || status === "archived") && getWorkingStateRecord().current_project_id === current.id) {
+      workingStateEvent = insertEvent(createWorkingStateProjectClearedEvent({
+        project_id: current.id,
+        project_state_event_id: event.id,
+        reason,
+      }))
+      const workingState = clearCurrentProject({
+        expectedProjectId: current.id,
+        stateEventId: workingStateEvent.id,
+        reason,
+      })
+      if (!workingState) throw new ProjectConflictError("working state changed concurrently")
+    }
+    return { event, project, workingStateEvent }
   })
 }
 

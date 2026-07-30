@@ -133,6 +133,59 @@ try {
     "00000000-0000-4000-8000-000000000010",
     "00000000-0000-4000-8000-000000000009",
   )
+  const initialWorkingState = db.prepare(
+    "SELECT id, current_project_id, active_topics, current_questions, mode FROM working_state",
+  ).get() as {
+    id?: string
+    current_project_id?: string | null
+    active_topics?: string
+    current_questions?: string
+    mode?: string
+  } | undefined
+  assert(
+    initialWorkingState?.id === "primary" &&
+    initialWorkingState.current_project_id === null &&
+    initialWorkingState.active_topics === "[]" &&
+    initialWorkingState.current_questions === "[]" &&
+    initialWorkingState.mode === "S1",
+    "fresh schema must create the default Working State singleton",
+  )
+  assertConstraintRejects(
+    () => db.prepare("INSERT INTO working_state (id) VALUES ('secondary')").run(),
+    "Working State must remain a singleton",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE working_state SET mode = 'S5'").run(),
+    "Working State must reject unknown modes",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE working_state SET active_topics = 'not-json'").run(),
+    "Working State topics must remain a JSON array",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE working_state SET current_questions = '{}'").run(),
+    "Working State questions must remain a JSON array",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE working_state SET current_project_id = 'missing-project'").run(),
+    "Working State current Project must retain referential integrity",
+  )
+  db.prepare(
+    `UPDATE working_state
+     SET current_project_id = ?, active_topics = '["architecture"]',
+         current_questions = '["What closes the MVP?"]'`,
+  ).run("00000000-0000-4000-8000-000000000010")
+  const selectedProject = db.prepare(
+    "SELECT current_project_id FROM working_state WHERE id = 'primary'",
+  ).get() as { current_project_id?: string } | undefined
+  assert(
+    selectedProject?.current_project_id === "00000000-0000-4000-8000-000000000010",
+    "Working State must reference a Project",
+  )
+  db.prepare(
+    `UPDATE working_state
+     SET current_project_id = NULL, active_topics = '[]', current_questions = '[]'`,
+  ).run()
   assertConstraintRejects(
     () => db.prepare("UPDATE projects SET status = 'running'").run(),
     "Projects must reject unknown statuses",

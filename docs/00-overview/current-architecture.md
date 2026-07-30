@@ -25,10 +25,10 @@ Interface
   HTTP API / Telegram Adapter / future MCP Adapter
 
 Application
-  Conversation Flow / Event Bus / Daily Summary / Workspace-Persona Bridge
+  Conversation Flow / Event Bus / Daily Summary / Working State / Workspace-Persona Bridge
 
 Domain
-  Workspace / Persona / Memory / Context / Event / Project / Topic / Profile
+  Workspace / Persona / Memory / Context / Event / Working State / Project / Topic / Profile
 
 AI Runtime
   Companion / Researcher / Critic / Archivist / Prompt / LLM call policy
@@ -52,7 +52,7 @@ Infrastructure
 - Workspace VitePress 配置和组件：`apps/workspace/.vitepress/`
 - Obsidian/VitePress 同步脚本：`apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js`
 - Persona OS TypeScript 源码：`apps/persona/src/`
-- HTTP API：对话、状态、Memory 治理/检索、Daily Summary、Project、Todo 和任务恢复接口
+- HTTP API：对话、状态、Memory 治理/检索、Daily Summary、Working State、Project、Todo 和任务恢复接口
 - Telegram Bot：可信聊天白名单、稳定 Event 身份、消息与 `/note`、`/todo`、`/project` 命令
 - Event 入库、幂等查询，以及 Conversation/Analysis 可恢复执行状态
 - Companion 用户可见回复；Research/Critic/Archivist 结构化分析保持私有
@@ -60,6 +60,7 @@ Infrastructure
 - FTS5/trigram Memory 检索和当前消息 query-aware Context
 - 前一日 Daily Summary 自动收口、失败恢复和 Obsidian Daily Note 原子归档
 - Project/Todo 用户管理投影、生命周期审计、关系约束和私有工作上下文
+- Working State 单例投影、原因必填的审计更新、Project 终态原子清除和私有 Prompt 上下文；运行模式固定为 S1
 - SQLite 运行时数据库、升级迁移、组件健康状态和完整离线契约门
 
 ## 仍待闭环
@@ -67,7 +68,7 @@ Infrastructure
 - Workspace Markdown Project/Todo 与 Persona 运行时投影尚未自动双向同步；当前通过 Application API 管理 Persona 投影
 - Obsidian 自动归档当前只覆盖 Daily Note，Topic/Profile/Project 的可读导出尚未实现
 - Event Bus 仍是模块化单体内的编排边界，不是独立队列或服务
-- Context Builder 已由 Memory 检索、最近对话、Active Project 和 Open Todo 组成，但还没有 mode/delivery 策略层
+- Context Builder 已由 Working State、Memory 检索、最近对话、Active Project 和 Open Todo 组成；S1 已持久化，但还没有 S2-S4 选择规则或 delivery 策略层
 - 真实 Telegram、Workspace 浏览器和 30 天持续运行仍需人工环境验收
 
 ## 愿景设计

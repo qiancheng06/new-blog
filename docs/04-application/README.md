@@ -58,6 +58,8 @@ Telegram 文本到 Event 的纯转换逻辑位于 `apps/persona/src/interface/te
 
 Workspace 可观测面板如果需要展示后端在线状态、事件概览或运行摘要，应通过 Application 的只读接口读取：`GET /health` 用于进程与计数健康检查，`GET /api/events` 用于最近事件列表，`GET /api/status` 用于状态摘要。Application 负责收敛查询边界，不让 Workspace 直接读取 Memory、DB 或 Infra 适配器。
 
+Working State 通过 `GET/POST /api/working-state` 进入 Application。写入必须携带原因并先追加审计 Event；Project 进入 done/archived 时，Application 会在同一事务内清除对应的当前 Project。该状态只作为私有 Prompt 工作上下文，不进入长期 Memory。
+
 ## Telegram redelivery contract
 
 `handleConversationEvent` persists inputs through an insert-once boundary. The

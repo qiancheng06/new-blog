@@ -227,6 +227,12 @@ Response `200`:
     done: number,
     archived: number
   },
+  working_state: {
+    mode: "S1",
+    hasCurrentProject: boolean,
+    activeTopicCount: number,
+    currentQuestionCount: number
+  },
   recent_events: Array<{
     id: string,
     source: string,
@@ -245,6 +251,50 @@ time, failure count, and aggregate persisted run counts. It never includes
 configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.
+
+### Working State APIs
+
+`GET /api/working-state` returns the persisted singleton:
+
+```ts
+{
+  workingState: {
+    id: "primary",
+    current_project_id: string | null,
+    active_topics: string[],
+    current_questions: string[],
+    mode: "S1",
+    state_event_id: string | null,
+    state_reason: string,
+    updated_at: string
+  }
+}
+```
+
+`POST /api/working-state` applies a partial reason-required update:
+
+```ts
+// request; at least one state field is required
+{
+  currentProjectId?: string | null,
+  activeTopics?: string[],
+  currentQuestions?: string[],
+  mode?: "S1",
+  reason: string
+}
+
+// response 200
+{ eventId: string, workingState: WorkingState }
+```
+
+The selected Project must be active or paused. Missing Projects return `404`;
+terminal Projects and unchanged values return `409`. S2/S3/S4 are deliberately
+disabled and return `400`. Accepted changes append `working_state_updated` and
+update the singleton atomically.
+
+Working State enters bounded private Companion and Analysis context with Project
+name, topic labels, questions, and S1 mode, never internal ids. It remains
+outside Profile, long-term Memory, and `memory_search`.
 
 ### Project lifecycle APIs
 
@@ -273,6 +323,11 @@ Todos returns `409`; done/archived Projects may only return to `active`.
 Accepted changes append `project_details_updated`, `project_paused`,
 `project_completed`, `project_archived`, or `project_reactivated` Events in the
 same transaction as the projection update.
+
+Completing or archiving the current Working State Project also appends
+`working_state_project_cleared` and clears `current_project_id` in that same
+transaction. The response then includes `workingStateEventId`; unrelated
+Project transitions omit it.
 
 Telegram `/p` and `/project` create Projects through the same idempotent Event
 boundary. Runtime startup restores missing projections from valid historical
@@ -764,7 +819,8 @@ npm.cmd run contract:api
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
-`/api/memory*` routes, Project/Todo lifecycle routes, `OPTIONS`, and `404`, then
+`/api/memory*` routes, Working State and Project/Todo lifecycle routes,
+`OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.
 
 Run the focused Todo lifecycle, Telegram projection, prompt-boundary, and
@@ -779,4 +835,11 @@ Prompt-boundary, migration, and rollback contract with:
 
 ```bash
 npm.cmd run contract:projects
+```
+
+Run the focused persisted Working State, Prompt boundary, Project terminal
+linkage, and rollback contract with:
+
+```bash
+npm.cmd run contract:working-state
 ```

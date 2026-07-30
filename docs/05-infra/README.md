@@ -144,6 +144,14 @@ their audit Events. `/api/status` exposes aggregate lifecycle counts; private
 Prompt context includes only bounded active names, summaries, and topic labels.
 Project and Todo remain outside the FTS Memory index.
 
+Working State is a single SQLite projection for current Project, active topic
+labels, unresolved questions, and the stable S1 mode. Reason-required API
+updates append an audit Event and update the singleton atomically. Project
+completion/archive clears a matching current Project in the same Project
+transaction. `/api/status` exposes only mode, relationship presence, and
+aggregate topic/question counts; Prompt context contains no internal ids.
+Working State remains outside Profile and the FTS Memory index.
+
 Analysis job state survives process restarts. On startup, jobs left pending or
 running are marked failed with the bounded `interrupted` code and can be retried
 through the audited Application API. Health/status expose aggregate job counts;

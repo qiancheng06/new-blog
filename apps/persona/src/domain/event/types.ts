@@ -327,6 +327,40 @@ export function createProjectStateChangeEvent(payload: ProjectStateChangePayload
   }
 }
 
+export interface WorkingStateUpdatedPayload {
+  current_project_id: string | null
+  active_topics: string[]
+  current_questions: string[]
+  mode: "S1"
+  reason: string
+}
+
+export function createWorkingStateUpdatedEvent(payload: WorkingStateUpdatedPayload): Event {
+  return {
+    source: "web",
+    type: "working_state_updated",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "working_state", visibility: "user" },
+  }
+}
+
+export interface WorkingStateProjectClearedPayload {
+  project_id: string
+  project_state_event_id: string
+  reason: string
+}
+
+export function createWorkingStateProjectClearedEvent(payload: WorkingStateProjectClearedPayload): Event {
+  return {
+    source: "web",
+    type: "working_state_project_cleared",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "working_state", visibility: "user" },
+  }
+}
+
 export interface MemoryProposalReviewPayload {
   proposal_id: string
   source_event_id: string

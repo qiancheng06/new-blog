@@ -81,6 +81,14 @@ import {
   getProjectsStatus,
   parseProjectStatus,
 } from "../../application/projects.js"
+import {
+  WorkingStateConflictError,
+  WorkingStateNotFoundError,
+  WorkingStateValidationError,
+  changeWorkingState,
+  getWorkingState,
+  getWorkingStateStatus,
+} from "../../application/working-state.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -207,6 +215,12 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   let memory = { topics: 0, profile: 0, timelineEvents: 0, pendingProposals: 0 }
   let todos = { open: 0, done: 0, cancelled: 0, overdue: 0, dueToday: 0 }
   let projects = { active: 0, paused: 0, done: 0, archived: 0 }
+  let workingState: ReturnType<typeof getWorkingStateStatus> = {
+    mode: "S1",
+    hasCurrentProject: false,
+    activeTopicCount: 0,
+    currentQuestionCount: 0,
+  }
   let recentEvents: ReturnType<typeof getRecentConversationEvents> = []
 
   if (health.components.database.status === "ok") {
@@ -215,6 +229,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
       memory = getMemoryStatusStats()
       todos = getTodosStatus()
       projects = getProjectsStatus()
+      workingState = getWorkingStateStatus()
       recentEvents = getRecentConversationEvents(5)
     } catch {
       health = summarizeRuntimeHealth({
@@ -236,6 +251,7 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
     memory,
     todos,
     projects,
+    working_state: workingState,
     recent_events: recentEvents.map((event) => ({
       id: event.id,
       source: event.source,
@@ -391,9 +407,44 @@ async function handleProjectState(req: IncomingMessage, id: string, res: ServerR
   if (!parsed) return
   try {
     const result = changeProjectStatus({ id, status: parsed.status, reason: parsed.reason })
-    json(res, 200, { eventId: result.event.id, project: result.project })
+    json(res, 200, {
+      eventId: result.event.id,
+      project: result.project,
+      ...(result.workingStateEvent ? { workingStateEventId: result.workingStateEvent.id } : {}),
+    })
   } catch (err) {
     handleProjectError(err, res)
+  }
+}
+
+function handleWorkingState(res: ServerResponse) {
+  try {
+    json(res, 200, { workingState: getWorkingState() })
+  } catch (err) {
+    handleWorkingStateError(err, res)
+  }
+}
+
+async function handleWorkingStateChange(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{
+    currentProjectId?: unknown
+    activeTopics?: unknown
+    currentQuestions?: unknown
+    mode?: unknown
+    reason?: unknown
+  }>(req, res)
+  if (!parsed) return
+  try {
+    const result = changeWorkingState({
+      currentProjectId: parsed.currentProjectId,
+      activeTopics: parsed.activeTopics,
+      currentQuestions: parsed.currentQuestions,
+      mode: parsed.mode,
+      reason: parsed.reason,
+    })
+    json(res, 200, { eventId: result.event.id, workingState: result.workingState })
+  } catch (err) {
+    handleWorkingStateError(err, res)
   }
 }
 
@@ -521,6 +572,12 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     }
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
+    }
+    if (url === "/api/working-state" && req.method === "GET") {
+      return handleWorkingState(res)
+    }
+    if (url === "/api/working-state" && req.method === "POST") {
+      return await handleWorkingStateChange(req, res)
     }
     if (url === "/api/todos" && req.method === "GET") {
       return handleTodos(requestUrl, res)
@@ -721,6 +778,22 @@ function handleProjectError(err: unknown, res: ServerResponse): void {
     return
   }
   if (err instanceof ProjectConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleWorkingStateError(err: unknown, res: ServerResponse): void {
+  if (err instanceof WorkingStateValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof WorkingStateNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof WorkingStateConflictError) {
     json(res, 409, { error: err.message })
     return
   }

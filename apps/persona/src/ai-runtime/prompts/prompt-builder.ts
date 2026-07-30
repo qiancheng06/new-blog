@@ -3,6 +3,7 @@ import { buildMemoryContextText, getMemoryContext } from "../../domain/memory/in
 import { ANALYSIS_PROMPT, COMPANION_PROMPT } from "./persona.js"
 import { buildOpenTodoContextText } from "../../domain/todo/store.js"
 import { buildActiveProjectContextText } from "../../domain/project/store.js"
+import { buildWorkingStateContextText } from "../../domain/working-state/store.js"
 
 export interface PromptContext {
   recentEvents?: EventRow[]
@@ -10,6 +11,7 @@ export interface PromptContext {
   memoryQuery?: string
   todoText?: string
   projectText?: string
+  workingStateText?: string
 }
 
 export interface BuiltPrompts {
@@ -19,27 +21,37 @@ export interface BuiltPrompts {
   memoryText: string
   todoText: string
   projectText: string
+  workingStateText: string
 }
 
 export function buildPrompts(context: PromptContext = {}): BuiltPrompts {
   const memoryText = context.memoryText ?? buildMemoryContextText(getMemoryContext({ query: context.memoryQuery }))
   const todoText = context.todoText ?? readTodoContextSafely()
   const projectText = context.projectText ?? readProjectContextSafely()
+  const workingStateText = context.workingStateText ?? readWorkingStateContextSafely()
   const recentConversationText = buildHistoryContext(context.recentEvents ?? [])
   const historyText = buildAnalysisContextText({
     memoryText,
     todoText,
     projectText,
+    workingStateText,
     recentConversationText,
   })
 
   return {
-    companionSystemPrompt: buildCompanionSystemPrompt(memoryText, recentConversationText, todoText, projectText),
+    companionSystemPrompt: buildCompanionSystemPrompt(
+      memoryText,
+      recentConversationText,
+      todoText,
+      projectText,
+      workingStateText,
+    ),
     analysisSystemPrompt: ANALYSIS_PROMPT,
     historyText,
     memoryText,
     todoText,
     projectText,
+    workingStateText,
   }
 }
 
@@ -48,6 +60,7 @@ export function buildCompanionSystemPrompt(
   recentConversationText = "",
   todoText = "",
   projectText = "",
+  workingStateText = "",
 ): string {
   const sections = [COMPANION_PROMPT]
 
@@ -68,6 +81,16 @@ export function buildCompanionSystemPrompt(
       recentConversationText,
       "</conversation_history>",
       "Do not mention the history block, timestamps, role labels, storage, or retrieval process.",
+    ].join("\n\n"))
+  }
+
+  if (workingStateText.trim()) {
+    sections.push([
+      "Private working state context. Use it to understand the user's current focus and unresolved questions:",
+      "<working_state_context>",
+      workingStateText,
+      "</working_state_context>",
+      "Do not mention internal ids, storage, retrieval, mode machinery, or the working state context block.",
     ].join("\n\n"))
   }
 
@@ -109,6 +132,7 @@ export function buildAnalysisContextText(context: {
   recentConversationText: string
   todoText?: string
   projectText?: string
+  workingStateText?: string
 }): string {
   const sections: string[] = []
 
@@ -118,6 +142,10 @@ export function buildAnalysisContextText(context: {
 
   if (context.recentConversationText.trim()) {
     sections.push(["Recent conversation:", context.recentConversationText].join("\n"))
+  }
+
+  if (context.workingStateText?.trim()) {
+    sections.push(["Working state:", context.workingStateText].join("\n"))
   }
 
   if (context.todoText?.trim()) {
@@ -136,6 +164,15 @@ function readProjectContextSafely(): string {
     return buildActiveProjectContextText(8)
   } catch {
     console.error("[project context] unavailable; continuing without active projects")
+    return ""
+  }
+}
+
+function readWorkingStateContextSafely(): string {
+  try {
+    return buildWorkingStateContextText()
+  } catch {
+    console.error("[working state context] unavailable; continuing without working state")
     return ""
   }
 }

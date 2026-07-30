@@ -51,6 +51,24 @@ Project is a user-managed working projection, not an inferred long-term Memory
 record. Active Projects can be used as private Prompt context without entering
 `memory_search`.
 
+### working_state
+
+| Column | Type | Notes |
+|------|------|------|
+| id | TEXT PK | singleton key, always `primary` |
+| current_project_id | UUID FK nullable | active or paused Project selected through Application |
+| active_topics | JSON array | bounded user-managed focus labels |
+| current_questions | JSON array | bounded unresolved questions |
+| mode | TEXT | persisted as `S1`; other modes are not enabled |
+| state_event_id | UUID FK nullable | latest Working State audit Event |
+| state_reason | TEXT | latest required human reason |
+| updated_at | TIMESTAMPTZ | |
+
+Working State is operational context, not long-term Memory. It does not enter
+`memory_search` or Profile. Updates append an immutable audit Event and update
+the singleton in one transaction. Completing or archiving its current Project
+clears that relationship in the same transaction as the Project state change.
+
 ### todos
 
 | Column | Type | Notes |

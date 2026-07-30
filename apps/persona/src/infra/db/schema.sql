@@ -88,6 +88,21 @@ CREATE TABLE IF NOT EXISTS projects (
 CREATE INDEX IF NOT EXISTS idx_projects_status_updated
   ON projects(status, updated_at DESC);
 
+CREATE TABLE IF NOT EXISTS working_state (
+  id TEXT PRIMARY KEY CHECK (id = 'primary'),
+  current_project_id TEXT REFERENCES projects(id) ON DELETE SET NULL,
+  active_topics TEXT NOT NULL DEFAULT '[]'
+    CHECK (json_valid(active_topics) AND json_type(active_topics) = 'array'),
+  current_questions TEXT NOT NULL DEFAULT '[]'
+    CHECK (json_valid(current_questions) AND json_type(current_questions) = 'array'),
+  mode TEXT NOT NULL DEFAULT 'S1' CHECK (mode IN ('S1', 'S2', 'S3', 'S4')),
+  state_event_id TEXT REFERENCES events(id) ON DELETE SET NULL,
+  state_reason TEXT NOT NULL DEFAULT '',
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+INSERT OR IGNORE INTO working_state (id) VALUES ('primary');
+
 CREATE TABLE IF NOT EXISTS todos (
   id TEXT PRIMARY KEY,
   source_event_id TEXT NOT NULL UNIQUE REFERENCES events(id) ON DELETE CASCADE,

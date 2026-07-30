@@ -12,6 +12,12 @@ const { applyMemoryPatch } = await import("../domain/memory/store.js")
 const { randomUUID } = await import("crypto")
 
 initializeDb()
+const workingStateSnapshot = queryOne<WorkingStateSnapshot>(
+  `SELECT current_project_id, active_topics, current_questions, mode,
+          state_event_id, state_reason, updated_at
+   FROM working_state WHERE id = 'primary'`,
+)
+if (!workingStateSnapshot) throw new Error("Working State singleton is missing")
 const server = startApiServer({ port, hostname: "127.0.0.1" })
 
 try {
@@ -26,6 +32,7 @@ try {
   await verifyEvents(port)
   await verifyStatus(port)
   await verifyProjects(port)
+  await verifyWorkingState(port)
   await verifyTodos(port)
   await verifyMemoryOverview(port)
   await verifyMemorySearch(port)
@@ -38,7 +45,7 @@ try {
   await verifyMemorySources(port)
   console.log("api contract ok")
 } finally {
-  cleanupContractRows(contractTag)
+  cleanupContractRows(contractTag, workingStateSnapshot)
   await stopApiServer(server)
 }
 
@@ -292,6 +299,12 @@ async function verifyStatus(portNumber: number): Promise<void> {
     memory?: { topics?: number; profile?: number; timelineEvents?: number; pendingProposals?: number }
     todos?: { open?: number; done?: number; cancelled?: number; overdue?: number; dueToday?: number }
     projects?: { active?: number; paused?: number; done?: number; archived?: number }
+    working_state?: {
+      mode?: string
+      hasCurrentProject?: boolean
+      activeTopicCount?: number
+      currentQuestionCount?: number
+    }
     recent_events?: Array<{ id?: string; source?: string; type?: string; timestamp?: string; preview?: string }>
   }>(`http://127.0.0.1:${portNumber}/api/status`)
 
@@ -316,6 +329,19 @@ async function verifyStatus(portNumber: number): Promise<void> {
   assert(typeof body.projects.paused === "number", "status.projects.paused must be number")
   assert(typeof body.projects.done === "number", "status.projects.done must be number")
   assert(typeof body.projects.archived === "number", "status.projects.archived must be number")
+  assert(body.working_state?.mode === "S1", "status.working_state.mode must be S1")
+  assert(
+    typeof body.working_state.hasCurrentProject === "boolean",
+    "status.working_state.hasCurrentProject must be boolean",
+  )
+  assert(
+    typeof body.working_state.activeTopicCount === "number",
+    "status.working_state.activeTopicCount must be number",
+  )
+  assert(
+    typeof body.working_state.currentQuestionCount === "number",
+    "status.working_state.currentQuestionCount must be number",
+  )
   assert(Array.isArray(body.recent_events), "status.recent_events must be array")
 
   for (const event of body.recent_events) {
@@ -499,6 +525,136 @@ function assertProjectAuditEvent(eventId: string | undefined, type: string, mark
   )
   assert(event?.source === "web" && event.type === type, `${type} Project audit Event mismatch`)
   assert(event.payload.includes(marker), `${type} Project audit payload mismatch`)
+}
+
+async function verifyWorkingState(portNumber: number): Promise<void> {
+  const endpoint = `http://127.0.0.1:${portNumber}/api/working-state`
+  const initial = await getJson<{ workingState?: WorkingStateContractRow }>(endpoint)
+  assert(initial.workingState?.id === "primary", "Working State GET must return the singleton")
+  assert(initial.workingState.mode === "S1", "Working State GET mode must be S1")
+
+  for (const body of [
+    {},
+    { mode: "S2", reason: `${contractTag} unavailable mode` },
+    { activeTopics: "architecture", reason: `${contractTag} invalid topics` },
+    { currentQuestions: [42], reason: `${contractTag} invalid questions` },
+    { activeTopics: [`${contractTag} missing reason`] },
+  ]) {
+    const response = await fetch(endpoint, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    })
+    assert(response.status === 400, `invalid Working State update expected 400, got ${response.status}`)
+  }
+
+  const missingProject = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      currentProjectId: "missing-project",
+      reason: `${contractTag} missing Project`,
+    }),
+  })
+  assert(missingProject.status === 404, `missing Working State Project expected 404, got ${missingProject.status}`)
+
+  const project = await postJson<{ project?: ProjectContractRow }>(
+    `http://127.0.0.1:${portNumber}/api/projects`,
+    { name: `${contractTag} Working State API Project`, topics: ["Architecture"] },
+  )
+  assert(typeof project.project?.id === "string", "Working State API fixture Project id must be string")
+
+  const changed = await postJson<{ eventId?: string; workingState?: WorkingStateContractRow }>(endpoint, {
+    currentProjectId: project.project.id,
+    activeTopics: [" Architecture ", "architecture", "MVP"],
+    currentQuestions: [" What is next? ", "what is next?", "How is it verified?"],
+    mode: "S1",
+    reason: `${contractTag} update Working State`,
+  })
+  assert(typeof changed.eventId === "string", "Working State update Event id must be string")
+  assert(changed.workingState?.current_project_id === project.project.id, "Working State current Project mismatch")
+  assert(changed.workingState.active_topics.join("|") === "Architecture|MVP", "Working State topics mismatch")
+  assert(
+    changed.workingState.current_questions.join("|") === "What is next?|How is it verified?",
+    "Working State questions mismatch",
+  )
+  assertWorkingStateAuditEvent(changed.eventId, "working_state_updated", `${contractTag} update Working State`)
+
+  const detail = await getJson<{ workingState?: WorkingStateContractRow }>(endpoint)
+  assert(detail.workingState?.state_event_id === changed.eventId, "Working State GET provenance mismatch")
+
+  await postJson(`http://127.0.0.1:${portNumber}/api/projects/${project.project.id}/state`, {
+    status: "paused",
+    reason: `${contractTag} pause current Project`,
+  })
+  const paused = await getJson<{ workingState?: WorkingStateContractRow }>(endpoint)
+  assert(paused.workingState?.current_project_id === project.project.id, "paused current Project must remain selected")
+  await postJson(`http://127.0.0.1:${portNumber}/api/projects/${project.project.id}/state`, {
+    status: "active",
+    reason: `${contractTag} resume current Project`,
+  })
+
+  const completed = await postJson<{
+    project?: ProjectContractRow
+    workingStateEventId?: string
+  }>(`http://127.0.0.1:${portNumber}/api/projects/${project.project.id}/state`, {
+    status: "done",
+    reason: `${contractTag} complete current Project`,
+  })
+  assert(completed.project?.status === "done", "Working State fixture Project completion mismatch")
+  assert(
+    typeof completed.workingStateEventId === "string",
+    "Project completion must expose its Working State audit Event",
+  )
+  assertWorkingStateAuditEvent(
+    completed.workingStateEventId,
+    "working_state_project_cleared",
+    `${contractTag} complete current Project`,
+  )
+  const cleared = await getJson<{ workingState?: WorkingStateContractRow }>(endpoint)
+  assert(cleared.workingState?.current_project_id === null, "Project completion must clear current Project")
+
+  const terminalProject = await fetch(endpoint, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      currentProjectId: project.project.id,
+      reason: `${contractTag} select terminal Project`,
+    }),
+  })
+  assert(terminalProject.status === 409, `terminal Working State Project expected 409, got ${terminalProject.status}`)
+}
+
+interface WorkingStateContractRow {
+  id: "primary"
+  current_project_id: string | null
+  active_topics: string[]
+  current_questions: string[]
+  mode: "S1"
+  state_event_id: string | null
+}
+
+interface WorkingStateSnapshot {
+  current_project_id: string | null
+  active_topics: string
+  current_questions: string
+  mode: string
+  state_event_id: string | null
+  state_reason: string
+  updated_at: string
+}
+
+function assertWorkingStateAuditEvent(eventId: string | undefined, type: string, marker: string): void {
+  assert(typeof eventId === "string", `${type} Event id must be string`)
+  const event = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
+    "SELECT source, type, payload, metadata FROM events WHERE id = ?",
+    [eventId],
+  )
+  assert(event?.source === "web" && event.type === type, `${type} Working State audit Event mismatch`)
+  assert(event.payload.includes(marker), `${type} Working State audit payload mismatch`)
+  const metadata = JSON.parse(event.metadata) as Record<string, unknown>
+  assert(metadata.purpose === "working_state", `${type} Working State purpose mismatch`)
+  assert(metadata.visibility === "user", `${type} Working State visibility mismatch`)
 }
 
 async function verifyTodos(portNumber: number): Promise<void> {
@@ -1084,7 +1240,22 @@ async function waitForHealth(portNumber: number): Promise<void> {
   throw new Error("api server did not become healthy")
 }
 
-function cleanupContractRows(tag: string): void {
+function cleanupContractRows(tag: string, workingState: WorkingStateSnapshot): void {
+  run(
+    `UPDATE working_state
+     SET current_project_id = ?, active_topics = ?, current_questions = ?, mode = ?,
+         state_event_id = ?, state_reason = ?, updated_at = ?
+     WHERE id = 'primary'`,
+    [
+      workingState.current_project_id,
+      workingState.active_topics,
+      workingState.current_questions,
+      workingState.mode,
+      workingState.state_event_id,
+      workingState.state_reason,
+      workingState.updated_at,
+    ],
+  )
   run("DELETE FROM todos WHERE title LIKE ?", [`%${tag}%`])
   run("DELETE FROM projects WHERE name LIKE ?", [`%${tag}%`])
   run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${tag}%`])
