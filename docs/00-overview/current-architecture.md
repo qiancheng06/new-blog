@@ -52,10 +52,11 @@ Infrastructure
 - Workspace VitePress 配置和组件：`apps/workspace/.vitepress/`
 - Obsidian/VitePress 同步脚本：`apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js`
 - Persona OS TypeScript 源码：`apps/persona/src/`
-- HTTP API：对话、状态、隐私安全 Event Feed、Capture、Memory 治理/检索、Daily Summary、Working State、Project、Todo 和任务恢复接口
+- HTTP API：对话、持久化 Conversation History、状态、隐私安全 Event Feed、Capture、Memory 治理/检索、Daily Summary、Working State、Project、Todo 和任务恢复接口
 - Telegram Bot：可信聊天白名单、稳定 Event 身份、消息与 `/note`、`/todo`、`/project` 命令
 - Event 入库、幂等查询，以及 Conversation/Analysis 可恢复执行状态
 - Event Feed 支持安全摘要、来源/类型/时间筛选、文本搜索、分页和单条详情，不暴露原始 payload、metadata 或 Telegram 标识
+- Conversation History 从持久化 job/Event 重建成功或失败对话，支持筛选、搜索、分页和详情，不暴露页面/评估上下文或渠道私有标识
 - Web/Telegram Note、Idea、Journal 不可变 Capture、隐私安全检索，以及无 Companion 回复的后台记忆分析
 - Companion 用户可见回复；Research/Critic/Archivist 结构化分析保持私有
 - Topic/Profile/Timeline 完整写回、Profile 冷却提案与可审计治理
@@ -68,6 +69,7 @@ Infrastructure
 ## 仍待闭环
 
 - Workspace Markdown Project/Todo 与 Persona 运行时投影尚未自动双向同步；当前通过 Application API 管理 Persona 投影
+- Workspace ChatDock 尚未接入持久化 Conversation History；后端只读 API 已就绪
 - Obsidian 自动归档当前只覆盖 Daily Note，Topic/Profile/Project 的可读导出尚未实现
 - Event Bus 仍是模块化单体内的编排边界，不是独立队列或服务
 - Context Builder 已由 Working State、Memory 检索、最近对话、Active Project 和 Open Todo 组成；S1 已持久化，但还没有 S2-S4 选择规则或 delivery 策略层

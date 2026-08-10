@@ -106,6 +106,14 @@ import {
   getEventFeedItem,
   parseEventFeedSource,
 } from "../../application/events.js"
+import {
+  ConversationHistoryNotFoundError,
+  ConversationHistoryValidationError,
+  getConversationHistory,
+  getConversationHistoryItem,
+  parseConversationHistorySource,
+  parseConversationHistoryStatus,
+} from "../../application/conversations.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -242,6 +250,30 @@ function handleEventById(id: string, res: ServerResponse) {
     json(res, 200, { event: getEventFeedItem(id) })
   } catch (err) {
     handleEventFeedError(err, res)
+  }
+}
+
+function handleConversations(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getConversationHistory({
+      source: parseConversationHistorySource(readText(url, "source")),
+      status: parseConversationHistoryStatus(readText(url, "status")),
+      query: readText(url, "q"),
+      since: readText(url, "since"),
+      before: readText(url, "before"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleConversationHistoryError(err, res)
+  }
+}
+
+function handleConversationHistoryById(id: string, res: ServerResponse) {
+  try {
+    json(res, 200, { conversation: getConversationHistoryItem(id) })
+  } catch (err) {
+    handleConversationHistoryError(err, res)
   }
 }
 
@@ -670,6 +702,13 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (eventMatch && req.method === "GET") {
       return handleEventById(eventMatch[1], res)
     }
+    if (url === "/api/conversations" && req.method === "GET") {
+      return handleConversations(requestUrl, res)
+    }
+    const conversationHistoryMatch = /^\/api\/conversations\/([^/]+)$/.exec(url)
+    if (conversationHistoryMatch && req.method === "GET") {
+      return handleConversationHistoryById(conversationHistoryMatch[1], res)
+    }
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
     }
@@ -928,6 +967,18 @@ function handleEventFeedError(err: unknown, res: ServerResponse): void {
     return
   }
   if (err instanceof EventFeedNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleConversationHistoryError(err: unknown, res: ServerResponse): void {
+  if (err instanceof ConversationHistoryValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof ConversationHistoryNotFoundError) {
     json(res, 404, { error: err.message })
     return
   }

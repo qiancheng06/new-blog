@@ -20,11 +20,14 @@ This gate must pass without calling real LLM or Telegram services. It covers:
   database and verifies task-specific error-code, proposal-state, and confidence
   constraints.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
-- No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
+- No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/conversations`, `/api/status`, `OPTIONS`, and `404`.
 - Event Feed list/detail, filters, search, and pagination expose only the safe
   projection; raw Event payload/metadata and Telegram identifiers are neither
   returned nor searchable, and explicit non-user visibility suppresses both
   preview content and search matching.
+- Conversation History list/detail reconstructs successful and failed turns
+  from durable jobs without exposing or searching Telegram identifiers, Web
+  page/evaluation metadata, provider details, or non-user-visible text.
 - No-network Telegram contract test for command text-to-Event mapping, command
   no-reply boundaries, and real-mode evaluation metadata labeling.
 - No-network Todo lifecycle contract for Web and Telegram capture, deterministic
@@ -79,7 +82,8 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run contract:db-schema` for fresh-install schema and constraint failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
 - `npm.cmd run contract:api` for Application API request/response shape,
-  Event Feed privacy, filtering, search, pagination, and detail failures.
+  Event Feed and Conversation History privacy, filtering, search, pagination,
+  and detail failures.
 - `npm.cmd run contract:memory-search` for FTS synchronization, query-aware
   Prompt retrieval, Chinese matching, state filtering, and proposal isolation.
 - `npm.cmd run contract:conversation-jobs` for Companion execution recovery,

@@ -129,6 +129,46 @@ is restricted to bounded user-readable `text`, `summary`, and `reason` fields.
 An Event with an explicit non-`user` visibility remains classifiable in the
 feed, but its preview is empty and its content does not participate in search.
 
+### Conversation History APIs
+
+`GET /api/conversations` returns persisted user/Companion turns ordered by
+input time descending. Optional query parameters are `source=web|telegram`,
+`status=pending|running|succeeded|failed`, `q`, `since`, `before`, `limit`, and
+`offset`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    replyEventId: string | null,
+    source: "web" | "telegram",
+    status: "pending" | "running" | "succeeded" | "failed",
+    errorCode: "companion_error" | "reply_error" | "state_error" | "interrupted" | null,
+    userText: string | null,
+    assistantText: string | null,
+    timestamp: string,
+    replyTimestamp: string | null,
+    createdAt: string,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+`GET /api/conversations/:id` returns `{ conversation }` by Conversation job id,
+or `404`. Invalid sources, statuses, or time ranges return `400`; pagination is normalized
+to a non-negative offset and a limit between 1 and 100. Each returned text field
+is bounded to 16,000 characters.
+
+The read model joins Conversation jobs to their immutable input/reply Events but
+never returns raw payload or metadata. Telegram identifiers, Web page context,
+evaluation labels, and retry metadata are neither exposed nor searchable.
+Malformed or explicit non-`user` Event content is returned as `null` and does
+not participate in search. Failed turns remain visible through bounded status
+and error codes so the UI can explain missing replies without provider details.
+
 ### `POST /api/daily-summaries`
 
 Generate or refresh one Daily Note. The date is interpreted in
@@ -908,7 +948,8 @@ npm.cmd run contract:api
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, privacy-safe Event Feed list/detail,
-filtering, search and pagination, `/api/status`, read-only
+filtering, search and pagination, persisted Conversation History list/detail,
+failure state and privacy boundaries, `/api/status`, read-only
 `/api/memory*` routes, Capture reads/writes, Working State and Project/Todo lifecycle routes,
 `OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.

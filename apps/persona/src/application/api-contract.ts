@@ -29,6 +29,7 @@ try {
   await verifyInvalidChat(port)
   await verifyValidChat(port)
   await verifyIdempotentChat(port)
+  await verifyConversationHistory(port)
   await verifyEvents(port)
   await verifyStatus(port)
   await verifyCaptures(port)
@@ -169,7 +170,11 @@ async function verifyValidChat(portNumber: number): Promise<void> {
     duplicate?: boolean
     conversationJobId?: string
     conversationJobStatus?: string
-  }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract", evaluationRunId })
+  }>(`http://127.0.0.1:${portNumber}/api/chat`, {
+    text: contractTag,
+    page: `${contractTag}-private-page-marker`,
+    evaluationRunId,
+  })
 
   assert(typeof body.reply === "string" && body.reply.includes(contractTag), "chat.reply must include mock tag")
   assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat.eventId must be non-empty string")
@@ -367,6 +372,159 @@ async function verifyEvents(portNumber: number): Promise<void> {
   }
   const missing = await fetch(`${endpoint}/missing-event`)
   assert(missing.status === 404, `missing Event feed detail expected 404, got ${missing.status}`)
+}
+
+async function verifyConversationHistory(portNumber: number): Promise<void> {
+  const successfulInput = queryOne<{ id: string; timestamp: string }>(
+    `SELECT id, timestamp FROM events
+     WHERE source = 'web' AND type = 'message' AND json_extract(payload, '$.text') = ?`,
+    [contractTag],
+  )
+  assert(successfulInput, "successful conversation input fixture is missing")
+  const successfulJob = queryOne<{ id: string; reply_event_id: string | null }>(
+    "SELECT id, reply_event_id FROM conversation_jobs WHERE source_event_id = ?",
+    [successfulInput.id],
+  )
+  assert(successfulJob?.reply_event_id, "successful conversation job fixture is missing")
+
+  const failedInputId = randomUUID()
+  const failedJobId = randomUUID()
+  run(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'telegram', 'message', ?, '2051-01-02T03:04:05.000Z', '{}')`,
+    [
+      failedInputId,
+      JSON.stringify({
+        chat_id: -998877,
+        user_id: 112233,
+        message_id: 445566,
+        text: `${contractTag} failed Telegram conversation`,
+      }),
+    ],
+  )
+  run(
+    `INSERT INTO conversation_jobs (
+       id, source_event_id, status, attempt_count, error_code, finished_at
+     ) VALUES (?, ?, 'failed', 1, 'companion_error', datetime('now'))`,
+    [failedJobId, failedInputId],
+  )
+
+  const privateInputId = randomUUID()
+  const privateJobId = randomUUID()
+  run(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'web', 'message', ?, '2051-01-03T03:04:05.000Z', ?)`,
+    [
+      privateInputId,
+      JSON.stringify({ text: `${contractTag} hidden private conversation` }),
+      JSON.stringify({ purpose: "contract_fixture", visibility: "private" }),
+    ],
+  )
+  run(
+    `INSERT INTO conversation_jobs (
+       id, source_event_id, status, attempt_count, error_code, finished_at
+     ) VALUES (?, ?, 'failed', 1, 'companion_error', datetime('now'))`,
+    [privateJobId, privateInputId],
+  )
+
+  const endpoint = `http://127.0.0.1:${portNumber}/api/conversations`
+  const body = await getJson<{
+    items?: ConversationHistoryContractRow[]
+    limit?: number
+    offset?: number
+  }>(`${endpoint}?source=web&q=${encodeURIComponent(contractTag)}&limit=500&offset=-1`)
+  assert(body.limit === 100 && body.offset === 0, "conversation history pagination normalization mismatch")
+  const successful = body.items?.find((item) => item.id === successfulJob.id)
+  assert(successful?.sourceEventId === successfulInput.id, "conversation history source Event mismatch")
+  assert(successful.replyEventId === successfulJob.reply_event_id, "conversation history reply Event mismatch")
+  assert(successful.source === "web" && successful.status === "succeeded", "conversation history state mismatch")
+  assert(successful.errorCode === null, "successful conversation must not expose an error code")
+  assert(successful.userText === contractTag, "conversation history user text mismatch")
+  assert(successful.assistantText?.includes(contractTag), "conversation history assistant text mismatch")
+  assert(typeof successful.replyTimestamp === "string", "conversation history reply timestamp is missing")
+  const serialized = JSON.stringify(body)
+  for (const privateValue of [
+    "payload",
+    "metadata",
+    `${contractTag}-private-page-marker`,
+    `${contractTag}-eval`,
+  ]) {
+    assert(!serialized.includes(privateValue), `conversation history leaked private value: ${privateValue}`)
+  }
+
+  const detail = await getJson<{ conversation?: ConversationHistoryContractRow }>(
+    `${endpoint}/${successfulJob.id}`,
+  )
+  assert(detail.conversation?.userText === contractTag, "conversation history detail mismatch")
+
+  const privatePageSearch = await getJson<{ items?: ConversationHistoryContractRow[] }>(
+    `${endpoint}?q=${encodeURIComponent(`${contractTag}-private-page-marker`)}`,
+  )
+  assert(
+    !privatePageSearch.items?.some((item) => item.id === successfulJob.id),
+    "conversation history must not search page metadata",
+  )
+
+  const failed = await getJson<{ items?: ConversationHistoryContractRow[] }>(
+    `${endpoint}?source=telegram&status=failed&q=${encodeURIComponent(`${contractTag} failed Telegram`)}` +
+    "&since=2051-01-01T00:00:00.000Z&before=2051-02-01T00:00:00.000Z",
+  )
+  const failedItem = failed.items?.find((item) => item.id === failedJobId)
+  assert(failedItem?.status === "failed" && failedItem.errorCode === "companion_error", "failed conversation state mismatch")
+  assert(failedItem.userText?.includes(contractTag), "failed conversation user text mismatch")
+  assert(failedItem.assistantText === null && failedItem.replyEventId === null, "failed conversation reply must be empty")
+  const failedSerialized = JSON.stringify(failed)
+  for (const privateValue of ["chat_id", "user_id", "message_id", "-998877", "112233", "445566"]) {
+    assert(!failedSerialized.includes(privateValue), `conversation history leaked Telegram value: ${privateValue}`)
+  }
+  const privateIdentifierSearch = await getJson<{ items?: ConversationHistoryContractRow[] }>(
+    `${endpoint}?q=112233&source=telegram`,
+  )
+  assert(
+    !privateIdentifierSearch.items?.some((item) => item.id === failedJobId),
+    "conversation history must not search Telegram identifiers",
+  )
+
+  const privateDetail = await getJson<{ conversation?: ConversationHistoryContractRow }>(
+    `${endpoint}/${privateJobId}`,
+  )
+  assert(privateDetail.conversation?.userText === null, "private conversation text must be hidden")
+  const privateTextSearch = await getJson<{ items?: ConversationHistoryContractRow[] }>(
+    `${endpoint}?q=${encodeURIComponent(`${contractTag} hidden private conversation`)}`,
+  )
+  assert(
+    !privateTextSearch.items?.some((item) => item.id === privateJobId),
+    "private conversation text must not be searchable",
+  )
+
+  for (const path of [
+    "?source=system",
+    "?status=unknown",
+    "?since=not-a-date",
+    "?before=not-a-date",
+    "?since=2051-02-01T00:00:00.000Z&before=2051-01-01T00:00:00.000Z",
+    `?q=${"x".repeat(501)}`,
+  ]) {
+    const response = await fetch(`${endpoint}${path}`)
+    assert(response.status === 400, `invalid conversation history request expected 400, got ${response.status}`)
+  }
+  const missing = await fetch(`${endpoint}/missing-conversation`)
+  assert(missing.status === 404, `missing conversation history detail expected 404, got ${missing.status}`)
+}
+
+interface ConversationHistoryContractRow {
+  id: string
+  sourceEventId: string
+  replyEventId: string | null
+  source: "telegram" | "web"
+  status: "pending" | "running" | "succeeded" | "failed"
+  errorCode: string | null
+  userText: string | null
+  assistantText: string | null
+  timestamp: string
+  replyTimestamp: string | null
+  createdAt: string
+  updatedAt: string
 }
 
 interface EventFeedContractRow {

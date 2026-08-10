@@ -28,6 +28,9 @@ Feed projection that omits raw payload, metadata, and Telegram chat/user/message
 identifiers. Feed search only considers bounded user-readable text, summary, or
 reason fields; private identifiers are neither returned nor searchable. Events
 with explicit non-user visibility have no public preview or searchable content.
+Conversation History follows the same rule while joining input/reply Events to
+durable Conversation jobs; it exposes only bounded visible text, timestamps,
+job status, and bounded error codes.
 
 ## LLM Boundary
 
