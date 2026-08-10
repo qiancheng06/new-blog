@@ -53,6 +53,19 @@ interface SystemEvent {
 - Web/Application 命令使用 `source: 'web'`
 - 未来 Worker 产出时新增 `source: 'worker'`
 
+## Public read boundary
+
+Complete Event payload and metadata remain internal audit/runtime data. The
+Application Event Feed is an allowlisted projection containing identity,
+source/type/time, a bounded readable preview, purpose, and visibility only. It
+never exposes raw payload/metadata or Telegram chat/user/message identifiers.
+
+Feed search is also projection-aware: it may inspect user-readable `text`,
+`summary`, and `reason`, but never private Telegram identifiers. Workspace and
+other presentation clients must use this Application boundary instead of
+reading the `events` table or Event store directly. Explicit non-`user`
+visibility keeps the Event classifiable but suppresses preview and search.
+
 ## Telegram event identity
 
 Telegram message identity is the pair `(chat_id, message_id)`. Persona maps the

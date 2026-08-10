@@ -21,6 +21,10 @@ This gate must pass without calling real LLM or Telegram services. It covers:
   constraints.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
 - No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
+- Event Feed list/detail, filters, search, and pagination expose only the safe
+  projection; raw Event payload/metadata and Telegram identifiers are neither
+  returned nor searchable, and explicit non-user visibility suppresses both
+  preview content and search matching.
 - No-network Telegram contract test for command text-to-Event mapping, command
   no-reply boundaries, and real-mode evaluation metadata labeling.
 - No-network Todo lifecycle contract for Web and Telegram capture, deterministic
@@ -74,7 +78,8 @@ Use individual commands only for focused diagnosis:
 - `npm.cmd run build:backend` for Persona backend type/build failures.
 - `npm.cmd run contract:db-schema` for fresh-install schema and constraint failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
-- `npm.cmd run contract:api` for Application API request/response shape failures.
+- `npm.cmd run contract:api` for Application API request/response shape,
+  Event Feed privacy, filtering, search, pagination, and detail failures.
 - `npm.cmd run contract:memory-search` for FTS synchronization, query-aware
   Prompt retrieval, Chinese matching, state filtering, and proposal isolation.
 - `npm.cmd run contract:conversation-jobs` for Companion execution recovery,
@@ -176,6 +181,8 @@ The current architecture stage is considered done when:
 - Memory write/read loop is covered by `smoke:api`.
 - LLM provider supports real DeepSeek mode and no-network mock mode.
 - Workspace status/chat UI uses Application APIs only.
+- Workspace Event views consume the Application safe projection and never read
+  raw Event rows or private Telegram identifiers.
 - Workspace Memory/Profile panel reads Application memory APIs only and does not
   use legacy HTML or direct SQLite access.
 

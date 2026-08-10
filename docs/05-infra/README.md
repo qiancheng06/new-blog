@@ -20,6 +20,15 @@ Infra covers external dependencies, runtime environment, and adapters.
 - Prompt or business context assembly inside LLM providers.
 - Workspace observability panel UI or metric interpretation.
 
+## Event Read Boundary
+
+SQLite stores complete immutable Events for internal processing and audit, but
+Infra rows are not an HTTP contract. Application exposes an allowlisted Event
+Feed projection that omits raw payload, metadata, and Telegram chat/user/message
+identifiers. Feed search only considers bounded user-readable text, summary, or
+reason fields; private identifiers are neither returned nor searchable. Events
+with explicit non-user visibility have no public preview or searchable content.
+
 ## LLM Boundary
 
 `apps/persona/src/infra/llm/deepseek.ts` is a provider adapter. It should only translate already-built messages into DeepSeek API requests, send them, and parse provider responses.

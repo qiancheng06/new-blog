@@ -283,8 +283,101 @@ async function verifyIdempotentChat(portNumber: number): Promise<void> {
 }
 
 async function verifyEvents(portNumber: number): Promise<void> {
-  const body = await getJson<{ events?: unknown[] }>(`http://127.0.0.1:${portNumber}/api/events`)
-  assert(Array.isArray(body.events), "events.events must be array")
+  const eventId = randomUUID()
+  const privateEventId = randomUUID()
+  run(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'telegram', 'note', ?, '2050-01-02T03:04:05.000Z', ?)`,
+    [
+      eventId,
+      JSON.stringify({
+        chat_id: -998877,
+        user_id: 112233,
+        message_id: 445566,
+        text: `${contractTag} private Telegram Event`,
+      }),
+      JSON.stringify({ purpose: "capture", visibility: "user", private_marker: contractTag }),
+    ],
+  )
+  run(
+    `INSERT INTO events (id, source, type, payload, timestamp, metadata)
+     VALUES (?, 'system', 'private_fixture', ?, '2050-01-03T03:04:05.000Z', ?)`,
+    [
+      privateEventId,
+      JSON.stringify({ text: `${contractTag} hidden private preview` }),
+      JSON.stringify({ purpose: "contract_fixture", visibility: "private" }),
+    ],
+  )
+
+  const endpoint = `http://127.0.0.1:${portNumber}/api/events`
+  const body = await getJson<{
+    items?: EventFeedContractRow[]
+    events?: EventFeedContractRow[]
+    limit?: number
+    offset?: number
+  }>(
+    `${endpoint}?source=telegram&type=note&q=${encodeURIComponent(`${contractTag} private`)}` +
+    "&since=2050-01-01T00:00:00.000Z&before=2050-02-01T00:00:00.000Z&limit=500&offset=-1",
+  )
+  assert(body.limit === 100 && body.offset === 0, "Event feed pagination normalization mismatch")
+  assert(body.items?.length === 1 && body.items[0].id === eventId, "Event feed filters must return match")
+  assert(body.events?.length === 1 && body.events[0].id === eventId, "Event feed compatibility alias mismatch")
+  const item = body.items[0]
+  assert(item.preview === `${contractTag} private Telegram Event`, "Event feed preview mismatch")
+  assert(item.purpose === "capture" && item.visibility === "user", "Event feed labels mismatch")
+  assert(typeof item.createdAt === "string", "Event feed createdAt must be string")
+  assert(!("payload" in item) && !("metadata" in item), "Event feed must not expose raw storage fields")
+  const serialized = JSON.stringify(body)
+  for (const privateValue of ["chat_id", "user_id", "message_id", "-998877", "112233", "445566", "private_marker"]) {
+    assert(!serialized.includes(privateValue), `Event feed leaked private value: ${privateValue}`)
+  }
+
+  const detail = await getJson<{ event?: EventFeedContractRow }>(`${endpoint}/${eventId}`)
+  assert(detail.event?.id === eventId && detail.event.preview === item.preview, "Event feed detail mismatch")
+  assert(!JSON.stringify(detail).includes("112233"), "Event detail must hide Telegram user id")
+
+  const privateDetail = await getJson<{ event?: EventFeedContractRow }>(`${endpoint}/${privateEventId}`)
+  assert(privateDetail.event?.visibility === "private", "Event detail visibility label mismatch")
+  assert(privateDetail.event.preview === "", "non-user-visible Event preview must be empty")
+  const privateTextSearch = await getJson<{ items?: EventFeedContractRow[] }>(
+    `${endpoint}?q=${encodeURIComponent(`${contractTag} hidden private preview`)}`,
+  )
+  assert(
+    !privateTextSearch.items?.some((event) => event.id === privateEventId),
+    "non-user-visible Event content must not be searchable",
+  )
+
+  const privateIdentifierSearch = await getJson<{ items?: EventFeedContractRow[] }>(
+    `${endpoint}?q=112233&type=note&source=telegram`,
+  )
+  assert(
+    !privateIdentifierSearch.items?.some((event) => event.id === eventId),
+    "Event search must not search private Telegram identifiers",
+  )
+
+  for (const path of [
+    "?source=worker",
+    "?type=bad-type",
+    "?since=not-a-date",
+    "?before=not-a-date",
+    "?since=2050-02-01T00:00:00.000Z&before=2050-01-01T00:00:00.000Z",
+  ]) {
+    const response = await fetch(`${endpoint}${path}`)
+    assert(response.status === 400, `invalid Event feed request expected 400, got ${response.status}`)
+  }
+  const missing = await fetch(`${endpoint}/missing-event`)
+  assert(missing.status === 404, `missing Event feed detail expected 404, got ${missing.status}`)
+}
+
+interface EventFeedContractRow {
+  id: string
+  source: "telegram" | "system" | "web"
+  type: string
+  timestamp: string
+  createdAt: string
+  preview: string
+  purpose: string | null
+  visibility: string | null
 }
 
 async function verifyStatus(portNumber: number): Promise<void> {

@@ -99,6 +99,13 @@ import {
   parseCaptureSource,
   parseCaptureType,
 } from "../../application/captures.js"
+import {
+  EventFeedNotFoundError,
+  EventFeedValidationError,
+  getEventFeed,
+  getEventFeedItem,
+  parseEventFeedSource,
+} from "../../application/events.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -214,9 +221,28 @@ function handleReady(_req: IncomingMessage, res: ServerResponse) {
   })
 }
 
-function handleEvents(_req: IncomingMessage, res: ServerResponse) {
-  const events = getRecentConversationEvents(20)
-  json(res, 200, { events })
+function handleEvents(url: URL, res: ServerResponse) {
+  try {
+    json(res, 200, getEventFeed({
+      source: parseEventFeedSource(readText(url, "source")),
+      type: readText(url, "type"),
+      query: readText(url, "q"),
+      since: readText(url, "since"),
+      before: readText(url, "before"),
+      limit: readNumber(url, "limit"),
+      offset: readNumber(url, "offset"),
+    }))
+  } catch (err) {
+    handleEventFeedError(err, res)
+  }
+}
+
+function handleEventById(id: string, res: ServerResponse) {
+  try {
+    json(res, 200, { event: getEventFeedItem(id) })
+  } catch (err) {
+    handleEventFeedError(err, res)
+  }
 }
 
 function handleStatus(_req: IncomingMessage, res: ServerResponse) {
@@ -638,7 +664,11 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
       return handleReady(req, res)
     }
     if (url === "/api/events" && req.method === "GET") {
-      return handleEvents(req, res)
+      return handleEvents(requestUrl, res)
+    }
+    const eventMatch = /^\/api\/events\/([^/]+)$/.exec(url)
+    if (eventMatch && req.method === "GET") {
+      return handleEventById(eventMatch[1], res)
     }
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
@@ -886,6 +916,18 @@ function handleCaptureError(err: unknown, res: ServerResponse): void {
     return
   }
   if (err instanceof CaptureNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleEventFeedError(err: unknown, res: ServerResponse): void {
+  if (err instanceof EventFeedValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof EventFeedNotFoundError) {
     json(res, 404, { error: err.message })
     return
   }

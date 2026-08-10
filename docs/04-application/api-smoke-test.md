@@ -94,6 +94,41 @@ provider errors; replaying the same key creates an audited retry attempt.
 } // 500, retryable with the same request key or job retry API
 ```
 
+### Event Feed APIs
+
+`GET /api/events` returns a privacy-safe Event projection ordered by Event time
+descending. Optional query parameters are `source=telegram|system|web`, `type`,
+`q`, `since`, `before`, `limit`, and `offset`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    source: "telegram" | "system" | "web",
+    type: string,
+    timestamp: string,
+    createdAt: string,
+    preview: string,
+    purpose: string | null,
+    visibility: string | null
+  }>,
+  events: EventFeedRecord[],
+  limit: number,
+  offset: number
+}
+```
+
+`events` is a compatibility alias of `items`. `GET /api/events/:id` returns
+`{ event: EventFeedRecord }`, or `404` when the Event does not exist. Invalid
+sources, types, or time ranges return `400`; pagination is normalized to a
+non-negative offset and a limit between 1 and 100.
+
+The feed never returns raw `payload` or `metadata`. Telegram `chat_id`,
+`user_id`, and `message_id` values are neither exposed nor searchable. Search
+is restricted to bounded user-readable `text`, `summary`, and `reason` fields.
+An Event with an explicit non-`user` visibility remains classifiable in the
+feed, but its preview is empty and its content does not participate in search.
+
 ### `POST /api/daily-summaries`
 
 Generate or refresh one Daily Note. The date is interpreted in
@@ -872,7 +907,8 @@ npm.cmd run contract:api
 ```
 
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
-`/ready`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only
+`/ready`, `/api/chat` happy/error paths, privacy-safe Event Feed list/detail,
+filtering, search and pagination, `/api/status`, read-only
 `/api/memory*` routes, Capture reads/writes, Working State and Project/Todo lifecycle routes,
 `OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.
