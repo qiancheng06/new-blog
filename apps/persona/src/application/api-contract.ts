@@ -1193,6 +1193,14 @@ interface RuntimeComponents {
     failureCount?: number
     runs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
   }
+  persona_snapshot?: {
+    status?: string
+    targetDate?: string | null
+    lastCompletedDate?: string | null
+    nextRunAt?: string | null
+    failureCount?: number
+    runs?: { pending?: number; running?: number; succeeded?: number; failed?: number }
+  }
   background_tasks?: { status?: string; pending?: number }
 }
 
@@ -1208,6 +1216,9 @@ function verifyRuntimeComponents(components: RuntimeComponents | undefined, rout
   assert(components.daily_summary?.status === "disabled", `${route} Daily Summary scheduler must be disabled`)
   assert(typeof components.daily_summary.failureCount === "number", `${route} Daily Summary failure count must be number`)
   assert(typeof components.daily_summary.runs?.failed === "number", `${route} Daily Summary failed run count must be number`)
+  assert(components.persona_snapshot?.status === "disabled", `${route} Snapshot scheduler must be disabled`)
+  assert(typeof components.persona_snapshot.failureCount === "number", `${route} Snapshot failure count must be number`)
+  assert(typeof components.persona_snapshot.runs?.failed === "number", `${route} Snapshot failed run count must be number`)
   assert(typeof components.background_tasks?.pending === "number", `${route} background pending count must be number`)
 }
 

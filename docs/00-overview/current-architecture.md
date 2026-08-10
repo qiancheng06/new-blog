@@ -62,7 +62,7 @@ Infrastructure
 - Topic/Profile/Timeline 完整写回、Profile 冷却提案与可审计治理
 - FTS5/trigram Memory 检索和当前消息 query-aware Context
 - 前一日 Daily Summary 自动收口、失败恢复和 Obsidian Daily Note 原子归档
-- active Profile/Topic、Timeline、Project 的受治理 Obsidian Persona Snapshot，支持原子更新、幂等、用户内容保留和审计 Event
+- active Profile/Topic、Timeline、Project 的受治理 Obsidian Persona Snapshot，支持原子更新、每日自动调度、启动恢复、幂等、用户内容保留和审计 Event
 - Project/Todo 用户管理投影、生命周期审计、关系约束和私有工作上下文
 - Working State 单例投影、原因必填的审计更新、Project 终态原子清除和私有 Prompt 上下文；运行模式固定为 S1
 - SQLite 运行时数据库、升级迁移、组件健康状态和完整离线契约门
@@ -71,7 +71,7 @@ Infrastructure
 
 - Workspace Markdown Project/Todo 与 Persona 运行时投影尚未自动双向同步；当前通过 Application API 管理 Persona 投影
 - Workspace ChatDock 尚未接入持久化 Conversation History；后端只读 API 已就绪
-- Obsidian Persona Snapshot 当前为手动 API；尚未加入独立定时调度或反向同步
+- Obsidian Persona Snapshot 已支持手动 API 和持久化每日调度，但仍不支持 Markdown 反向覆盖 SQLite 投影
 - Event Bus 仍是模块化单体内的编排边界，不是独立队列或服务
 - Context Builder 已由 Working State、Memory 检索、最近对话、Active Project 和 Open Todo 组成；S1 已持久化，但还没有 S2-S4 选择规则或 delivery 策略层
 - 真实 Telegram、Workspace 浏览器和 30 天持续运行仍需人工环境验收

@@ -364,9 +364,10 @@ Response `200`:
 
 `RuntimeComponents` contains only bounded states and counts: database, LLM
 provider/mode, Telegram lifecycle, Obsidian availability, Daily Summary
-scheduler state, Conversation/Analysis job counts, and pending background task count. The
-Daily Summary component exposes only status, target/completed dates, next run
-time, failure count, and aggregate persisted run counts. It never includes
+scheduler state, Persona Snapshot scheduler state, Conversation/Analysis job
+counts, and pending background task count. Both scheduler components expose
+only status, target/completed dates, next run time, failure count, and aggregate
+persisted run counts. They never include
 configured paths, tokens, prompts, message content, provider output, or raw
 errors. Optional component failure changes the overall status to `degraded`
 without changing `ready`.

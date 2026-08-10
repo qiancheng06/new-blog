@@ -31,6 +31,7 @@ const runtime = startPersonaRuntime({
   api: { port },
   telegram: false,
   dailySummary: false,
+  obsidianSnapshot: false,
 })
 
 try {

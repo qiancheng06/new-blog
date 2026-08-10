@@ -14,6 +14,8 @@ export interface RuntimeConfig {
   obsidianVaultPath: string
   dailyNoteDirectory: string
   obsidianSnapshotDirectory: string
+  obsidianSnapshotEnabled: boolean | null
+  obsidianSnapshotTime: string
   dailySummaryEnabled: boolean | null
   dailySummaryTime: string
 }
@@ -28,6 +30,7 @@ function optional(key: string): string {
 }
 
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+  const obsidianVaultPath = env.OBSIDIAN_VAULT_PATH?.trim() || ""
   return {
     telegramToken: env.TELEGRAM_TOKEN?.trim() || "",
     telegramAllowedChatIds: parseNumberList(env.TELEGRAM_ALLOWED_CHAT_IDS),
@@ -40,9 +43,14 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
       "http://127.0.0.1:5174",
     ]),
     timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
-    obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
+    obsidianVaultPath,
     dailyNoteDirectory: env.PERSONA_DAILY_NOTE_DIR?.trim() || "persona/daily-notes",
     obsidianSnapshotDirectory: env.PERSONA_OBSIDIAN_SNAPSHOT_DIR?.trim() || "persona/snapshots",
+    obsidianSnapshotEnabled: parseBoolean(
+      env.PERSONA_OBSIDIAN_SNAPSHOT_ENABLED,
+      Boolean(obsidianVaultPath),
+    ),
+    obsidianSnapshotTime: env.PERSONA_OBSIDIAN_SNAPSHOT_TIME?.trim() || "00:15",
     dailySummaryEnabled: parseBoolean(env.PERSONA_DAILY_SUMMARY_ENABLED, true),
     dailySummaryTime: env.PERSONA_DAILY_SUMMARY_TIME?.trim() || "00:05",
   }
@@ -81,6 +89,18 @@ export function validateRuntimeConfig(
 
   if (!isSafeRelativeDirectory(runtimeConfig.obsidianSnapshotDirectory)) {
     errors.push("PERSONA_OBSIDIAN_SNAPSHOT_DIR must be a relative directory without '.' or '..' segments.")
+  }
+
+  if (runtimeConfig.obsidianSnapshotEnabled === null) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_ENABLED must be true or false.")
+  }
+
+  if (runtimeConfig.obsidianSnapshotEnabled === true && !runtimeConfig.obsidianVaultPath) {
+    errors.push("OBSIDIAN_VAULT_PATH is required when PERSONA_OBSIDIAN_SNAPSHOT_ENABLED is true.")
+  }
+
+  if (!isLocalTime(runtimeConfig.obsidianSnapshotTime)) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_TIME must use 24-hour HH:mm format.")
   }
 
   if (!isLocalTime(runtimeConfig.dailySummaryTime)) {

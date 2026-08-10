@@ -88,6 +88,17 @@ function configChecks(): Check[] {
       : "disabled",
   })
 
+  result.push({
+    name: "Persona Snapshot scheduler",
+    status: validationErrors.some((error) => (
+      error.includes("PERSONA_OBSIDIAN_SNAPSHOT_") ||
+      error.includes("OBSIDIAN_VAULT_PATH")
+    )) ? "fail" : "ok",
+    detail: config.obsidianSnapshotEnabled
+      ? `enabled at ${config.obsidianSnapshotTime} (${config.timeZone})`
+      : "disabled",
+  })
+
   return result
 }
 

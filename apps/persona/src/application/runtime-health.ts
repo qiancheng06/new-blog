@@ -3,6 +3,7 @@ import { isAbsolute, relative, sep } from "path"
 import { getAnalysisJobsStatus } from "./analysis-jobs.js"
 import { getPendingBackgroundTaskCount } from "./background-tasks.js"
 import { getDailySummarySchedulerSnapshot } from "./daily-summary-scheduler.js"
+import { getPersonaSnapshotSchedulerSnapshot } from "./obsidian-snapshot-scheduler.js"
 import { getConversationJobsStatus } from "./conversation-jobs.js"
 import {
   config,
@@ -39,6 +40,14 @@ export interface RuntimeHealthComponents {
     failureCount: number
     runs: { pending: number; running: number; succeeded: number; failed: number }
   }
+  persona_snapshot: {
+    status: "disabled" | "idle" | "running" | "failed" | "stopped"
+    targetDate: string | null
+    lastCompletedDate: string | null
+    nextRunAt: string | null
+    failureCount: number
+    runs: { pending: number; running: number; succeeded: number; failed: number }
+  }
   background_tasks: {
     status: "ok" | "busy"
     pending: number
@@ -62,6 +71,7 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
   const conversationJobs = getSafeConversationStatus()
   const pendingBackgroundTasks = getPendingBackgroundTaskCount()
   const dailySummary = getDailySummarySchedulerSnapshot()
+  const personaSnapshot = getPersonaSnapshotSchedulerSnapshot()
   return summarizeRuntimeHealth({
     database: getDatabaseStatus(),
     llm: getLlmStatus(config),
@@ -76,6 +86,7 @@ export function getRuntimeHealthSnapshot(): RuntimeHealthSnapshot {
       jobs: conversationJobs,
     },
     daily_summary: dailySummary,
+    persona_snapshot: personaSnapshot,
     background_tasks: {
       status: pendingBackgroundTasks > 0 ? "busy" : "ok",
       pending: pendingBackgroundTasks,
@@ -94,7 +105,9 @@ export function summarizeRuntimeHealth(components: RuntimeHealthComponents): Run
     components.analysis.status === "degraded" ||
     components.conversation.status === "degraded" ||
     components.daily_summary.status === "failed" ||
-    components.daily_summary.status === "stopped"
+    components.daily_summary.status === "stopped" ||
+    components.persona_snapshot.status === "failed" ||
+    components.persona_snapshot.status === "stopped"
   )
   return { status: degraded ? "degraded" : "ok", ready, components }
 }
@@ -107,11 +120,11 @@ function getDatabaseStatus(): RuntimeHealthComponents["database"] {
        WHERE type = 'table'
          AND name IN (
            'events', 'profile', 'topics', 'timeline_events', 'daily_notes',
-           'analysis_jobs', 'conversation_jobs', 'daily_summary_runs', 'memory_proposals',
+           'analysis_jobs', 'conversation_jobs', 'daily_summary_runs', 'persona_snapshot_runs', 'memory_proposals',
            'memory_search', 'projects', 'working_state', 'todos'
          )`,
     )
-    return { status: Number(row?.count) === 13 ? "ok" : "failed" }
+    return { status: Number(row?.count) === 14 ? "ok" : "failed" }
   } catch {
     return { status: "failed" }
   }

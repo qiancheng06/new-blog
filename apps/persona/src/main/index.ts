@@ -11,6 +11,10 @@ import {
   startDailySummaryScheduler,
   type DailySummaryScheduler,
 } from "../application/daily-summary-scheduler.js"
+import {
+  startPersonaSnapshotScheduler,
+  type PersonaSnapshotScheduler,
+} from "../application/obsidian-snapshot-scheduler.js"
 import type { Server } from "http"
 
 type TelegramModule = typeof import("../interface/telegram/bot.js")
@@ -19,6 +23,7 @@ export interface PersonaRuntimeOptions {
   api?: ApiServerOptions
   telegram?: boolean
   dailySummary?: boolean
+  obsidianSnapshot?: boolean
 }
 
 export interface PersonaRuntime {
@@ -29,7 +34,8 @@ export interface PersonaRuntime {
 export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): PersonaRuntime {
   console.log("persona-os starting...")
   const shouldStartTelegram = options.telegram ?? Boolean(config.telegramToken)
-  assertRuntimeConfig(config, {
+  const shouldStartSnapshot = options.obsidianSnapshot ?? config.obsidianSnapshotEnabled ?? false
+  assertRuntimeConfig({ ...config, obsidianSnapshotEnabled: shouldStartSnapshot }, {
     requireLlm: config.llmProvider !== "mock",
     requireTelegram: shouldStartTelegram,
   })
@@ -64,6 +70,9 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   const dailySummaryScheduler = startDailySummaryScheduler({
     enabled: options.dailySummary ?? config.dailySummaryEnabled ?? false,
   })
+  const personaSnapshotScheduler = startPersonaSnapshotScheduler({
+    enabled: shouldStartSnapshot,
+  })
   let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
@@ -82,7 +91,12 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
 
   let stopPromise: Promise<void> | null = null
   const stop = (): Promise<void> => {
-    stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise, dailySummaryScheduler)
+    stopPromise ??= stopPersonaRuntime(
+      apiServer,
+      telegramModulePromise,
+      dailySummaryScheduler,
+      personaSnapshotScheduler,
+    )
     return stopPromise
   }
 
@@ -116,8 +130,10 @@ async function stopPersonaRuntime(
   apiServer: Server,
   telegramModulePromise: Promise<TelegramModule> | null,
   dailySummaryScheduler: DailySummaryScheduler,
+  personaSnapshotScheduler: PersonaSnapshotScheduler,
 ): Promise<void> {
   dailySummaryScheduler.stop()
+  personaSnapshotScheduler.stop()
   const stopResults = await Promise.allSettled([
     stopApiServer(apiServer),
     telegramModulePromise

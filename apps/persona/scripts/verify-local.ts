@@ -101,6 +101,10 @@ const steps: Step[] = [
     command: "npm.cmd run contract:obsidian-archive",
   },
   {
+    name: "Automatic Obsidian Persona Snapshot scheduler contract test",
+    command: "npm.cmd run contract:obsidian-snapshot-scheduler",
+  },
+  {
     name: "Persona prompt fixture test",
     command: "npm.cmd run fixture:persona",
   },
@@ -216,6 +220,9 @@ function runRootStructureCheck(): void {
     "apps/persona/src/domain/daily-summary-run/store.ts",
     "apps/persona/src/application/obsidian-archive-contract.ts",
     "apps/persona/src/application/obsidian-snapshot.ts",
+    "apps/persona/src/application/obsidian-snapshot-scheduler.ts",
+    "apps/persona/src/application/obsidian-snapshot-scheduler-contract.ts",
+    "apps/persona/src/domain/persona-snapshot-run/store.ts",
     "apps/persona/src/infra/obsidian/daily-note-exporter.ts",
     "apps/persona/src/infra/obsidian/managed-markdown-exporter.ts",
     "apps/persona/src/infra/obsidian/persona-snapshot-exporter.ts",

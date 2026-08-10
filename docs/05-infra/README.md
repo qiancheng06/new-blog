@@ -118,8 +118,9 @@ never included.
 
 Telegram and Obsidian are optional. A failed Telegram polling lifecycle, an
 unavailable configured vault, failed automatic Daily Summary run, or failed
-Conversation/Analysis jobs marks `/api/status` as `degraded` while `/ready` remains
-successful. Database or LLM configuration failure makes `/ready` return `503`.
+Persona Snapshot run, or failed Conversation/Analysis jobs marks `/api/status`
+as `degraded` while `/ready` remains successful. Database or LLM configuration
+failure makes `/ready` return `503`.
 
 Automatic Daily Summary generation is tracked as graceful-shutdown background
 work. It is single-flight per date and marks a Daily Note finalized only after a
@@ -131,6 +132,17 @@ of 6 hours. Runtime status exposes only dates, counts, and bounded states; it
 never includes raw errors or note content. Unfinished runs adopt the current
 archive setting at startup, so disabling Obsidian releases an archive-only
 failure.
+
+Automatic Persona Snapshot export uses `PERSONA_OBSIDIAN_SNAPSHOT_ENABLED` and
+`PERSONA_OBSIDIAN_SNAPSHOT_TIME` (default `00:15` in `PERSONA_TIME_ZONE`). When
+the enabled flag is omitted, a configured Vault enables the scheduler and an
+empty Vault keeps it disabled. An explicit `true` requires
+`OBSIDIAN_VAULT_PATH`. `persona_snapshot_runs` persists one idempotent state
+machine per local schedule date, recovers interrupted attempts, retries the
+oldest incomplete date with the same 15-minute-to-6-hour bounded backoff, and
+stores only status, dates, attempt count, bounded error code, and successful
+audit Event id. The scheduler is tracked during graceful shutdown. Manual
+Snapshot exports remain independent and do not satisfy or mutate schedule rows.
 
 Conversation execution state also survives restarts. Input Event creation and
 job creation commit together. Companion reply Event creation and the job's

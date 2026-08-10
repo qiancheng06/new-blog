@@ -216,6 +216,23 @@ CREATE TABLE IF NOT EXISTS daily_summary_runs (
 CREATE INDEX IF NOT EXISTS idx_daily_summary_runs_status_date
   ON daily_summary_runs(status, date ASC);
 
+CREATE TABLE IF NOT EXISTS persona_snapshot_runs (
+  date TEXT PRIMARY KEY,
+  status TEXT NOT NULL DEFAULT 'pending' CHECK (status IN ('pending', 'running', 'succeeded', 'failed')),
+  attempt_count INTEGER NOT NULL DEFAULT 0,
+  error_code TEXT NOT NULL DEFAULT '' CHECK (
+    error_code IN ('', 'archive_error', 'archive_unavailable', 'archive_conflict', 'state_error', 'interrupted')
+  ),
+  snapshot_event_id TEXT REFERENCES events(id),
+  created_at TEXT NOT NULL DEFAULT (datetime('now')),
+  started_at TEXT,
+  finished_at TEXT,
+  updated_at TEXT NOT NULL DEFAULT (datetime('now'))
+);
+
+CREATE INDEX IF NOT EXISTS idx_persona_snapshot_runs_status_date
+  ON persona_snapshot_runs(status, date ASC);
+
 CREATE VIRTUAL TABLE IF NOT EXISTS memory_search USING fts5(
   entity_type UNINDEXED,
   entity_id UNINDEXED,

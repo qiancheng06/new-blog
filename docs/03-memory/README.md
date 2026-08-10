@@ -115,6 +115,12 @@ so a repeated export can be `unchanged`. Every successful request appends a
 content. The Snapshot is an audit view, not a new source of truth or a reverse
 write path into SQLite.
 
+The full runtime refreshes this view once per configured local day. A durable
+`persona_snapshot_runs` row makes each schedule date single-flight and supports
+startup compensation, interrupted-attempt recovery, and bounded retries. Run
+state contains no Memory text. Manual exports remain available without changing
+scheduled-run state.
+
 ## Current read loop
 
 `apps/persona/src/ai-runtime/operators/process-message.ts` now reads memory before

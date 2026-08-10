@@ -251,6 +251,19 @@ try {
     "Daily Summary runs must reject Analysis error codes",
   )
 
+  db.prepare("INSERT INTO persona_snapshot_runs (date) VALUES ('2099-01-02')").run()
+  for (const errorCode of ["", "archive_error", "archive_unavailable", "archive_conflict", "state_error", "interrupted"]) {
+    db.prepare("UPDATE persona_snapshot_runs SET error_code = ? WHERE date = '2099-01-02'").run(errorCode)
+  }
+  assertConstraintRejects(
+    () => db.prepare("UPDATE persona_snapshot_runs SET error_code = 'generation_error'").run(),
+    "Persona Snapshot runs must reject Daily Summary error codes",
+  )
+  assertConstraintRejects(
+    () => db.prepare("UPDATE persona_snapshot_runs SET status = 'archived'").run(),
+    "Persona Snapshot runs must reject unknown statuses",
+  )
+
   verifyLegacyProjectTodoMigration(schema)
 
   const integrity = db.pragma("integrity_check", { simple: true })

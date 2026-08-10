@@ -32,6 +32,14 @@ const optionalFailure = summarizeRuntimeHealth(components({
     failureCount: 0,
     runs: { pending: 0, running: 0, succeeded: 1, failed: 0 },
   },
+  persona_snapshot: {
+    status: "idle",
+    targetDate: null,
+    lastCompletedDate: "2026-07-18",
+    nextRunAt: "2026-07-19T00:15:00.000Z",
+    failureCount: 0,
+    runs: { pending: 0, running: 0, succeeded: 1, failed: 0 },
+  },
 }))
 assert(optionalFailure.status === "degraded", "optional component failure must degrade runtime")
 assert(optionalFailure.ready, "optional component failure must not block readiness")
@@ -59,6 +67,19 @@ const schedulerFailure = summarizeRuntimeHealth(components({
 assert(schedulerFailure.status === "degraded", "Daily Summary failure must degrade runtime")
 assert(schedulerFailure.ready, "Daily Summary failure must not block core readiness")
 
+const snapshotFailure = summarizeRuntimeHealth(components({
+  persona_snapshot: {
+    status: "failed",
+    targetDate: "2026-07-18",
+    lastCompletedDate: null,
+    nextRunAt: "2026-07-18T00:30:00.000Z",
+    failureCount: 1,
+    runs: { pending: 0, running: 0, succeeded: 0, failed: 1 },
+  },
+}))
+assert(snapshotFailure.status === "degraded", "Persona Snapshot failure must degrade runtime")
+assert(snapshotFailure.ready, "Persona Snapshot failure must not block core readiness")
+
 const conversationFailure = summarizeRuntimeHealth(components({
   conversation: {
     status: "degraded",
@@ -80,6 +101,8 @@ assert(typeof runtimeSnapshot.components.analysis.jobs.failed === "number", "ana
 assert(typeof runtimeSnapshot.components.conversation.jobs.failed === "number", "conversation failed count must be numeric")
 assert(runtimeSnapshot.components.daily_summary.status === "disabled", "Daily Summary scheduler must default to disabled in contract")
 assert(typeof runtimeSnapshot.components.daily_summary.runs.failed === "number", "Daily Summary failed run count must be numeric")
+assert(runtimeSnapshot.components.persona_snapshot.status === "disabled", "Snapshot scheduler must default to disabled")
+assert(typeof runtimeSnapshot.components.persona_snapshot.runs.failed === "number", "Snapshot failed run count must be numeric")
 assert(typeof runtimeSnapshot.components.background_tasks.pending === "number", "background task count must be numeric")
 assert(!JSON.stringify(runtimeSnapshot).includes(process.cwd()), "runtime snapshot must not expose repository paths")
 
@@ -101,6 +124,14 @@ function components(overrides: Partial<RuntimeHealthComponents> = {}): RuntimeHe
       jobs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
     },
     daily_summary: {
+      status: "disabled",
+      targetDate: null,
+      lastCompletedDate: null,
+      nextRunAt: null,
+      failureCount: 0,
+      runs: { pending: 0, running: 0, succeeded: 0, failed: 0 },
+    },
+    persona_snapshot: {
       status: "disabled",
       targetDate: null,
       lastCompletedDate: null,
