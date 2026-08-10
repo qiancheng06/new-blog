@@ -182,7 +182,7 @@ export function listMemoryTopics(options: TopicListOptions = {}): TopicRow[] {
   return query<TopicRow>(
     `SELECT * FROM topics
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY last_active_at DESC, message_count DESC
+     ORDER BY last_active_at DESC, message_count DESC, name ASC, id ASC
      LIMIT ? OFFSET ?`,
     params
   )
@@ -204,7 +204,7 @@ export function listMemoryProfile(options: ProfileListOptions = {}): ProfileRow[
   return query<ProfileRow>(
     `SELECT * FROM profile
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY updated_at DESC
+     ORDER BY updated_at DESC, key ASC, id ASC
      LIMIT ? OFFSET ?`,
     params
   )
@@ -233,7 +233,7 @@ export function listMemoryTimelineEvents(options: TimelineListOptions = {}): Tim
   return query<TimelineEventRow>(
     `SELECT * FROM timeline_events
      ${where.length ? `WHERE ${where.join(" AND ")}` : ""}
-     ORDER BY date DESC, created_at DESC
+     ORDER BY date DESC, created_at DESC, id DESC
      LIMIT ? OFFSET ?`,
     params
   )

@@ -243,6 +243,45 @@ records the relative path and audit Event id on the Daily Note projection. A
 file with the same name but no unique managed block returns `409` and is never
 overwritten. A missing, inaccessible, or unsafe vault returns `503`.
 
+### `POST /api/archives/obsidian/snapshot`
+
+Exports the current governed Persona projections into
+`<PERSONA_OBSIDIAN_SNAPSHOT_DIR>/Persona OS.md`. Send an empty JSON object with
+`Content-Type: application/json`.
+
+```ts
+{
+  snapshotEventId: string,
+  relativePath: string,
+  status: "created" | "updated" | "unchanged",
+  exportedAt: string,
+  dataUpdatedThrough: string | null,
+  counts: {
+    profile: number,
+    topics: number,
+    timeline: number,
+    projects: number
+  },
+  truncated: {
+    profile: boolean,
+    topics: boolean,
+    timeline: boolean,
+    projects: boolean
+  }
+}
+```
+
+The deterministic managed block contains active Profile/Topic rows, Timeline,
+and Projects, with at most 500 records per category. Suppressed/archived Memory
+and Memory proposals remain excluded. Successful requests append a
+`system/persona_snapshot_exported` audit Event containing only path, status,
+counts, and truncation flags. The Event never duplicates Memory text.
+
+User Markdown outside the managed block is preserved. Identical projection data
+returns `unchanged`; a same-name file without one valid block returns `409`.
+Missing, inaccessible, or unsafe Vault configuration returns `503` without an
+audit Event.
+
 Error responses:
 
 ```ts
@@ -949,7 +988,8 @@ npm.cmd run contract:api
 The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
 `/ready`, `/api/chat` happy/error paths, privacy-safe Event Feed list/detail,
 filtering, search and pagination, persisted Conversation History list/detail,
-failure state and privacy boundaries, `/api/status`, read-only
+failure state and privacy boundaries, unavailable and successful governed
+Obsidian Snapshot behavior, `/api/status`, read-only
 `/api/memory*` routes, Capture reads/writes, Working State and Project/Todo lifecycle routes,
 `OPTIONS`, and `404`, then
 deletes its smoke rows and closes the server.

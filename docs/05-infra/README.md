@@ -224,10 +224,16 @@ may not contain `.` or `..` segments. Both the vault and the final canonical
 directory must remain outside the repository and inside the configured vault;
 symbolic-link or junction escapes are rejected.
 
+Persona Snapshot uses `PERSONA_OBSIDIAN_SNAPSHOT_DIR`, defaulting to
+`persona/snapshots`, and writes the deterministic `Persona OS.md`. It shares the
+same canonical path checks and atomic writer as Daily Note export.
+
 Each archive uses the deterministic filename `YYYY-MM-DD.md` and an atomic
 temporary-file rename. Persona owns only the block between
-`<!-- PERSONA:DAILY_NOTE -->` and `<!-- /PERSONA:DAILY_NOTE -->`. Later exports
-replace that unique block and preserve user-authored Markdown around it. An
+`<!-- PERSONA:DAILY_NOTE -->` and `<!-- /PERSONA:DAILY_NOTE -->`. Persona
+Snapshot similarly owns only `<!-- PERSONA:SNAPSHOT -->` through
+`<!-- /PERSONA:SNAPSHOT -->`. Later exports replace the matching unique block
+and preserve user-authored Markdown around it. An
 existing same-name file without exactly one valid managed block is treated as a
 conflict and is not changed.
 

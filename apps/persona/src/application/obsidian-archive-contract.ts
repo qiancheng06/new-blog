@@ -1,6 +1,6 @@
 import { existsSync, mkdtempSync, readFileSync, readdirSync, rmSync, symlinkSync, writeFileSync } from "fs"
 import { randomUUID } from "crypto"
-import { basename, join, resolve, sep } from "path"
+import { basename, dirname, join, resolve, sep } from "path"
 import { tmpdir } from "os"
 
 const contractTag = `codex-obsidian-archive-${Date.now()}`
@@ -9,12 +9,14 @@ const conflictDate = addOneDay(contractDate)
 const port = Number(process.env.API_PORT) || 3113
 const vaultPath = mkdtempSync(join(tmpdir(), "persona-vault-contract-"))
 const externalPath = mkdtempSync(join(tmpdir(), "persona-vault-external-"))
+const snapshotDirectory = `persona/snapshots-${contractTag}`
 
 process.env.LLM_PROVIDER = "mock"
 process.env.API_PORT = String(port)
 process.env.TELEGRAM_TOKEN = ""
 process.env.OBSIDIAN_VAULT_PATH = vaultPath
 process.env.PERSONA_DAILY_NOTE_DIR = "persona/daily-notes"
+process.env.PERSONA_OBSIDIAN_SNAPSHOT_DIR = snapshotDirectory
 
 const { initializeDb, query, queryOne, run } = await import("../infra/db/pool.js")
 const { insertEvent } = await import("../domain/event/store.js")
@@ -28,6 +30,7 @@ const { startApiServer, stopApiServer } = await import("../interface/api/server.
 initializeDb()
 seedDailyNote(contractDate, `${contractTag} initial summary <!-- /PERSONA:DAILY_NOTE -->`)
 seedDailyNote(conflictDate, `${contractTag} conflict summary`)
+seedPersonaSnapshotRows()
 const server = startApiServer({ port, hostname: "127.0.0.1" })
 
 try {
@@ -88,6 +91,7 @@ try {
     .filter((name) => name.endsWith(".tmp"))
   assert(temporaryFiles.length === 0, "archive must not leave temporary files")
   verifyLinkedDirectoryEscapeIsRejected(vaultPath, externalPath)
+  await verifyPersonaSnapshotArchive(port)
   console.log("obsidian archive contract ok")
 } finally {
   cleanupContractRows()
@@ -107,6 +111,16 @@ interface ArchiveResponse {
   status: "created" | "updated" | "unchanged"
 }
 
+interface SnapshotArchiveResponse {
+  snapshotEventId: string
+  relativePath: string
+  status: "created" | "updated" | "unchanged"
+  exportedAt: string
+  dataUpdatedThrough: string | null
+  counts: { profile: number; topics: number; timeline: number; projects: number }
+  truncated: { profile: boolean; topics: boolean; timeline: boolean; projects: boolean }
+}
+
 async function archive(portNumber: number, date: string): Promise<ArchiveResponse> {
   const response = await fetch(`http://127.0.0.1:${portNumber}/api/daily-summaries/${date}/archive`, {
     method: "POST",
@@ -115,6 +129,89 @@ async function archive(portNumber: number, date: string): Promise<ArchiveRespons
   })
   if (!response.ok) throw new Error(`archive failed: ${response.status} ${await response.text()}`)
   return await response.json() as ArchiveResponse
+}
+
+async function archiveSnapshot(portNumber: number): Promise<SnapshotArchiveResponse> {
+  const response = await fetch(`http://127.0.0.1:${portNumber}/api/archives/obsidian/snapshot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  })
+  if (!response.ok) throw new Error(`snapshot archive failed: ${response.status} ${await response.text()}`)
+  return await response.json() as SnapshotArchiveResponse
+}
+
+async function verifyPersonaSnapshotArchive(portNumber: number): Promise<void> {
+  const targetPath = join(vaultPath, ...snapshotDirectory.split("/"), "Persona OS.md")
+  const relativePath = `${snapshotDirectory}/Persona OS.md`
+
+  const created = await archiveSnapshot(portNumber)
+  assert(created.status === "created", "first Persona Snapshot archive must create the file")
+  assert(created.relativePath === relativePath, "Persona Snapshot relative path mismatch")
+  assert(created.counts.profile >= 1, "Persona Snapshot Profile count missing")
+  assert(created.counts.topics >= 1, "Persona Snapshot Topic count missing")
+  assert(created.counts.timeline >= 1, "Persona Snapshot Timeline count missing")
+  assert(created.counts.projects >= 1, "Persona Snapshot Project count missing")
+  assert(
+    Object.values(created.truncated).every((value) => typeof value === "boolean"),
+    "Persona Snapshot truncation flags must be boolean",
+  )
+  assert(typeof created.exportedAt === "string", "Persona Snapshot exportedAt missing")
+  verifySnapshotEvent(created.snapshotEventId, "created", relativePath, created.counts)
+
+  const initialContent = readFileSync(targetPath, "utf-8")
+  assert(initialContent.includes("type: persona-os-snapshot"), "Persona Snapshot frontmatter missing")
+  assert(initialContent.includes(`${contractTag} profile value`), "active Profile missing from Snapshot")
+  assert(initialContent.includes(`${contractTag} active topic`), "active Topic missing from Snapshot")
+  assert(initialContent.includes(`${contractTag} timeline insight`), "Timeline missing from Snapshot")
+  assert(initialContent.includes(`${contractTag} active project`), "Project missing from Snapshot")
+  assert(!initialContent.includes(`${contractTag} archived profile`), "archived Profile must stay out of Snapshot")
+  assert(!initialContent.includes(`${contractTag} suppressed topic`), "suppressed Topic must stay out of Snapshot")
+  assert(countOccurrences(initialContent, "<!-- PERSONA:SNAPSHOT -->") === 1, "Snapshot managed block start mismatch")
+  assert(countOccurrences(initialContent, "<!-- /PERSONA:SNAPSHOT -->") === 1, "Snapshot managed block end mismatch")
+
+  const userSection = "## User Snapshot Notes\n\nKeep this sentence outside the managed block.\n"
+  writeFileSync(targetPath, `${initialContent}\n${userSection}`, "utf-8")
+  run(
+    "UPDATE profile SET value = ?, updated_at = '2099-01-01T00:00:00.000Z' WHERE key = ?",
+    [JSON.stringify(`${contractTag} refreshed profile value`), `${contractTag}_profile`],
+  )
+
+  const updated = await archiveSnapshot(portNumber)
+  assert(updated.status === "updated", "second Persona Snapshot archive must update the managed block")
+  const updatedContent = readFileSync(targetPath, "utf-8")
+  assert(updatedContent.includes(`${contractTag} refreshed profile value`), "updated Profile missing from Snapshot")
+  assert(updatedContent.includes(userSection.trim()), "Snapshot must preserve user-authored content")
+  verifySnapshotEvent(updated.snapshotEventId, "updated", relativePath, updated.counts)
+
+  const unchanged = await archiveSnapshot(portNumber)
+  assert(unchanged.status === "unchanged", "third Persona Snapshot archive must be idempotent")
+  assert(readFileSync(targetPath, "utf-8") === updatedContent, "unchanged Snapshot must not rewrite content")
+  verifySnapshotEvent(unchanged.snapshotEventId, "unchanged", relativePath, unchanged.counts)
+
+  const archiveEvents = query<{ id: string }>(
+    "SELECT id FROM events WHERE type = 'persona_snapshot_exported' AND payload LIKE ?",
+    [`%${snapshotDirectory}%`],
+  )
+  assert(archiveEvents.length === 3, "each successful Snapshot request must append an audit Event")
+
+  const temporaryFiles = readdirSync(dirname(targetPath)).filter((name) => name.endsWith(".tmp"))
+  assert(temporaryFiles.length === 0, "Snapshot archive must not leave temporary files")
+
+  const userOwnedContent = "# User-owned Persona Snapshot\n\nDo not overwrite.\n"
+  writeFileSync(targetPath, userOwnedContent, "utf-8")
+  const conflict = await fetch(`http://127.0.0.1:${portNumber}/api/archives/obsidian/snapshot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  })
+  assert(conflict.status === 409, `user-owned Persona Snapshot expected 409, got ${conflict.status}`)
+  assert(readFileSync(targetPath, "utf-8") === userOwnedContent, "conflicting Snapshot must remain unchanged")
+  const eventsAfterConflict = query<{ id: string }>(
+    "SELECT id FROM events WHERE type = 'persona_snapshot_exported' AND payload LIKE ?",
+    [`%${snapshotDirectory}%`],
+  )
+  assert(eventsAfterConflict.length === 3, "failed Snapshot conflict must not append an audit Event")
 }
 
 function seedDailyNote(date: string, summary: string): void {
@@ -136,6 +233,46 @@ function seedDailyNote(date: string, summary: string): void {
   })
 }
 
+function seedPersonaSnapshotRows(): void {
+  run(
+    `INSERT INTO profile (id, key, value, updated_at, state)
+     VALUES (?, ?, ?, '2088-01-01T00:00:00.000Z', 'active')`,
+    [randomUUID(), `${contractTag}_profile`, JSON.stringify(`${contractTag} profile value`)],
+  )
+  run(
+    `INSERT INTO profile (id, key, value, updated_at, state)
+     VALUES (?, ?, ?, '2088-01-01T00:00:00.000Z', 'archived')`,
+    [randomUUID(), `${contractTag}_archived_profile`, JSON.stringify(`${contractTag} archived profile`)],
+  )
+  run(
+    `INSERT INTO topics (
+       id, name, first_seen_at, last_active_at, message_count, summary, related_topics, state
+     ) VALUES (?, ?, '2088-01-01T00:00:00.000Z', '2088-01-02T00:00:00.000Z', 3, ?, '[]', 'active')`,
+    [randomUUID(), `${contractTag} active topic`, `${contractTag} active topic summary`],
+  )
+  run(
+    `INSERT INTO topics (
+       id, name, first_seen_at, last_active_at, message_count, summary, related_topics, state
+     ) VALUES (?, ?, '2088-01-01T00:00:00.000Z', '2088-01-02T00:00:00.000Z', 1, ?, '[]', 'suppressed')`,
+    [randomUUID(), `${contractTag} suppressed topic`, `${contractTag} suppressed topic summary`],
+  )
+  run(
+    `INSERT INTO timeline_events (id, date, type, summary, created_at)
+     VALUES (?, '2088-01-03', 'insight', ?, '2088-01-03T00:00:00.000Z')`,
+    [randomUUID(), `${contractTag} timeline insight`],
+  )
+  run(
+    `INSERT INTO projects (id, name, status, topics, summary, created_at, updated_at)
+     VALUES (?, ?, 'active', ?, ?, '2088-01-01T00:00:00.000Z', '2088-01-04T00:00:00.000Z')`,
+    [
+      randomUUID(),
+      `${contractTag} active project`,
+      JSON.stringify([`${contractTag} active topic`]),
+      `${contractTag} project summary`,
+    ],
+  )
+}
+
 function verifyArchiveEvent(eventId: string, status: string, date: string): void {
   const event = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
     "SELECT source, type, payload, metadata FROM events WHERE id = ?",
@@ -150,6 +287,32 @@ function verifyArchiveEvent(eventId: string, status: string, date: string): void
   const metadata = JSON.parse(event.metadata) as { purpose?: string; visibility?: string }
   assert(metadata.purpose === "long_term_archive", "archive Event purpose mismatch")
   assert(metadata.visibility === "user", "archive Event visibility mismatch")
+}
+
+function verifySnapshotEvent(
+  eventId: string,
+  status: string,
+  relativePath: string,
+  counts: SnapshotArchiveResponse["counts"],
+): void {
+  const event = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
+    "SELECT source, type, payload, metadata FROM events WHERE id = ?",
+    [eventId],
+  )
+  assert(event?.source === "system", "Snapshot archive Event source mismatch")
+  assert(event.type === "persona_snapshot_exported", "Snapshot archive Event type mismatch")
+  const payload = JSON.parse(event.payload) as {
+    relative_path?: string
+    status?: string
+    counts?: SnapshotArchiveResponse["counts"]
+  }
+  assert(payload.relative_path === relativePath, "Snapshot archive Event path mismatch")
+  assert(payload.status === status, "Snapshot archive Event status mismatch")
+  assert(JSON.stringify(payload.counts) === JSON.stringify(counts), "Snapshot archive Event counts mismatch")
+  assert(!event.payload.includes(`${contractTag} profile value`), "Snapshot Event must not duplicate Profile content")
+  const metadata = JSON.parse(event.metadata) as { purpose?: string; visibility?: string }
+  assert(metadata.purpose === "long_term_archive", "Snapshot Event purpose mismatch")
+  assert(metadata.visibility === "user", "Snapshot Event visibility mismatch")
 }
 
 function verifyLinkedDirectoryEscapeIsRejected(vault: string, external: string): void {
@@ -177,8 +340,15 @@ function verifyLinkedDirectoryEscapeIsRejected(vault: string, external: string):
 }
 
 function cleanupContractRows(): void {
+  run("DELETE FROM projects WHERE name LIKE ?", [`%${contractTag}%`])
+  run("DELETE FROM timeline_events WHERE summary LIKE ?", [`%${contractTag}%`])
+  run("DELETE FROM profile WHERE key LIKE ?", [`%${contractTag}%`])
+  run("DELETE FROM topics WHERE name LIKE ?", [`%${contractTag}%`])
   run("DELETE FROM daily_notes WHERE date IN (?, ?)", [contractDate, conflictDate])
-  run("DELETE FROM events WHERE payload LIKE ? OR payload LIKE ?", [`%${contractDate}%`, `%${conflictDate}%`])
+  run(
+    "DELETE FROM events WHERE payload LIKE ? OR payload LIKE ? OR payload LIKE ?",
+    [`%${contractDate}%`, `%${conflictDate}%`, `%${contractTag}%`],
+  )
 }
 
 async function waitForHealth(portNumber: number): Promise<void> {

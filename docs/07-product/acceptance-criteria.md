@@ -50,6 +50,9 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 - No-network automatic Daily Summary contract for per-date single-flight,
   finalization, archive-stage recovery, retry state, timezone scheduling, and
   graceful scheduler stop.
+- Temporary-Vault Obsidian contract for shared canonical path safety, atomic
+  Daily Note and Persona Snapshot writes, governed Memory filtering, user block
+  preservation, deterministic idempotency, conflict handling, and audit Events.
 - No-network Conversation job contract for Web idempotent replay, concurrent
   single-flight, audited manual retry, stored reply reuse, and startup recovery.
 - No-network real-mode docs contract test for required P16 checklist/template
@@ -104,6 +107,8 @@ Use individual commands only for focused diagnosis:
   startup, health readiness, and shutdown regressions.
 - `npm.cmd run contract:daily-summary-scheduler` for automatic previous-day
   finalization, idempotency, archive recovery, and schedule regressions.
+- `npm.cmd run contract:obsidian-archive` for Daily Note/Persona Snapshot
+  rendering, governed visibility, path safety, idempotency, and conflict failures.
 - `npm.cmd run contract:real-mode-docs` for real-mode checklist/template drift
   that could hide a P16 gate or weaken evidence boundaries.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.

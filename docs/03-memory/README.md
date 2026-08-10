@@ -102,6 +102,19 @@ Daily Note per local calendar date. Application generation follows these rules:
 The public read shape parses `highlights` and `topic_distribution` into arrays
 and objects; their SQLite columns remain JSON text.
 
+## Governed Obsidian snapshot
+
+`POST /api/archives/obsidian/snapshot` exports a bounded, readable projection
+without changing Memory state. It includes active Profile and Topic rows,
+Timeline, and Project working state. Archived/suppressed Memory and all pending
+or rejected proposals stay out of the file, matching Prompt/search visibility.
+
+The deterministic Markdown managed block is derived only from projection data,
+so a repeated export can be `unchanged`. Every successful request appends a
+`persona_snapshot_exported` Event with path/status/count metadata but no Memory
+content. The Snapshot is an audit view, not a new source of truth or a reverse
+write path into SQLite.
+
 ## Current read loop
 
 `apps/persona/src/ai-runtime/operators/process-message.ts` now reads memory before

@@ -31,6 +31,7 @@ try {
   await verifyIdempotentChat(port)
   await verifyConversationHistory(port)
   await verifyEvents(port)
+  await verifyPersonaSnapshotUnavailable(port)
   await verifyStatus(port)
   await verifyCaptures(port)
   await verifyProjects(port)
@@ -536,6 +537,24 @@ interface EventFeedContractRow {
   preview: string
   purpose: string | null
   visibility: string | null
+}
+
+async function verifyPersonaSnapshotUnavailable(portNumber: number): Promise<void> {
+  const before = Number(queryOne<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM events WHERE type = 'persona_snapshot_exported'",
+  )?.count ?? 0)
+  const response = await fetch(`http://127.0.0.1:${portNumber}/api/archives/obsidian/snapshot`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: "{}",
+  })
+  assert(response.status === 503, `unconfigured Persona Snapshot expected 503, got ${response.status}`)
+  const body = await response.json() as { error?: string }
+  assert(body.error === "Obsidian vault is not configured", "Persona Snapshot unavailable error mismatch")
+  const after = Number(queryOne<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM events WHERE type = 'persona_snapshot_exported'",
+  )?.count ?? 0)
+  assert(after === before, "failed Persona Snapshot archive must not append an Event")
 }
 
 async function verifyStatus(portNumber: number): Promise<void> {

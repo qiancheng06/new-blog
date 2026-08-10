@@ -58,6 +58,11 @@ import {
   getDailySummary,
 } from "../../application/daily-summary.js"
 import {
+  PersonaSnapshotArchiveConflictError,
+  PersonaSnapshotArchiveUnavailableError,
+  archivePersonaSnapshot,
+} from "../../application/obsidian-snapshot.js"
+import {
   TodoConflictError,
   TodoNotFoundError,
   TodoValidationError,
@@ -818,6 +823,9 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/daily-summaries" && req.method === "GET") {
       return handleDailySummaries(requestUrl, res)
     }
+    if (url === "/api/archives/obsidian/snapshot" && req.method === "POST") {
+      return await handlePersonaSnapshotArchive(req, res)
+    }
     const dailySummaryArchiveMatch = /^\/api\/daily-summaries\/(\d{4}-\d{2}-\d{2})\/archive$/.exec(url)
     if (dailySummaryArchiveMatch && req.method === "POST") {
       return await handleDailySummaryArchive(req, dailySummaryArchiveMatch[1], res)
@@ -1238,6 +1246,25 @@ async function handleDailySummaryArchive(req: IncomingMessage, date: string, res
     json(res, 200, archiveDailySummary(date))
   } catch (err) {
     handleDailySummaryError(err, res)
+  }
+}
+
+async function handlePersonaSnapshotArchive(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<Record<string, never>>(req, res)
+  if (!parsed) return
+
+  try {
+    json(res, 200, archivePersonaSnapshot())
+  } catch (err) {
+    if (err instanceof PersonaSnapshotArchiveConflictError) {
+      json(res, 409, { error: err.message })
+      return
+    }
+    if (err instanceof PersonaSnapshotArchiveUnavailableError) {
+      json(res, 503, { error: err.message })
+      return
+    }
+    throw err
   }
 }
 

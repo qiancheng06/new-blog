@@ -13,6 +13,7 @@ export interface RuntimeConfig {
   timeZone: string
   obsidianVaultPath: string
   dailyNoteDirectory: string
+  obsidianSnapshotDirectory: string
   dailySummaryEnabled: boolean | null
   dailySummaryTime: string
 }
@@ -41,6 +42,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
     obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
     dailyNoteDirectory: env.PERSONA_DAILY_NOTE_DIR?.trim() || "persona/daily-notes",
+    obsidianSnapshotDirectory: env.PERSONA_OBSIDIAN_SNAPSHOT_DIR?.trim() || "persona/snapshots",
     dailySummaryEnabled: parseBoolean(env.PERSONA_DAILY_SUMMARY_ENABLED, true),
     dailySummaryTime: env.PERSONA_DAILY_SUMMARY_TIME?.trim() || "00:05",
   }
@@ -75,6 +77,10 @@ export function validateRuntimeConfig(
 
   if (!isSafeRelativeDirectory(runtimeConfig.dailyNoteDirectory)) {
     errors.push("PERSONA_DAILY_NOTE_DIR must be a relative directory without '.' or '..' segments.")
+  }
+
+  if (!isSafeRelativeDirectory(runtimeConfig.obsidianSnapshotDirectory)) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_DIR must be a relative directory without '.' or '..' segments.")
   }
 
   if (!isLocalTime(runtimeConfig.dailySummaryTime)) {
@@ -167,7 +173,12 @@ function parseBoolean(value: string | undefined, fallback: boolean): boolean | n
 function isSafeRelativeDirectory(value: string): boolean {
   if (!value || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\")) return false
   const segments = value.split(/[\\/]+/)
-  return segments.length > 0 && segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+  return segments.length > 0 && segments.every((segment) => (
+    segment.length > 0 &&
+    segment !== "." &&
+    segment !== ".." &&
+    !/[<>:"|?*\0]/.test(segment)
+  ))
 }
 
 function isLocalTime(value: string): boolean {

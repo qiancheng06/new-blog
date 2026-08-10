@@ -93,6 +93,36 @@ export function createDailyNoteExportedEvent(payload: DailyNoteExportedPayload):
   }
 }
 
+export interface PersonaSnapshotExportedPayload {
+  relative_path: string
+  status: "created" | "updated" | "unchanged"
+  counts: {
+    profile: number
+    topics: number
+    timeline: number
+    projects: number
+  }
+  truncated: {
+    profile: boolean
+    topics: boolean
+    timeline: boolean
+    projects: boolean
+  }
+}
+
+export function createPersonaSnapshotExportedEvent(payload: PersonaSnapshotExportedPayload): Event {
+  return {
+    source: "system",
+    type: "persona_snapshot_exported",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "long_term_archive",
+      visibility: "user",
+    },
+  }
+}
+
 export interface AnalysisRetryRequestedPayload {
   analysis_job_id: string
   source_event_id: string

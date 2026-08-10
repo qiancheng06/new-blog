@@ -17,6 +17,7 @@ assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback"
 assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
 assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
 assert(mockConfig.dailyNoteDirectory === "persona/daily-notes", "Daily Note directory default mismatch")
+assert(mockConfig.obsidianSnapshotDirectory === "persona/snapshots", "Obsidian Snapshot directory default mismatch")
 assert(mockConfig.dailySummaryEnabled, "Daily Summary scheduler should be enabled by default")
 assert(mockConfig.dailySummaryTime === "00:05", "Daily Summary schedule default mismatch")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
@@ -122,7 +123,7 @@ assert(
   "invalid IANA time zones should fail validation",
 )
 
-for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./daily-notes"]) {
+for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./daily-notes", "persona/bad:name"]) {
   const invalidDailyNoteDirectory = loadRuntimeConfig({
     LLM_PROVIDER: "mock",
     API_PORT: "3001",
@@ -131,6 +132,19 @@ for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "pers
   assert(
     validateRuntimeConfig(invalidDailyNoteDirectory).some((error) => error.includes("PERSONA_DAILY_NOTE_DIR")),
     `invalid Daily Note directory should fail validation: ${invalidDirectory}`,
+  )
+}
+
+for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./snapshots", "persona/bad:name"]) {
+  const invalidSnapshotDirectory = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    API_PORT: "3001",
+    PERSONA_OBSIDIAN_SNAPSHOT_DIR: invalidDirectory,
+  })
+  assert(
+    validateRuntimeConfig(invalidSnapshotDirectory)
+      .some((error) => error.includes("PERSONA_OBSIDIAN_SNAPSHOT_DIR")),
+    `invalid Obsidian Snapshot directory should fail validation: ${invalidDirectory}`,
   )
 }
 
