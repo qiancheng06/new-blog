@@ -1,4 +1,5 @@
 node_modules/
+.next/
 apps/workspace/.vitepress/dist/
 apps/workspace/.vitepress/cache/
 apps/workspace/.next/
