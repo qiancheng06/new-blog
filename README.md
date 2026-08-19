@@ -5,6 +5,7 @@ Personal workspace plus Persona OS backend.
 The project is currently a light monorepo:
 
 - `apps/workspace/`: primary Workspace frontend.
+- `apps/blog/`: standalone public blog frontend.
 - `apps/persona/src/`: Persona OS backend and application runtime.
 - `docs/`: architecture-domain workspaces for AI collaboration.
 - `data/`: local runtime data, including SQLite.
@@ -35,6 +36,12 @@ For the real Persona backend:
 npm.cmd run dev:backend
 ```
 
+For the public blog:
+
+```bash
+npm.cmd run dev:blog
+```
+
 The real backend reads local environment variables such as `OPENAI_API_KEY`,
 `LLM_PROVIDER`, and `TELEGRAM_TOKEN`.
 
@@ -43,6 +50,7 @@ The real backend reads local environment variables such as `OPENAI_API_KEY`,
 | Entrypoint | Command | Purpose |
 | --- | --- | --- |
 | `http://127.0.0.1:5173/` | `npm.cmd run dev` | Primary Next.js Workspace app |
+| `http://127.0.0.1:5175/` | `npm.cmd run dev:blog` | Standalone public Next.js blog, synced from `vault/blog/*.md` |
 | `http://127.0.0.1:5174/` | `npm.cmd run dev:content` | VitePress/Obsidian content site |
 | `http://127.0.0.1:3001/` | `npm.cmd run dev:backend` or `npm.cmd run dev:backend:mock` | Persona Application API |
 | `apps/workspace/legacy/*.html` | none | Legacy reference assets only |
@@ -70,7 +78,7 @@ npm.cmd run check:workspace
 The recommended architecture is a modular monolith organized by architecture
 domains, not microservices.
 
-Workspace has multiple long-term sources:
+Workspace and Blog have multiple long-term sources:
 
 - Obsidian vault: knowledge, blog, project Markdown, and todo Markdown.
 - Persona SQLite database: Events, Profile, Topics, Timeline, and memory state.
@@ -78,7 +86,8 @@ Workspace has multiple long-term sources:
 The frontend must not read those sources directly. It should go through the
 middle layer:
 
-- Obsidian/Markdown enters the Workspace through VitePress or generated JSON.
+- Obsidian knowledge/project/todo content enters the Workspace through VitePress or generated JSON.
+- Blog Markdown enters the standalone Next.js Blog `:5175` through generated `public/data/blog*` files.
 - Persona memory enters the Workspace through Application APIs.
 - Shared frontend adapters live under `apps/workspace/src/shared/`.
 
@@ -90,10 +99,13 @@ apps/
     app/                 Next.js app router shell
     src/features/        Workspace feature modules
     src/shared/          frontend API/data adapters
-    public/data/         generated JSON, ignored by git
+    public/data/         generated JSON and blog Markdown, ignored by git
     .vitepress/          VitePress content-site config and theme
     legacy/              old standalone HTML assets, not primary entrypoint
     scripts/             sync and watch scripts
+  blog/
+    app/                 standalone public blog app (:5175)
+    src/                 blog data adapter and site chrome
   persona/
     src/                 Persona OS backend source
 docs/
@@ -114,15 +126,17 @@ AI agents and new collaborators should start here:
 
 1. [docs/00-overview/README.md](docs/00-overview/README.md)
 2. [docs/00-overview/current-architecture.md](docs/00-overview/current-architecture.md)
-3. [docs/00-overview/glossary.md](docs/00-overview/glossary.md)
-4. [docs/06-governance/architecture-invariants.md](docs/06-governance/architecture-invariants.md)
-5. [docs/01-workspace/frontend-modernization.md](docs/01-workspace/frontend-modernization.md)
+3. [docs/00-overview/deployment-and-client-architecture.md](docs/00-overview/deployment-and-client-architecture.md)
+4. [docs/00-overview/glossary.md](docs/00-overview/glossary.md)
+5. [docs/06-governance/architecture-invariants.md](docs/06-governance/architecture-invariants.md)
+6. [docs/01-workspace/frontend-modernization.md](docs/01-workspace/frontend-modernization.md)
 
 ## Current Stack
 
 Workspace:
 
 - Next.js + React for the primary app.
+- Next.js + React for the standalone public blog on port `5175`.
 - VitePress + Vue for the Obsidian/Markdown content site.
 - Node.js sync scripts for generated frontend JSON.
 

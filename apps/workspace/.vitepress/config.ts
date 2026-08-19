@@ -16,7 +16,7 @@ export default defineConfig({
   ignoreDeadLinks: true,
 
   srcDir: vaultPath,
-  srcExclude: ['node_modules/**', '.vitepress/**', 'knowledge/inbox/**', 'raw/**', 'wiki/**', 'CLAUDE.md'],
+  srcExclude: ['node_modules/**', '.vitepress/**', 'blog/**', 'knowledge/inbox/**', 'raw/**', 'wiki/**', 'CLAUDE.md'],
 
   themeConfig: {
     nav: [
@@ -24,7 +24,6 @@ export default defineConfig({
       { text: '知识库', link: '/knowledge/' },
       { text: '项目', link: '/projects/' },
       { text: '待办', link: '/todo/' },
-      { text: '博客', link: '/blog/' },
     ],
 
     sidebar: {
@@ -91,30 +90,6 @@ export default defineConfig({
           ],
         },
       ],
-      // SIDEBAR:BLOG
-      '/blog/': [
-        { text: '文章列表', link: '/blog/' },
-        { text: '标签索引', link: '/blog/tags' },
-        {
-          text: '博客搭建',
-          collapsed: false,
-          items: [
-            { text: '造一个零依赖的仪表盘：为什么不用框架', link: '/blog/dashboard-zero-dependency' },
-            { text: '从零搭建个人工作台：VitePress + Obsidian 双核架构', link: '/blog/personal-workspace-architecture' },
-            { text: '项目进度系统的进化：从 .md 到交互看板', link: '/blog/project-progress-evolution' },
-            { text: '内嵌数据同步链路：当 Markdown 遇上自动化流水线', link: '/blog/sync-pipeline' },
-          ],
-        },
-        {
-          text: '智能车',
-          collapsed: false,
-          items: [
-            { text: 'Pure Pursuit 从理论到实车：一次控制算法的落地之旅', link: '/blog/pure-pursuit-practice' },
-            { text: '智能车赛道初体验', link: '/blog/汽车' },
-          ],
-        },
-      ],
-// /SIDEBAR:BLOG
     },
 
     socialLinks: [

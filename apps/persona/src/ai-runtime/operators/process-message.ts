@@ -5,17 +5,52 @@ import { applyMemoryPatch } from "../../domain/memory/index.js"
 import { trackBackgroundTask } from "../../application/background-tasks.js"
 import { buildPrompts } from "../prompts/prompt-builder.js"
 
-export async function processMessage(eventRow: EventRow): Promise<{ companionReply: string }> {
+export interface ProcessMessageOptions {
+  endpoint?: string
+  apiKey?: string
+  model?: string
+  temperature?: number
+  topP?: number
+  maxTokens?: number
+  historyLimit?: number
+  memoryEnabled?: boolean
+  backgroundAnalysis?: boolean
+  instructions?: string
+}
+
+export async function processMessage(
+  eventRow: EventRow,
+  options: ProcessMessageOptions = {},
+): Promise<{ companionReply: string }> {
   const payload = JSON.parse(eventRow.payload) as Record<string, unknown>
   const userText = (payload.text as string) || ""
-  const recentEvents = getRecentEvents(21).filter((event) => event.id !== eventRow.id)
-  const prompts = buildPrompts({ recentEvents })
+  const historyLimit = options.historyLimit ?? 10
+  const recentEvents = historyLimit > 0
+    ? getRecentEvents(historyLimit * 2 + 1).filter((event) => event.id !== eventRow.id)
+    : []
+  const prompts = buildPrompts({
+    recentEvents,
+    ...(options.memoryEnabled === false ? { memoryText: "" } : {}),
+  })
+  const companionSystemPrompt = appendUserInstructions(prompts.companionSystemPrompt, options.instructions)
 
-  const companionReply = await callCompanion(prompts.companionSystemPrompt, userText)
+  const companionReply = await callCompanion(companionSystemPrompt, userText, {
+    endpoint: options.endpoint,
+    apiKey: options.apiKey,
+    model: options.model,
+    temperature: options.temperature,
+    topP: options.topP,
+    maxTokens: options.maxTokens,
+  })
   console.log(`  -> companion: ${companionReply.slice(0, 60)}...`)
 
-  trackBackgroundTask(
-    callAnalysis(prompts.analysisSystemPrompt, userText, prompts.historyText).then((result) => {
+  if (options.backgroundAnalysis !== false) {
+    trackBackgroundTask(
+      callAnalysis(prompts.analysisSystemPrompt, userText, prompts.historyText, {
+        endpoint: options.endpoint,
+        apiKey: options.apiKey,
+        model: options.model,
+      }).then((result) => {
       if (result.research.core_points.length > 0) {
         console.log("  [analysis]", JSON.stringify(result.research))
       }
@@ -31,9 +66,23 @@ export async function processMessage(eventRow: EventRow): Promise<{ companionRep
           `  [memory written] topics=${written.topics.length} profile=${written.profile.length} timeline=${written.timelineEvents.length}`
         )
       }
-    }),
-    "analysis-memory-patch",
-  )
+      }),
+      "analysis-memory-patch",
+    )
+  }
 
   return { companionReply }
+}
+
+function appendUserInstructions(systemPrompt: string, instructions?: string): string {
+  const trimmed = instructions?.trim()
+  if (!trimmed) return systemPrompt
+
+  return [
+    systemPrompt,
+    "User-configured response preferences:",
+    "<response_preferences>",
+    trimmed,
+    "</response_preferences>",
+  ].join("\n\n")
 }

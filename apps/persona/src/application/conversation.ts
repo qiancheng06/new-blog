@@ -1,7 +1,7 @@
 import { countEventsToday, getRecentEvents, insertEvent } from "../domain/event/store.js"
 import { createCompanionReplyEvent, type Event } from "../domain/event/types.js"
 import type { EventRow } from "../domain/event/store.js"
-import { processMessage } from "../ai-runtime/operators/process-message.js"
+import { processMessage, type ProcessMessageOptions } from "../ai-runtime/operators/process-message.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -13,6 +13,7 @@ export interface ConversationResult {
 
 export interface ConversationOptions {
   shouldReply?: boolean
+  ai?: ProcessMessageOptions
 }
 
 export async function handleConversationEvent(
@@ -25,7 +26,7 @@ export async function handleConversationEvent(
     return { event: saved }
   }
 
-  const result = await processMessage(saved)
+  const result = await processMessage(saved, options.ai)
   const replyEvent = insertEvent(createCompanionReplyEvent({
     text: result.companionReply,
     in_reply_to: saved.id,

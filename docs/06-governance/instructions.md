@@ -5,7 +5,7 @@
 Backend commands:
 
 ```bash
-npm run dev:mock          # Start/reuse Workspace + Persona mock API for local demo
+npm run dev:mock          # Start/reuse Workspace + Blog + Persona API for local demo
 npm run dev:backend       # Start Persona OS API + Telegram Bot
 npm run dev:backend:mock  # Start Persona OS API with mock LLM, no real model call
 npm run smoke:api         # No-network API smoke test: /api/chat -> Event -> Memory
@@ -13,7 +13,7 @@ npm run smoke:api         # No-network API smoke test: /api/chat -> Event -> Mem
 
 If `http://127.0.0.1:3001/api/status` returns 404, stop the old backend process and restart it with one of the backend commands above.
 
-Current local demo rule: prefer `npm.cmd run dev:mock` for interactive Workspace testing. It starts or reuses both `http://127.0.0.1:5173/` and `http://127.0.0.1:3001`. The Windows launcher `apps/workspace/start-blog.bat` uses the same flow.
+Current local demo rule: prefer `npm.cmd run dev:mock` for interactive Workspace testing. It starts or reuses `http://127.0.0.1:5173/`, `http://127.0.0.1:5175/`, and `http://127.0.0.1:3001`. The Windows launcher `apps/workspace/start-blog.bat` uses the same flow.
 
 ---
 
@@ -22,8 +22,11 @@ Current local demo rule: prefer `npm.cmd run dev:mock` for interactive Workspace
 所有命令在 `code/projects/blog/` 下执行：
 
 ```bash
-npm run dev        # 先同步 → 启动 VitePress dev server → http://127.0.0.1:5173
-npm run build      # 先同步 → 构建静态站点 → apps/workspace/.vitepress/dist/
+npm run dev        # 启动 Next.js Workspace → http://127.0.0.1:5173
+npm run dev:blog   # 启动独立 Next.js Blog → http://127.0.0.1:5175
+npm run build      # 构建 Next.js Workspace
+npm run build:blog # 构建独立 Next.js Blog
+npm run dev:content # 同步并启动私人 VitePress 内容站 → http://127.0.0.1:5174
 npm run watch      # 后台监听文件变更，自动同步内嵌数据
 npm run sync       # 手动同步一次（解析 apps/workspace/projects/*.md + vault/todo/*.md + vault/knowledge/*.md）
 npm run dev:backend:mock # 本地 mock 后端，默认 http://127.0.0.1:3001，不连接 DeepSeek/Telegram
@@ -71,9 +74,10 @@ npm.cmd run verify:local
 | Legacy 仪表盘 | `apps/workspace/legacy/index.html` | 迁移兼容，不作为主入口 |
 | Legacy 项目详情 + 编辑 | `apps/workspace/legacy/detail.html#项目ID` | 迁移兼容 |
 | Legacy 日历月视图 | `apps/workspace/legacy/calendar.html` | 迁移兼容 |
-| 项目详情完整版 | VitePress `/projects/` | `npm run dev` → 打开浏览器 |
-| VitePress 站点 | `127.0.0.1:5173` | `npm run dev` |
-| 构建产物 | `apps/workspace/.vitepress/dist/` | `npm run build` 后预览 |
+| 项目详情完整版 | VitePress `/projects/` | `npm.cmd run dev:content` → 打开浏览器 |
+| 私人 VitePress 站点 | `127.0.0.1:5174` | `npm.cmd run dev:content` |
+| 公开博客 | 独立 Next.js Blog `/` | `npm.cmd run dev:blog` |
+| Next.js 构建产物 | `apps/workspace/.next/` | `npm.cmd run build` 后启动 |
 
 ---
 
@@ -82,7 +86,8 @@ npm.cmd run verify:local
 ```
 code/projects/blog/
 ├── apps/
-│   ├── workspace/         VitePress + 静态 HTML 仪表盘
+│   ├── workspace/         Next.js Workspace + VitePress 私人内容站
+│   ├── blog/              独立 Next.js 公开博客
 │   └── persona/           Persona OS 后端
 ├── docs/                  项目文档（按架构域组织，入口见 docs/00-overview/README.md）
 ├── README.md              项目介绍
@@ -103,7 +108,7 @@ git push origin main          # 推送到远程
 
 ### 不上传的内容
 - `node_modules/`
-- `apps/workspace/.vitepress/dist/` + `apps/workspace/.vitepress/cache/`
+- `apps/workspace/.next/` + `apps/workspace/.vitepress/dist/` + `apps/workspace/.vitepress/cache/`
 - vault（内容本体在 OneDrive）
 
 ---
@@ -116,7 +121,7 @@ git push origin main          # 推送到远程
 | **项目进度**（源文件） | 改 `apps/workspace/projects/*.md` → 自动监听触发同步 |
 | **待办事项** | 改 `vault/todo/*.md` → 自动监听触发同步 |
 | **知识库内容** | 改 `vault/knowledge/*.md`（Obsidian 编辑） |
-| **博客文章** | 在 `vault/blog/` 下新建 `.md`，写 frontmatter（title/date/tags）→ 保存自动同步到文章列表和标签索引 |
+| **博客文章** | 在 `vault/blog/` 下新建 `.md`，写 frontmatter（title/date/tags）→ 保存自动同步到独立 Blog `:5175` 与标签索引 |
 | **Legacy 仪表盘布局** | 改 `apps/workspace/legacy/index.html` |
 | **同步到源代码** | 编辑完成后点"导出为 .md" → 覆盖 `apps/workspace/projects/*.md` |
 

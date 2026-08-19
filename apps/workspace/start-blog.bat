@@ -14,13 +14,17 @@ powershell -NoProfile -Command "try { (Invoke-WebRequest -Uri 'http://127.0.0.1:
 if errorlevel 1 goto retry
 powershell -NoProfile -Command "try { (Invoke-WebRequest -Uri 'http://127.0.0.1:3001/api/status' -TimeoutSec 1 -UseBasicParsing).StatusCode } catch { exit 1 }" >nul 2>&1
 if errorlevel 1 goto retry
+powershell -NoProfile -Command "try { (Invoke-WebRequest -Uri 'http://127.0.0.1:5175' -TimeoutSec 1 -UseBasicParsing).StatusCode } catch { exit 1 }" >nul 2>&1
+if errorlevel 1 goto retry
 
-:: Open single browser tab
+:: Open Workspace and Blog
 echo.
 echo Dev services are ready!
 start "" "http://127.0.0.1:5173"
+start "" "http://127.0.0.1:5175"
 echo.
 echo Workspace Next.js: http://127.0.0.1:5173
+echo Blog Next.js: http://127.0.0.1:5175
 echo Content site can be started separately: npm.cmd run dev:content
 echo Persona API: http://127.0.0.1:3001/api/status
 echo Press any key to stop all services.

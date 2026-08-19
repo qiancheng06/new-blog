@@ -48,31 +48,31 @@ export function StatusStrip() {
   }, [])
 
   return (
-    <aside className="status-strip" aria-label="Persona runtime status">
+    <aside className="status-strip" aria-label="Persona 运行状态">
       <div className="status-heading">
-        <h2>Persona Runtime</h2>
+        <h2>Persona 运行状态</h2>
         <span className={`status-pill ${online ? "online" : "offline"}`}>
-          {loading ? "checking" : online ? "online" : "offline"}
+          {loading ? "检查中" : online ? "在线" : "离线"}
         </span>
       </div>
 
       <div className="metric-grid">
         <div className="metric">
           <strong>{memory.profile}</strong>
-          <span>Profile</span>
+          <span>画像</span>
         </div>
         <div className="metric">
           <strong>{memory.topics}</strong>
-          <span>Topics</span>
+          <span>主题</span>
         </div>
         <div className="metric">
           <strong>{memory.timelineEvents}</strong>
-          <span>Timeline</span>
+          <span>时间线</span>
         </div>
       </div>
 
       <p className="status-note">
-        Runtime data comes from Application APIs only. The UI does not read env files, SQLite, logs, or LLM providers.
+        运行状态仅来自 Application API；界面不会直接读取环境文件、SQLite、日志或 LLM 提供方。
       </p>
     </aside>
   )

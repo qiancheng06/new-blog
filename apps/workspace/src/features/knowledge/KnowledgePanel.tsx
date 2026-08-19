@@ -3,16 +3,24 @@
 import { useEffect, useMemo, useState } from "react"
 import { getWorkspaceKnowledge, type KnowledgeCategory } from "@/shared/data/workspaceData"
 import { contentUrl } from "@/shared/data/workspaceSources"
+import { Panel } from "@/shared/ui/Panel"
+import { SkeletonRows, StateBlock } from "@/shared/ui/StateBlock"
 
 export function KnowledgePanel() {
   const [categories, setCategories] = useState<KnowledgeCategory[]>([])
   const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     async function load() {
-      const data = await getWorkspaceKnowledge()
-      setCategories(data)
-      setLoading(false)
+      try {
+        const data = await getWorkspaceKnowledge()
+        setCategories(data)
+      } catch {
+        setError("知识 JSON 暂不可用。请先运行内容同步，再使用索引。")
+      } finally {
+        setLoading(false)
+      }
     }
 
     void load()
@@ -21,31 +29,34 @@ export function KnowledgePanel() {
   const totalPages = useMemo(() => categories.reduce((sum, category) => sum + category.pages.length, 0), [categories])
 
   return (
-    <section className="feature-panel" id="knowledge">
-      <div className="feature-heading">
-        <div>
-          <p className="eyebrow">Knowledge</p>
-          <h2>Content Index</h2>
-          <p>Obsidian remains the content site. Workspace shows index and entry points without scanning the vault.</p>
-          <div className="inline-stats" aria-label="Knowledge summary">
-            <span>{categories.length} categories</span>
-            <span>{totalPages} pages</span>
-          </div>
-        </div>
-        <a className="secondary-action" href={contentUrl("/")} target="_blank" rel="noreferrer">
-          Open VitePress site
+    <Panel
+      id="knowledge"
+      eyebrow="知识"
+      title="内容索引"
+      description="从同步索引快速进入独立知识库，原始内容仍由 Obsidian 与内容站管理。"
+      stats={
+        <>
+          <span>{categories.length} 个分类</span>
+          <span>{totalPages} 篇内容</span>
+        </>
+      }
+      actions={
+        <a className="secondary-action" href="/knowledge">
+          打开知识库
         </a>
-      </div>
+      }
+    >
 
-      {loading ? <p className="empty-state">Loading content index...</p> : null}
-      {!loading && totalPages === 0 ? (
-        <div className="empty-box">
-          <strong>No synced knowledge index yet.</strong>
-          <p>The content site remains available; the index appears here when the vault is present during sync.</p>
-        </div>
+      {loading ? <SkeletonRows rows={2} /> : null}
+      {!loading && error ? <StateBlock title="知识索引加载失败" message={error} tone="error" /> : null}
+      {!loading && !error && totalPages === 0 ? (
+        <StateBlock
+          title="暂无同步知识索引"
+          message="内容站仍可使用；同步时检测到 vault 后，索引会显示在这里。"
+        />
       ) : null}
 
-      <div className="knowledge-grid">
+      {!loading && !error ? <div className="knowledge-grid">
         {categories.map((category) => (
           <article key={category.category} className="knowledge-card">
             <div className="knowledge-card-head">
@@ -61,7 +72,7 @@ export function KnowledgePanel() {
             </div>
           </article>
         ))}
-      </div>
-    </section>
+      </div> : null}
+    </Panel>
   )
 }

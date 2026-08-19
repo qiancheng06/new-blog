@@ -25,7 +25,11 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
   })
 
   initializeDb()
-  const apiServer = startApiServer(options.api)
+  let stopRuntime: (() => Promise<void>) | undefined
+  const apiServer = startApiServer({
+    ...options.api,
+    onShutdownRequest: () => { void stopRuntime?.() },
+  })
   let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
@@ -44,6 +48,7 @@ export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): Person
     stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise)
     return stopPromise
   }
+  stopRuntime = stop
 
   return {
     apiServer,

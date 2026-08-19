@@ -2,7 +2,9 @@ node_modules/
 apps/workspace/.vitepress/dist/
 apps/workspace/.vitepress/cache/
 apps/workspace/.next/
+apps/blog/.next/
 apps/workspace/public/data/*.json
+apps/workspace/public/data/blog/
 .obsidian/
 apps/workspace/projects/
 *.local

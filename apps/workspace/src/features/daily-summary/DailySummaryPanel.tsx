@@ -49,7 +49,7 @@ export function DailySummaryPanel() {
         return response.items.find((note) => note.id === targetId) ?? response.items[0] ?? null
       })
     } catch {
-      setError("Daily Notes are unavailable.")
+      setError("每日总结暂不可用，请确认 Persona API 已启动。")
     } finally {
       setLoading(false)
     }
@@ -71,7 +71,7 @@ export function DailySummaryPanel() {
       setEventCount(response.eventCount)
       await loadNotes(response.note.id)
     } catch {
-      setError("Daily Note generation failed.")
+      setError("每日总结生成失败。")
     } finally {
       setGenerating(false)
     }
@@ -87,19 +87,19 @@ export function DailySummaryPanel() {
     <div className="daily-note-panel">
       <header className="daily-note-heading">
         <div>
-          <h2>Daily Note</h2>
-          <p>{selected ? `Updated ${formatTimestamp(selected.updatedAt)}` : "No summary selected"}</p>
+          <h2>每日总结</h2>
+          <p>{selected ? `更新于 ${formatTimestamp(selected.updatedAt)}` : "尚未选择总结"}</p>
         </div>
         <form className="daily-note-generate" onSubmit={generate}>
           <input
             className="input daily-note-date"
             type="date"
             value={date}
-            aria-label="Daily Note date"
+            aria-label="每日总结日期"
             onChange={(event) => setDate(event.target.value)}
           />
           <button className="compact-button active" type="submit" disabled={!date || generating}>
-            {generating ? "Generating..." : "Generate"}
+            {generating ? "生成中" : "生成"}
           </button>
         </form>
       </header>
@@ -108,19 +108,19 @@ export function DailySummaryPanel() {
 
       <div className="daily-note-body">
         <div className="daily-note-content" aria-live="polite">
-          {loading && !selected ? <p className="empty-state">Loading Daily Notes...</p> : null}
-          {!loading && !selected ? <p className="empty-state">No Daily Note yet.</p> : null}
+          {loading && !selected ? <p className="empty-state">正在读取每日总结</p> : null}
+          {!loading && !selected ? <p className="empty-state">还没有每日总结</p> : null}
           {selected ? (
             <>
               <div className="daily-note-title-row">
                 <strong>{selected.date}</strong>
-                {eventCount !== null ? <span>{eventCount} events</span> : null}
+                {eventCount !== null ? <span>{eventCount} 条事件</span> : null}
               </div>
               <p className="daily-note-summary">{selected.summary}</p>
 
               {selected.highlights.length > 0 ? (
                 <div className="daily-note-section">
-                  <h3>Highlights</h3>
+                  <h3>重点</h3>
                   <ul>
                     {selected.highlights.map((highlight, index) => <li key={`${selected.id}-${index}`}>{highlight}</li>)}
                   </ul>
@@ -129,7 +129,7 @@ export function DailySummaryPanel() {
 
               {topics.length > 0 ? (
                 <div className="daily-note-section">
-                  <h3>Topics</h3>
+                  <h3>主题</h3>
                   <div className="daily-note-topics">
                     {topics.map(([topic, count]) => <span key={topic}>{topic} {count}</span>)}
                   </div>
@@ -139,11 +139,11 @@ export function DailySummaryPanel() {
           ) : null}
         </div>
 
-        <aside className="daily-note-archive" aria-label="Recent Daily Notes">
+        <aside className="daily-note-archive" aria-label="最近每日总结">
           <div className="daily-note-archive-heading">
-            <h3>Recent</h3>
+            <h3>最近记录</h3>
             <button className="icon-button wide" type="button" disabled={loading} onClick={() => void loadNotes()}>
-              Reload
+              刷新
             </button>
           </div>
           <div className="daily-note-list">
@@ -174,7 +174,7 @@ function today(): string {
 function formatTimestamp(value: string): string {
   const parsed = new Date(value.endsWith("Z") ? value : `${value.replace(" ", "T")}Z`)
   if (Number.isNaN(parsed.getTime())) return value
-  return new Intl.DateTimeFormat(undefined, {
+  return new Intl.DateTimeFormat("zh-CN", {
     month: "short",
     day: "numeric",
     hour: "2-digit",

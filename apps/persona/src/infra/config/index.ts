@@ -7,6 +7,7 @@ export interface RuntimeConfig {
   telegramAllowedChatIds: number[]
   openaiApiKey: string
   llmProvider: string
+  llmModel: string
   apiPort: number
   apiHost: string
   allowedOrigins: string[]
@@ -30,6 +31,7 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     telegramAllowedChatIds: parseNumberList(env.TELEGRAM_ALLOWED_CHAT_IDS),
     openaiApiKey: env.OPENAI_API_KEY?.trim() || "",
     llmProvider: env.LLM_PROVIDER?.trim() || "deepseek",
+    llmModel: env.LLM_MODEL?.trim() || "deepseek-chat",
     apiPort: Number(env.API_PORT || 3001),
     apiHost: env.API_HOST?.trim() || "127.0.0.1",
     allowedOrigins: parseTextList(env.PERSONA_ALLOWED_ORIGINS, [

@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync } from 'fs'
+import { readFileSync, writeFileSync, readdirSync, existsSync, mkdirSync, unlinkSync } from 'fs'
 import { join, dirname } from 'path'
 import { fileURLToPath } from 'url'
 import { config as loadEnv } from 'dotenv'
@@ -18,19 +18,18 @@ const VAULT_ROOT = process.env.OBSIDIAN_VAULT_PATH || 'C:\\Users\\33831\\OneDriv
 const TODO_DIR = join(VAULT_ROOT, 'todo')
 const KNOWLEDGE_DIR = join(VAULT_ROOT, 'knowledge')
 const BLOG_DIR = join(VAULT_ROOT, 'blog')
-const BLOG_INDEX = join(BLOG_DIR, 'index.md')
-const BLOG_TAGS = join(BLOG_DIR, 'tags.md')
-const CONFIG_TS = join(ROOT, '.vitepress', 'config.ts')
+const BLOG_DATA_DIR = join(PUBLIC_DATA_DIR, 'blog')
+const BLOG_MANIFEST = join(PUBLIC_DATA_DIR, 'blog-posts.json')
 let projectsSourceAvailable = true
 let todosSourceAvailable = true
 let knowledgeSourceAvailable = true
 
 function parseFrontmatter(text) {
-  const m = text.match(/^---\n([\s\S]*?)\n---/)
+  const m = text.match(/^\uFEFF?---\r?\n([\s\S]*?)\r?\n---(?:\r?\n|$)/)
   if (!m) return {}
   const fm = {}
   let pendingKey = null
-  m[1].split('\n').forEach(line => {
+  m[1].split(/\r?\n/).forEach(line => {
     if (pendingKey) {
       const li = line.match(/^\s+-\s+(.+)/)
       if (li) {
@@ -38,9 +37,10 @@ function parseFrontmatter(text) {
         fm[pendingKey].push(li[1].trim().replace(/^['"]|['"]$/g, ''))
         return
       }
+      const previousKey = pendingKey
       pendingKey = null
-      if (!fm[pendingKey] || (Array.isArray(fm[pendingKey]) && fm[pendingKey].length === 0))
-        delete fm[pendingKey]
+      if (!fm[previousKey] || (Array.isArray(fm[previousKey]) && fm[previousKey].length === 0))
+        delete fm[previousKey]
     }
     const idx = line.indexOf(':')
     if (idx < 0) return
@@ -264,7 +264,7 @@ function loadKnowledge() {
       const itemCount = (text.match(/^-\s/gm) || []).length
       return {
         name: fm.title || name,
-        link: `.vitepress/dist/knowledge/${config.sub}/${name}.html`,
+        link: `/knowledge/${config.sub}/${name}.html`,
         icon: PAGE_ICONS[name] || '📄',
         count: itemCount || undefined,
       }
@@ -295,10 +295,12 @@ function loadBlogPosts() {
     const fm = parseFrontmatter(text)
     const name = f.replace(/\.md$/, '')
     return {
-      link: `./${name}`,
+      sourceFile: f,
+      slug: normalizeBlogSlug(fm.slug || name),
       title: fm.title || name,
       date: fm.date || '',
       tags: Array.isArray(fm.tags) ? fm.tags : [],
+      markdown: stripBlogFrontmatter(text),
     }
   }).sort((a, b) => {
     if (!a.date && !b.date) return a.title.localeCompare(b.title)
@@ -308,154 +310,56 @@ function loadBlogPosts() {
   })
 }
 
-function replaceMdBlock(content, markerName, newContent) {
-  const startMarker = `<!-- ${markerName} -->`
-  const endMarker = `<!-- /${markerName} -->`
-  const startIdx = content.indexOf(startMarker)
-  const endIdx = content.indexOf(endMarker)
-  if (startIdx === -1 || endIdx === -1) {
-    console.error(`Cannot find markers '${markerName}' in blog file`)
-    return content
-  }
-  const blockEnd = endIdx + endMarker.length
-  const prefix = content.slice(0, startIdx + startMarker.length)
-  const suffix = content.slice(blockEnd)
-  return prefix + '\n' + newContent + '\n' + endMarker + suffix
+function normalizeBlogSlug(value) {
+  const slug = String(value)
+    .normalize('NFC')
+    .trim()
+    .replace(/[/\\?#%]+/g, '-')
+    .replace(/\s+/g, '-')
+    .replace(/-+/g, '-')
+    .replace(/^-|-$/g, '')
+  if (!slug) throw new Error(`Blog slug is empty: ${value}`)
+  return slug
 }
 
-function genBlogList(posts) {
-  return posts.map(p => {
-    const tags = p.tags.map(t => `<span class="blog-tag">${t}</span>`).join(' ')
-    const date = p.date ? `— ${p.date}` : ''
-    return `- [${p.title}](${p.link}) ${tags} ${date}`.trim()
-  }).join('\n')
-}
-
-function genTagIndex(posts) {
-  const tagMap = {}
-  for (const p of posts) {
-    for (const t of p.tags) {
-      if (!tagMap[t]) tagMap[t] = []
-      tagMap[t].push(p)
-    }
-  }
-  const sortedTags = Object.keys(tagMap).sort()
-  return sortedTags.map(tag => {
-    const items = tagMap[tag].map(p => `- [${p.title}](${p.link})`).join('\n')
-    return `## ${tag}\n\n${items}`
-  }).join('\n\n')
-}
-
-function replaceTsBlock(content, markerName, newContent) {
-  const startMarker = `// ${markerName}`
-  const endMarker = `// /${markerName}`
-  const startIdx = content.indexOf(startMarker)
-  const endIdx = content.indexOf(endMarker)
-  if (startIdx === -1 || endIdx === -1) {
-    console.error(`Cannot find markers '${markerName}' in config.ts`)
-    return content
-  }
-  const blockEnd = endIdx + endMarker.length
-  const prefix = content.slice(0, startIdx + startMarker.length)
-  const suffix = content.slice(blockEnd)
-  return prefix + '\n' + newContent + '\n' + endMarker + suffix
-}
-
-function genSidebarPosts(posts) {
-  return posts.map(p => `            { text: '${p.title.replace(/'/g, "\\'")}', link: '/blog/${p.link.replace('./', '')}' },`).join('\n')
-}
-
-function genSidebarBlock(posts) {
-  const buildingTags = ['VitePress', 'Obsidian', '前端架构', '前端', 'Node.js', '前端工程化', 'Vue', 'CSS', 'JavaScript', '架构设计']
-  const carTags = ['ROS', '智能车', '控制算法', '嵌入式']
-
-  const buildingPosts = posts.filter(p => p.tags.some(t => buildingTags.includes(t)))
-  const carPosts = posts.filter(p => p.tags.some(t => carTags.includes(t)))
-  const otherPosts = posts.filter(p =>
-    !p.tags.some(t => buildingTags.includes(t)) && !p.tags.some(t => carTags.includes(t))
-  )
-
-  const lines = [
-    "      '/blog/': [",
-    "        { text: '文章列表', link: '/blog/' },",
-    "        { text: '标签索引', link: '/blog/tags' },",
-  ]
-
-  if (buildingPosts.length > 0) {
-    lines.push('        {')
-    lines.push("          text: '博客搭建',")
-    lines.push('          collapsed: false,')
-    lines.push('          items: [')
-    buildingPosts.forEach(p => {
-      const title = p.title.replace(/'/g, "\\'")
-      const link = p.link.replace('./', '')
-      lines.push(`            { text: '${title}', link: '/blog/${link}' },`)
-    })
-    lines.push('          ],')
-    lines.push('        },')
-  }
-
-  if (carPosts.length > 0) {
-    lines.push('        {')
-    lines.push("          text: '智能车',")
-    lines.push('          collapsed: false,')
-    lines.push('          items: [')
-    carPosts.forEach(p => {
-      const title = p.title.replace(/'/g, "\\'")
-      const link = p.link.replace('./', '')
-      lines.push(`            { text: '${title}', link: '/blog/${link}' },`)
-    })
-    lines.push('          ],')
-    lines.push('        },')
-  }
-
-  if (otherPosts.length > 0) {
-    otherPosts.forEach(p => {
-      const title = p.title.replace(/'/g, "\\'")
-      const link = p.link.replace('./', '')
-      lines.push(`        { text: '${title}', link: '/blog/${link}' },`)
-    })
-  }
-
-  lines.push('      ],')
-  return lines.join('\n')
+function stripBlogFrontmatter(text) {
+  const body = text.replace(/^\uFEFF?---\r?\n[\s\S]*?\r?\n---(?:\r?\n|$)/, '')
+  return body
+    .replace(/^\s*(?:<span class=["']blog-tag["'][\s\S]*?<\/span>\s*)+(?:<a class=["']blog-tag-link["'][\s\S]*?<\/a>)?\s*/i, '')
+    .trimStart()
 }
 
 function syncBlog() {
-  if (!existsSync(BLOG_DIR) || !existsSync(BLOG_INDEX) || !existsSync(BLOG_TAGS)) {
-    console.log('Blog source files not found, skipping blog sync:', BLOG_DIR)
+  if (!existsSync(BLOG_DIR)) {
+    console.log('Blog source directory not found, keeping existing generated data:', BLOG_DIR)
     return false
   }
 
   const posts = loadBlogPosts()
-  let updated = false
-
-  // Update index.md
-  let idxContent = readFileSync(BLOG_INDEX, 'utf-8')
-  const newIdx = replaceMdBlock(idxContent, 'BLOG_LIST', genBlogList(posts))
-  if (newIdx !== idxContent) {
-    idxContent = newIdx
-    writeFileSync(BLOG_INDEX, idxContent, 'utf-8')
-    updated = true
+  const seenSlugs = new Set()
+  for (const post of posts) {
+    if (seenSlugs.has(post.slug)) throw new Error(`Duplicate blog slug: ${post.slug}`)
+    seenSlugs.add(post.slug)
   }
 
-  // Update tags.md
-  let tagsContent = readFileSync(BLOG_TAGS, 'utf-8')
-  const newTags = replaceMdBlock(tagsContent, 'BLOG_TAGS', genTagIndex(posts))
-  if (newTags !== tagsContent) {
-    writeFileSync(BLOG_TAGS, newTags, 'utf-8')
-    updated = true
+  mkdirSync(PUBLIC_DATA_DIR, { recursive: true })
+  mkdirSync(BLOG_DATA_DIR, { recursive: true })
+
+  const generatedFiles = new Set(posts.map(post => `${post.slug}.md`))
+  for (const file of readdirSync(BLOG_DATA_DIR)) {
+    if (file.endsWith('.md') && !generatedFiles.has(file)) unlinkSync(join(BLOG_DATA_DIR, file))
   }
 
-  // Update config.ts sidebar
-  let configContent = readFileSync(CONFIG_TS, 'utf-8')
-  const newConfig = replaceTsBlock(configContent, 'SIDEBAR:BLOG', genSidebarBlock(posts))
-  if (newConfig !== configContent) {
-    writeFileSync(CONFIG_TS, newConfig, 'utf-8')
-    updated = true
+  for (const post of posts) {
+    writeFileSync(join(BLOG_DATA_DIR, `${post.slug}.md`), post.markdown, 'utf-8')
   }
 
-  return updated
+  writeFileSync(
+    BLOG_MANIFEST,
+    JSON.stringify(posts.map(({ slug, title, date, tags }) => ({ slug, title, date, tags })), null, 2) + '\n',
+    'utf-8',
+  )
+  return true
 }
 
 function main() {

@@ -12,9 +12,22 @@ interface ChatMessage {
 
 interface ChatCompletionOptions {
   messages: ChatMessage[]
+  endpoint?: string
+  apiKey?: string
+  model?: string
   temperature: number
+  topP?: number
   maxTokens: number
   jsonResponse?: boolean
+}
+
+export interface CompanionCompletionOptions {
+  endpoint?: string
+  apiKey?: string
+  model?: string
+  temperature?: number
+  topP?: number
+  maxTokens?: number
 }
 
 export interface AnalysisResult {
@@ -103,13 +116,18 @@ const dailySummaryResultSchema = z.object({
   topic_distribution: z.record(z.number().int().nonnegative().max(10_000)),
 })
 
-async function post(body: string, timeout: number): Promise<{ status: number; data: string }> {
-  const response = await fetch(API_URL, {
+async function post(
+  body: string,
+  timeout: number,
+  connection: { endpoint?: string; apiKey?: string } = {},
+): Promise<{ status: number; data: string }> {
+  const apiKey = connection.apiKey ?? config.openaiApiKey
+  const headers: Record<string, string> = { "Content-Type": "application/json" }
+  if (apiKey) headers.Authorization = `Bearer ${apiKey}`
+
+  const response = await fetch(connection.endpoint ?? API_URL, {
     method: "POST",
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${config.openaiApiKey}`,
-    },
+    headers,
     body,
     signal: AbortSignal.timeout(timeout),
   })
@@ -119,12 +137,13 @@ async function post(body: string, timeout: number): Promise<{ status: number; da
 }
 
 async function createChatCompletion(options: ChatCompletionOptions): Promise<string> {
-  assertRuntimeConfig(config, { requireLlm: true })
+  if (!options.endpoint) assertRuntimeConfig(config, { requireLlm: true })
 
   const body = JSON.stringify({
-    model: "deepseek-chat",
+    model: options.model ?? config.llmModel,
     messages: options.messages,
     temperature: options.temperature,
+    ...(options.topP === undefined ? {} : { top_p: options.topP }),
     max_tokens: options.maxTokens,
     ...(options.jsonResponse ? { response_format: { type: "json_object" } } : {}),
   })
@@ -132,20 +151,20 @@ async function createChatCompletion(options: ChatCompletionOptions): Promise<str
   let status: number
   let data: string
   try {
-    const result = await post(body, 20000)
+    const result = await post(body, 20000, { endpoint: options.endpoint, apiKey: options.apiKey })
     status = result.status
     data = result.data
   } catch (err) {
-    throw new Error(`DeepSeek request failed: ${err instanceof Error ? err.message : String(err)}`)
+    throw new Error(`LLM provider request failed: ${err instanceof Error ? err.message : String(err)}`)
   }
 
-  if (status !== 200) throw new Error(`DeepSeek API ${status}: ${sanitizeProviderError(data)}`)
+  if (status !== 200) throw new Error(`LLM provider API ${status}: ${sanitizeProviderError(data, options.apiKey)}`)
 
   let parsed: { choices?: Array<{ message?: { content?: string } }> }
   try {
     parsed = JSON.parse(data) as { choices?: Array<{ message?: { content?: string } }> }
   } catch {
-    throw new Error("DeepSeek returned non-JSON response")
+    throw new Error("LLM provider returned non-JSON response")
   }
   const content = parsed.choices?.[0]?.message?.content
   if (!content) throw new Error("LLM returned empty response")
@@ -153,23 +172,36 @@ async function createChatCompletion(options: ChatCompletionOptions): Promise<str
   return content
 }
 
-export async function callCompanion(systemPrompt: string, userMessage: string): Promise<string> {
-  if (config.llmProvider === "mock") {
+export async function callCompanion(
+  systemPrompt: string,
+  userMessage: string,
+  options: CompanionCompletionOptions = {},
+): Promise<string> {
+  if (config.llmProvider === "mock" && !options.endpoint) {
     return `[mock companion] ${userMessage}`
   }
 
   return createChatCompletion({
+    endpoint: options.endpoint,
+    apiKey: options.apiKey,
+    model: options.model,
     messages: [
       { role: "system", content: systemPrompt },
       { role: "user", content: userMessage },
     ],
-    temperature: 0.8,
-    maxTokens: 1000,
+    temperature: options.temperature ?? 0.8,
+    topP: options.topP,
+    maxTokens: options.maxTokens ?? 1000,
   })
 }
 
-export async function callAnalysis(systemPrompt: string, userMessage: string, history?: string): Promise<AnalysisResult> {
-  if (config.llmProvider === "mock") {
+export async function callAnalysis(
+  systemPrompt: string,
+  userMessage: string,
+  history?: string,
+  connection: Pick<CompanionCompletionOptions, "endpoint" | "apiKey" | "model"> = {},
+): Promise<AnalysisResult> {
+  if (config.llmProvider === "mock" && !connection.endpoint) {
     return createMockAnalysisResult(userMessage, history)
   }
 
@@ -183,6 +215,9 @@ export async function callAnalysis(systemPrompt: string, userMessage: string, hi
   messages.push({ role: "user", content: userMessage })
 
   const content = await createChatCompletion({
+    endpoint: connection.endpoint,
+    apiKey: connection.apiKey,
+    model: connection.model,
     messages,
     temperature: 0.3,
     maxTokens: 2000,
@@ -250,8 +285,12 @@ export function parseDailySummaryResult(input: unknown): DailySummaryResult {
   throw new Error(`DeepSeek daily summary response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
 }
 
-function sanitizeProviderError(data: string): string {
-  return data.replace(config.openaiApiKey, "[redacted]").slice(0, 200)
+function sanitizeProviderError(data: string, requestApiKey?: string): string {
+  let sanitized = data
+  for (const secret of [requestApiKey, config.openaiApiKey]) {
+    if (secret) sanitized = sanitized.replaceAll(secret, "[redacted]")
+  }
+  return sanitized.slice(0, 200)
 }
 
 function createMockAnalysisResult(userMessage: string, history?: string): AnalysisResult {

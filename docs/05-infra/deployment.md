@@ -6,8 +6,10 @@
 
 | 部分 | 当前定位 | 是否部署 | 说明 |
 |------|----------|----------|------|
-| `apps/workspace/` | Workspace 前台 | 部署静态产物 | `npm run build` 生成 `apps/workspace/.vitepress/dist/` |
-| `http://127.0.0.1:5173/` | Workspace 主入口 | 本地开发/预览 | 由 VitePress dev server 提供 |
+| `apps/workspace/` | Next.js Workspace | 部署 Next.js 应用 | `npm run build` 生成 Workspace 产物 |
+| `apps/blog/` | 独立 Next.js 公开博客 | 单独部署或与 Workspace 同机运行 | `npm run build:blog` 生成 Blog 产物 |
+| `http://127.0.0.1:5173/` | Workspace 主入口 | 本地开发/预览 | 由 Next.js dev server 提供 |
+| `http://127.0.0.1:5175/` | 公开博客 | 独立 Next.js Blog 应用 | 文章来自同步生成物 |
 | `apps/workspace/legacy/*.html` | Legacy standalone HTML assets | 不公网部署 | 仅用于迁移兼容/历史参考，不作为当前主入口 |
 | `apps/persona/` | Persona OS 后台 | 当前本地运行 | API、Telegram Bot、认知流程，默认端口 `3001` |
 | `data/` | Persona 本地数据 | 不部署到静态站 | 当前包含 `persona-os.db`、WAL/SHM 等运行数据 |
@@ -19,7 +21,7 @@
 ```text
 用户浏览器
   │
-  ├─ 家庭内网: http://127.0.0.1:4173 或局域网地址
+  ├─ 家庭内网: http://127.0.0.1:5173 或局域网地址
   │
   └─ 外网: https://your-domain.com
         │
@@ -32,8 +34,11 @@
         ▼
     本机 / VPS
         │
-        ├─ Workspace preview: http://127.0.0.1:4173
-        │   └─ apps/workspace/.vitepress/dist/
+        ├─ Workspace Next.js: http://127.0.0.1:5173
+        │   └─ apps/workspace/.next/
+        │
+        ├─ Blog Next.js: http://127.0.0.1:5175
+        │   └─ apps/blog/.next/
         │
         └─ Persona backend: http://127.0.0.1:3001
             └─ apps/persona/ + data/
@@ -41,21 +46,24 @@
 
 ## Workspace 静态站部署
 
-Workspace 的发布对象是 VitePress 构建产物，不是仓库根目录，也不是 `apps/workspace/legacy/*.html` 这类 legacy standalone HTML 文件。
+Workspace 的发布对象是 Next.js 应用，不是 VitePress 静态产物，也不是 `apps/workspace/legacy/*.html` 这类 legacy standalone HTML 文件。部署前需要在能访问 Obsidian vault 的环境执行 `npm.cmd run sync`，或准备等价的生成数据产物。
 
 ```bash
 cd C:\Users\33831\Desktop\code\projects\blog
 npm run build
 npm run preview
+npm run build:blog
+npm run preview:blog
 ```
 
 当前脚本会构建 `apps/workspace`，构建产物位于：
 
 ```text
-apps/workspace/.vitepress/dist/
+apps/workspace/.next/
 ```
 
-`npm run preview` 使用仓库脚本中的 VitePress preview 配置，默认服务地址面向 `127.0.0.1`，端口通常是 `4173`。如果端口被占用，以命令输出为准，并同步更新 Tunnel 的 `service` 地址。
+`npm run preview` 使用 Next.js preview 配置，默认服务地址为 `127.0.0.1:5173`。私人 VitePress 内容站需要单独运行 `npm.cmd run dev:content`，默认地址为 `127.0.0.1:5174`。
+公开博客使用独立的 `apps/blog` 构建和预览命令，默认地址为 `127.0.0.1:5175`。
 
 ## Cloudflare Tunnel + Access
 
@@ -90,7 +98,11 @@ credentials-file: C:\Users\你的用户名\.cloudflared\persona-workspace.json
 
 ingress:
   - hostname: your-domain.com
-    service: http://127.0.0.1:4173
+    service: http://127.0.0.1:5173
+  - hostname: blog.your-domain.com
+    service: http://127.0.0.1:5175
+  - hostname: content.your-domain.com
+    service: http://127.0.0.1:5174
   - service: http_status:404
 ```
 
@@ -175,7 +187,7 @@ blog/
 
 ## 替代方案：VPS + Nginx
 
-如果不使用 Cloudflare Tunnel，也可以把 `apps/workspace/.vitepress/dist/` 上传到 VPS，由 Nginx 服务静态文件，并在 Nginx 或上游网关处加鉴权。
+如果不使用 Cloudflare Tunnel，也可以把 Next.js 应用部署到 VPS，由 Node.js 运行 `npm.cmd run start`，并在 Nginx 或上游网关处加鉴权。
 
 示例：
 
@@ -196,7 +208,7 @@ server {
 上传静态产物时只同步 dist 内容：
 
 ```bash
-rsync -avz apps/workspace/.vitepress/dist/ user@vps:/var/www/persona-workspace/
+rsync -avz apps/workspace/.next/ user@vps:/var/www/persona-workspace/.next/
 ```
 
 如需 Basic Auth、Authelia、Tailscale 或其他访问控制，应在部署前单独记录鉴权边界和账号恢复方式。
@@ -205,7 +217,7 @@ rsync -avz apps/workspace/.vitepress/dist/ user@vps:/var/www/persona-workspace/
 
 - [ ] 仓库保持 private。
 - [ ] 已在拥有 Obsidian vault 的机器上完成同步。
-- [ ] `npm run build` 成功生成 `apps/workspace/.vitepress/dist/`。
+- [ ] `npm run build` 成功生成 `apps/workspace/.next/`。
 - [ ] `npm run preview` 可在本机访问 Workspace 静态站。
 - [ ] Cloudflare Tunnel 的 `service` 指向实际 preview 地址。
 - [ ] Cloudflare Access 已限制允许访问者。

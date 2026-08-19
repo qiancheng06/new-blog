@@ -23,6 +23,7 @@ export const workspaceSources: WorkspaceSource[] = [
 ]
 
 export function contentUrl(path: string): string {
-  const normalized = path.startsWith("/") ? path : `/${path}`
+  const publicPath = path.replace(/^\/?\.vitepress\/dist/, "")
+  const normalized = publicPath.startsWith("/") ? publicPath : `/${publicPath}`
   return `${CONTENT_SITE_BASE}${normalized}`
 }

@@ -1,5 +1,8 @@
+import { createServer, type IncomingMessage, type Server, type ServerResponse } from "http"
+
 const contractTag = `codex-api-contract-${Date.now()}`
 const port = Number(process.env.API_PORT) || 3103
+const fakeProviderPort = port + 1
 
 process.env.LLM_PROVIDER = "mock"
 process.env.API_PORT = String(port)
@@ -9,6 +12,8 @@ const { initializeDb, queryOne, run } = await import("../infra/db/pool.js")
 const { startApiServer, stopApiServer } = await import("../interface/api/server.js")
 
 initializeDb()
+const fakeProviderRequests: Array<{ body: Record<string, unknown>; authorization?: string }> = []
+const fakeProvider = await startFakeProvider(fakeProviderPort, fakeProviderRequests)
 const server = startApiServer({ port, hostname: "127.0.0.1" })
 
 try {
@@ -18,6 +23,8 @@ try {
   await verifyNotFound(port)
   await verifyInvalidChat(port)
   await verifyValidChat(port)
+  await verifyCustomProvider(port, fakeProviderPort, fakeProviderRequests)
+  await verifyAiConnectionTest(port, fakeProviderPort, fakeProviderRequests)
   await verifyEvents(port)
   await verifyStatus(port)
   await verifyMemoryOverview(port)
@@ -31,6 +38,7 @@ try {
 } finally {
   cleanupContractRows(contractTag)
   await stopApiServer(server)
+  await closeServer(fakeProvider)
 }
 
 async function verifyOptions(portNumber: number): Promise<void> {
@@ -118,6 +126,23 @@ async function verifyInvalidChat(portNumber: number): Promise<void> {
   assert(missingText.status === 400, `missing text expected 400, got ${missingText.status}`)
   assert((await missingText.json() as { error?: string }).error === "text is required", "missing text error mismatch")
 
+  const invalidAiCases = [
+    { label: "non-object ai", ai: null },
+    { label: "temperature out of range", ai: { temperature: 2.1 } },
+    { label: "fractional history limit", ai: { historyLimit: 1.5 } },
+    { label: "insecure remote endpoint", ai: { endpoint: "http://example.com/v1/chat/completions", model: "example", apiKey: "secret" } },
+    { label: "remote endpoint without key", ai: { endpoint: "https://example.com/v1/chat/completions", model: "example" } },
+    { label: "oversized instructions", ai: { instructions: "x".repeat(1001) } },
+  ]
+  for (const invalidCase of invalidAiCases) {
+    const response = await fetch(`http://127.0.0.1:${portNumber}/api/chat`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ text: `${rejectedTag}-${invalidCase.label}`, ai: invalidCase.ai }),
+    })
+    assert(response.status === 400, `${invalidCase.label} expected 400, got ${response.status}`)
+  }
+
   const rejectedEvent = queryOne<{ id: string }>("SELECT id FROM events WHERE payload LIKE ?", [`%${rejectedTag}%`])
   assert(!rejectedEvent, "rejected request bodies must not create Events")
 }
@@ -128,7 +153,20 @@ async function verifyValidChat(portNumber: number): Promise<void> {
     reply?: string
     eventId?: string
     replyEventId?: string
-  }>(`http://127.0.0.1:${portNumber}/api/chat`, { text: contractTag, page: "api-contract", evaluationRunId })
+  }>(`http://127.0.0.1:${portNumber}/api/chat`, {
+    text: contractTag,
+    page: "api-contract",
+    evaluationRunId,
+    ai: {
+      temperature: 0.4,
+      topP: 0.9,
+      maxTokens: 512,
+      historyLimit: 4,
+      memoryEnabled: true,
+      backgroundAnalysis: true,
+      instructions: "Keep the reply concise.",
+    },
+  })
 
   assert(typeof body.reply === "string" && body.reply.includes(contractTag), "chat.reply must include mock tag")
   assert(typeof body.eventId === "string" && body.eventId.length > 0, "chat.eventId must be non-empty string")
@@ -160,6 +198,109 @@ async function verifyValidChat(portNumber: number): Promise<void> {
   assert(replyMetadata.visibility === "user", "chat reply event visibility mismatch")
   assert(replyMetadata.in_reply_to === body.eventId, "chat reply event metadata must link to the input event")
   assert(replyMetadata.run_id === evaluationRunId, "chat reply event run_id mismatch")
+}
+
+async function verifyCustomProvider(
+  portNumber: number,
+  providerPort: number,
+  requests: Array<{ body: Record<string, unknown>; authorization?: string }>,
+): Promise<void> {
+  const customTag = `${contractTag}-custom-provider`
+  const customKey = `${contractTag}-secret`
+  const body = await postJson<{ reply?: string }>(`http://127.0.0.1:${portNumber}/api/chat`, {
+    text: customTag,
+    ai: {
+      endpoint: `http://127.0.0.1:${providerPort}/v1/chat/completions`,
+      model: "contract-model",
+      apiKey: customKey,
+      temperature: 1.2,
+      topP: 0.75,
+      maxTokens: 768,
+      historyLimit: 0,
+      memoryEnabled: false,
+      backgroundAnalysis: false,
+    },
+  })
+
+  assert(body.reply === `custom provider reply: ${customTag}`, "custom provider reply mismatch")
+  assert(requests.length === 1, `custom provider expected one request, got ${requests.length}`)
+  assert(requests[0].authorization === `Bearer ${customKey}`, "custom provider authorization mismatch")
+  assert(requests[0].body.model === "contract-model", "custom provider model mismatch")
+  assert(requests[0].body.temperature === 1.2, "custom provider temperature mismatch")
+  assert(requests[0].body.top_p === 0.75, "custom provider top_p mismatch")
+  assert(requests[0].body.max_tokens === 768, "custom provider max_tokens mismatch")
+
+  const leakedSecret = queryOne<{ id: string }>("SELECT id FROM events WHERE payload LIKE ? OR metadata LIKE ?", [
+    `%${customKey}%`,
+    `%${customKey}%`,
+  ])
+  assert(!leakedSecret, "custom provider API key must not be persisted in Events")
+}
+
+async function verifyAiConnectionTest(
+  portNumber: number,
+  providerPort: number,
+  requests: Array<{ body: Record<string, unknown>; authorization?: string }>,
+): Promise<void> {
+  const eventsBefore = queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM events")?.count ?? 0
+  const defaultResult = await postJson<{ reply?: string; latencyMs?: number }>(
+    `http://127.0.0.1:${portNumber}/api/ai/test`,
+    { ai: { temperature: 0.2, maxTokens: 128 } },
+  )
+  assert(defaultResult.reply === "[mock companion] Reply with OK.", "default AI connection test reply mismatch")
+  assert(typeof defaultResult.latencyMs === "number", "default AI connection test latency missing")
+
+  const testKey = `${contractTag}-test-key`
+  const customResult = await postJson<{ reply?: string; latencyMs?: number }>(
+    `http://127.0.0.1:${portNumber}/api/ai/test`,
+    {
+      ai: {
+        endpoint: `http://127.0.0.1:${providerPort}/v1/chat/completions`,
+        model: "test-model",
+        apiKey: testKey,
+        temperature: 0.1,
+        maxTokens: 128,
+      },
+    },
+  )
+  assert(customResult.reply === "custom provider reply: Reply with OK.", "custom AI connection test reply mismatch")
+  assert(typeof customResult.latencyMs === "number", "custom AI connection test latency missing")
+  assert(requests.length === 2, `AI connection test expected two total provider requests, got ${requests.length}`)
+  assert(requests[1].authorization === `Bearer ${testKey}`, "AI connection test authorization mismatch")
+  assert(requests[1].body.model === "test-model", "AI connection test model mismatch")
+
+  const eventsAfter = queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM events")?.count ?? 0
+  assert(eventsAfter === eventsBefore, "AI connection test must not persist probe messages")
+  const leakedKey = queryOne<{ id: string }>("SELECT id FROM events WHERE payload LIKE ? OR metadata LIKE ?", [`%${testKey}%`, `%${testKey}%`])
+  assert(!leakedKey, "AI connection test must not persist API keys")
+}
+
+async function startFakeProvider(
+  providerPort: number,
+  requests: Array<{ body: Record<string, unknown>; authorization?: string }>,
+): Promise<Server> {
+  const provider = createServer(async (req: IncomingMessage, res: ServerResponse) => {
+    let raw = ""
+    for await (const chunk of req) raw += chunk.toString()
+    const body = JSON.parse(raw) as Record<string, unknown>
+    requests.push({ body, authorization: req.headers.authorization })
+    const messages = body.messages as Array<{ role?: string; content?: string }>
+    const userText = [...messages].reverse().find((message) => message.role === "user")?.content ?? ""
+    res.writeHead(200, { "Content-Type": "application/json" })
+    res.end(JSON.stringify({ choices: [{ message: { content: `custom provider reply: ${userText}` } }] }))
+  })
+
+  await new Promise<void>((resolve, reject) => {
+    provider.once("error", reject)
+    provider.listen(providerPort, "127.0.0.1", resolve)
+  })
+  return provider
+}
+
+function closeServer(serverToClose: Server): Promise<void> {
+  return new Promise((resolve, reject) => {
+    serverToClose.close((error) => error ? reject(error) : resolve())
+  })
 }
 
 async function verifyEvents(portNumber: number): Promise<void> {

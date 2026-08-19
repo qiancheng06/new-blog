@@ -1,87 +1,287 @@
-# Current Architecture
+# Persona Workspace 当前架构
 
-## 当前定位
+> 更新时间：2026-08-18
+>
+> 当前形态：本地优先的模块化单体，Next.js 工作台与 Persona API 分进程运行，Obsidian 作为内容库和人工审阅层。
 
-本仓库是两个项目合并后的模块化单体：
+## 1. 系统总览
 
-- **Workspace 旧项目**：个人工作台、VitePress、Obsidian、项目进度、待办、博客和本地 HTML 仪表盘。
-- **Persona OS 新项目**：Telegram/Web 输入、Event Core、Memory、Persona、认知算子和 LLM 回复。
+```mermaid
+flowchart LR
+  user["用户浏览器"]
+  telegram["Telegram"]
+  provider["OpenAI-compatible LLM<br/>DeepSeek 或自定义厂商"]
 
-当前目标不是拆微服务，而是把两个项目整理成清晰的架构域，方便多个 AI 按边界协作。
+  subgraph presentation["界面层"]
+    next["Next.js Workspace :5173<br/>总览 / AI / 日历 / 知识库 / 工具"]
+    blogNext["Next.js Blog :5175<br/>公开博客"]
+    vitepress["VitePress Content :5174<br/>私人 Markdown 内容站"]
+    tgAdapter["Telegram Adapter"]
+  end
 
-当前代码根：
+  subgraph persona["Persona OS :3001"]
+    api["HTTP API<br/>Chat / Memory / Daily Summary / Status"]
+    app["Application<br/>Conversation / Memory / Daily Summary"]
+    ai["AI Runtime<br/>Companion / Research / Critic / Memory Patch"]
+    domain["Domain<br/>Event / Topic / Profile / Timeline / Daily Note"]
+  end
 
-- Workspace 前台：`apps/workspace/`
-- Persona OS 后台：`apps/persona/src/`
-- 根目录旧入口 `index.html` / `detail.html` / `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 已不是当前架构入口；只在归档或迁移记录中作为历史事实出现。
+  subgraph storage["数据与内容"]
+    sqlite[("SQLite<br/>data/persona-os.db")]
+    vault[("Obsidian Vault<br/>todo / knowledge / blog / persona daily notes")]
+    projects[("Repo Markdown<br/>apps/workspace/projects")]
+    generated[("生成读模型<br/>apps/workspace/public/data")]
+    browser[("Browser Storage<br/>UI 偏好 / 日历 / 临时 Key")]
+  end
 
-## 推荐架构
+  sync["sync-projects.js / watch.js"]
+  runtime["Next local runtime route<br/>启动 / 停止 Persona API"]
 
-```text
-Presentation
-  Workspace HTML / VitePress / Telegram / future Next.js
-
-Interface
-  HTTP API / Telegram Adapter / future MCP Adapter
-
-Application
-  Conversation Flow / Event Bus / Daily Summary / Workspace-Persona Bridge
-
-Domain
-  Workspace / Persona / Memory / Context / Event / Project / Topic / Profile
-
-AI Runtime
-  Companion / Researcher / Critic / Archivist / Prompt / LLM call policy
-
-Infrastructure
-  SQLite now / PostgreSQL later / Obsidian FS / DeepSeek / Telegram API / Config
+  user --> next
+  user --> blogNext
+  user --> vitepress
+  user --> browser
+  next -->|"浏览器直接调用 JSON API"| api
+  next --> runtime
+  runtime -->|"受控启动与关闭"| api
+  telegram --> tgAdapter --> app
+  api --> app --> domain --> sqlite
+  app --> ai --> provider
+  ai --> domain
+  app -->|"归档每日总结"| vault
+  vault --> sync
+  projects --> sync
+  sync --> generated --> next
+  generated --> blogNext
+  vault --> vitepress
 ```
 
-横向约束：
+系统不是微服务集群。开发时主要有四个本地进程：
 
-- Event 是唯一输入单位
-- Companion 是默认输出层
-- 原始 Event 不可修改
-- Obsidian 是长期可视化和人工审计层
-- MVP 稳定前不引入微服务、向量库、图数据库、多模型路由
+- `:5173`：Next.js 主工作台，只承载工作区、AI 和工具模块。
+- `:5175`：独立 Next.js 公开博客。
+- `:3001`：Persona OS API、AI 编排、记忆与 SQLite 持久化。
+- `:5174`：VitePress 私人内容站，按需启动。
 
-## 已实现
+## 2. 代码边界
 
-- Workspace 主入口：`http://127.0.0.1:5173/` via VitePress dev server
-- Workspace legacy 静态资产：`apps/workspace/legacy/index.html`, `apps/workspace/legacy/detail.html`, `apps/workspace/legacy/calendar.html`
-- Workspace VitePress 配置和组件：`apps/workspace/.vitepress/`
-- Obsidian/VitePress 同步脚本：`apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js`
-- Persona OS TypeScript 源码：`apps/persona/src/`
-- HTTP API：`POST /api/chat`, `GET /api/events`, `GET /health`
-- Telegram Bot 基础入口
-- Event 入库和查询
-- Companion 同步回复
-- Research/Critic/Archivist 异步分析调用
-- SQLite 运行时数据库和基础 Memory 表
+| 层 | 位置 | 责任 |
+| --- | --- | --- |
+| Workspace 前端 | `apps/workspace/app/`、`apps/workspace/src/` | 工作台页面路由、统一侧栏、AI 控制台、日历、知识库和工具 |
+| Blog 前端 | `apps/blog/app/`、`apps/blog/src/` | 独立公开博客列表、文章和标签页，运行于 `:5175` |
+| Workspace 同步 | `apps/workspace/scripts/` | 从 Obsidian 和项目 Markdown 生成前端只读数据 |
+| VitePress 内容站 | `apps/workspace/.vitepress/` | 直接浏览私人 Markdown 内容和本地全文搜索 |
+| Persona 接口层 | `apps/persona/src/interface/` | HTTP API、CORS、本机运行时关闭接口、Telegram 适配 |
+| Persona 应用层 | `apps/persona/src/application/` | 对话、记忆读写、模型测试、每日总结和归档用例 |
+| Persona AI Runtime | `apps/persona/src/ai-runtime/` | Prompt、同步回复、异步分析、Memory Patch |
+| Persona 领域层 | `apps/persona/src/domain/` | Event、Topic、Profile、Timeline、Daily Note 规则 |
+| Persona 基础设施 | `apps/persona/src/infra/` | SQLite、LLM、Obsidian 文件写入和环境配置 |
+| 历史兼容资产 | `apps/workspace/legacy/` | 仅作迁移参考，不是当前入口 |
 
-## 半实现
+## 3. AI 与记忆闭环
 
-- Memory 表已存在，但分析结果尚未完整写回 Topic/Profile/Timeline
-- Context 目前主要依赖最近事件，尚未形成独立 Context Builder
-- Daily Note 表已存在，但每日总结流程尚未闭环
-- Obsidian 是长期目标层，但 Persona OS 到 Obsidian 的记忆同步尚未完成
-- Event Bus 目前是架构方向，还不是独立模块
+```mermaid
+sequenceDiagram
+  participant UI as AI 页面或 Telegram
+  participant API as Persona API
+  participant DB as SQLite
+  participant RT as AI Runtime
+  participant LLM as 模型厂商
 
-## 愿景设计
+  UI->>API: POST /api/chat
+  API->>DB: 写入不可变 input Event
+  API->>DB: 读取近期事件、Topic、Profile、Timeline
+  API->>RT: 构建 Persona Prompt 与记忆上下文
+  RT->>LLM: Companion 同步回复
+  LLM-->>RT: 回复文本
+  API->>DB: 写入 reply Event
+  API-->>UI: 返回回复
 
-- PostgreSQL 作为长期运行时主库
-- Next.js 作为未来 Workspace + BFF 壳层
-- 更完整的 Application 编排层
-- Daily Summary 到 Obsidian 的稳定写入
-- 多 AI 协作开发空间
+  par 后台分析
+    RT->>LLM: Research + Critic + Memory Patch
+    LLM-->>RT: 结构化分析结果
+    RT->>DB: 更新 Topic / Profile / Timeline
+    RT->>DB: 所有更新关联 source Event
+  end
+```
 
-这些愿景不得绕过当前 MVP 原则直接落地。
+### 核心约束
 
-## 当前数据主权
+- 每条用户输入先写成 `events` 事实，再调用模型。
+- 原始 Event 不修改；Topic、Profile、Timeline 是可更新的记忆投影。
+- 对话回复同步返回，Research/Critic/Memory Patch 在后台执行，减少前台等待。
+- 记忆可以在前端查看、纠正、停用或恢复，修改操作仍保留来源 Event 审计关系。
+- `POST /api/ai/test` 只测试连接，不产生对话 Event，也不写记忆。
+- 服务端默认支持 DeepSeek 和 mock；网页自定义连接通过 OpenAI-compatible endpoint、model、API key 接入其他厂商。
+- 自定义 API key 只放当前标签会话的 `sessionStorage`，不写 `localStorage`、SQLite 或生成文件。
 
-- Workspace 内容主库：Obsidian/Markdown 与本地 `apps/workspace/projects/*.md`
-- Workspace 展示层：VitePress dev server 为主，legacy 静态 HTML 仅作迁移兼容资产
-- Persona 运行时事实源：SQLite 中的 `events`
-- 长期记忆目标层：Obsidian 可读文件
+## 4. 每日总结与 Obsidian
 
-文档中如出现 PostgreSQL，应理解为长期目标；当前代码实际使用 SQLite。
+```mermaid
+flowchart LR
+  events[("SQLite events")]
+  memory[("Timeline / Topics / Profile")]
+  summary["Daily Summary 用例"]
+  llm["服务端默认 LLM"]
+  notes[("SQLite daily_notes")]
+  exporter["Obsidian Daily Note Exporter"]
+  file["Vault/persona/daily-notes/YYYY-MM-DD.md"]
+
+  events --> summary
+  memory --> summary
+  summary --> llm --> summary
+  summary --> notes
+  summary -->|"创建 summary-ready Event"| events
+  notes --> exporter --> file
+```
+
+- 总结按 `PERSONA_TIME_ZONE` 计算自然日。
+- 生成结果先持久化到 `daily_notes`，并创建对应 Event。
+- 归档时只维护 Markdown 中的 `PERSONA:DAILY_NOTE` 管理块，用户写在管理块外的内容会被保留。
+- 文件写入使用路径校验、冲突检测和原子替换，避免越界写入或覆盖人工笔记。
+- Persona 向 Obsidian 的自动写入目前仅用于 Daily Note；知识、待办和博客仍以人工 Markdown 为源。
+
+## 5. Obsidian、知识库与博客数据流
+
+```mermaid
+flowchart LR
+  projectMd["Repo projects/*.md"]
+  todoMd["Obsidian todo/*.md"]
+  knowledgeMd["Obsidian knowledge/*.md"]
+  blogMd["Obsidian blog/*.md"]
+
+  sync["npm run sync<br/>sync-projects.js"]
+  projectsJson["projects.json"]
+  todosJson["todos.json"]
+  knowledgeJson["knowledge.json"]
+  blogCache["blog-posts.json + blog/*.md"]
+
+  overview["Next 总览"]
+  calendar["Next 日历的待办投影"]
+  knowledge["Next 知识库"]
+  blog["Next Blog :5175<br/>/ /[slug] /tags"]
+  content["VitePress :5174"]
+
+  projectMd --> sync --> projectsJson --> overview
+  todoMd --> sync --> todosJson --> overview
+  todosJson --> calendar
+  knowledgeMd --> sync --> knowledgeJson --> knowledge
+  blogMd --> sync --> blogCache --> blog
+
+  todoMd --> content
+  knowledgeMd --> content
+```
+
+`npm run watch` 会监听项目、todo、knowledge 和 blog Markdown，变更后重新生成 `apps/workspace/public/data/`。生成的 JSON 与博客 Markdown 副本是前端读模型，不是主数据；需要修改内容时应回到对应源 Markdown。
+
+VitePress 直接使用 Obsidian Vault 作为 `srcDir`，用于私人内容浏览。公开博客不再由 VitePress 或 Workspace `:5173` 渲染，而由独立 Next.js 进程 `:5175` 的 `/`、`/[slug]` 和 `/tags` 提供。
+
+## 6. 数据存储清单
+
+| 数据 | 实际位置 | 权威级别 | 主要写入者 | 主要读取者 |
+| --- | --- | --- | --- | --- |
+| 对话事实与系统事件 | `data/persona-os.db` 的 `events` | Persona 事实源 | Persona API | 对话、状态、每日总结、记忆分析 |
+| Topic 记忆 | SQLite `topics` | 运行时投影 | Memory Patch、用户状态操作 | Prompt、记忆页、每日总结 |
+| 用户画像 | SQLite `profile` | 运行时投影 | Memory Patch、用户纠正 | Prompt、记忆页 |
+| 时间线记忆 | SQLite `timeline_events` | 运行时投影 | Memory Patch | Prompt、记忆页、每日总结 |
+| 每日总结 | SQLite `daily_notes` | 运行时记录 | Daily Summary 用例 | 工具页、归档流程 |
+| Persona 每日笔记 | `${OBSIDIAN_VAULT_PATH}/${PERSONA_DAILY_NOTE_DIR}` | 人工可读归档 | Persona Exporter + 用户 | Obsidian、VitePress |
+| 知识库 | `${OBSIDIAN_VAULT_PATH}/knowledge` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress |
+| 待办 | `${OBSIDIAN_VAULT_PATH}/todo` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress、Next 日历只读投影 |
+| 博客 | `${OBSIDIAN_VAULT_PATH}/blog` | 博客主库 | 用户/Obsidian | 同步脚本 |
+| 项目资料 | `apps/workspace/projects/*.md` | 项目内容主库 | 用户/仓库 | 同步脚本 |
+| 前端生成数据 | `apps/workspace/public/data/` | 可重建缓存 | 同步脚本 | Next.js Workspace 和 Blog `:5175` |
+| AI 连接与生成参数 | `localStorage: persona-ai-settings` | 单浏览器偏好 | AI 设置页 | AI 页面 |
+| 自定义厂商 API key | `sessionStorage: persona-ai-api-key` | 当前标签临时机密 | AI 设置页 | AI 请求 |
+| 日历事件与标签 | `localStorage: persona-calendar-events-v1`、`persona-calendar-tags-v1` | 当前浏览器本地数据 | 日历页 | 日历页 |
+| 外观、快捷入口、侧栏收藏 | 浏览器 `localStorage` | 单浏览器偏好 | Workspace UI | Workspace UI |
+| 服务端密钥和运行配置 | 根目录 `.env` | 本机配置 | 开发者 | Persona、同步脚本 |
+
+SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_events` 和 `daily_notes` 六类核心表，并启用 WAL 与外键。PostgreSQL、向量库和图数据库都不在当前运行链路中。
+
+## 7. 当前前端模块
+
+| 路由 | 功能 |
+| --- | --- |
+| `/` | 工作台总览、项目/待办摘要、快捷入口、日历摘要、知识摘要、每日总结 |
+| `/ai` | 与 Persona 对话、查看服务状态 |
+| `/ai/models` | 服务端或自定义厂商连接、模型参数、连接测试 |
+| `/ai/memory` | Topic、Profile、Timeline 和来源审阅 |
+| `/ai/settings` | 外观、AI 行为、本地 Persona API 启动与关闭 |
+| `/calendar` | 月/周/日视图、事件 CRUD、自定义标签、搜索过滤、Obsidian 待办投影 |
+| `/knowledge` | 独立知识库浏览页 |
+| `/tools` | 运行诊断、内容站入口、Daily Summary 工具 |
+| `http://127.0.0.1:5175/` | 公开博客列表 |
+| `http://127.0.0.1:5175/[slug]` | 博客正文 |
+| `http://127.0.0.1:5175/tags` | 标签聚合 |
+
+所有允许的工作台页面共享 `ApplicationFrame` 与常驻左侧栏。侧栏核心入口为总览、AI、知识库、工具，底部只保留统一设置；工作台标识始终可返回首页。
+
+## 8. Persona API 表面
+
+主要接口如下：
+
+- 对话与模型：`POST /api/chat`、`POST /api/ai/test`
+- 运行状态：`GET /health`、`GET /api/status`
+- Event：`GET /api/events`
+- 记忆：`GET /api/memory` 及 topics/profile/timeline/sources 子接口
+- 记忆治理：Profile correction/state、Topic state 接口
+- 每日总结：创建、列表、按日期读取和归档接口
+- 本机关闭：`POST /api/runtime/shutdown`
+
+浏览器默认直接请求 `http://127.0.0.1:3001`。Next.js 的 `/api/persona/runtime` 只承担本地进程的健康检查、固定命令启动和受控关闭，不代理普通聊天数据。
+
+## 9. 最近完成的工程工作
+
+### 前端框架
+
+- 将原先零散页面整理为 Next.js App Router 模块，建立统一 Workspace 外壳和常驻侧栏。
+- 工作区精简为总览、AI、知识库和工具，设置独立放在侧栏底部。
+- 新增知识库页、工具页和独立 `apps/blog` Next 博客进程，保留 VitePress 作为私人内容站。
+- 主页移除 Persona 运行状态和记忆画像等重复面板，状态与记忆回归 AI 专属页面。
+
+### AI 与运行控制
+
+- 完成 AI 对话、模型、记忆、设置四个独立页面。
+- 模型设置不锁死 DeepSeek，支持自定义 OpenAI-compatible endpoint、model 和临时 API key。
+- 增加真实连接测试，以及网页内启动和关闭本地 Persona API 的能力。
+- 完成基础记忆写回、来源审计、状态治理和每日总结到 Obsidian 的闭环。
+
+### 日历与内容
+
+- 重做日历为月/周/日完整工作视图，支持本地事件增删改查、全天事件、备注、搜索和过滤。
+- 支持自定义标签的新增、重命名、颜色和删除，并迁移旧 category 数据。
+- 点击日期只更新右侧日期检查器，不强制切换当前视图；主日历与右侧面板已视觉分离。
+- Obsidian 待办以只读投影进入日历，博客 Markdown 同步到 `:5175` 的独立 Next.js 公开站。
+
+## 10. 安全与部署边界
+
+- 默认绑定 `127.0.0.1`，运行时启动/关闭接口只允许本机调用。
+- Persona API 使用显式 CORS allowlist；Telegram 使用允许的 chat ID 列表。
+- 远程 endpoint 必须为 HTTPS；本机开发 endpoint 可使用 loopback HTTP。
+- `.env` 不进入前端构建，自定义 API key 也不持久化到长期浏览器存储。
+- 当前没有面向公网的用户认证、租户隔离或权限系统，不应直接将 Persona API 暴露到公网。
+
+## 11. 当前边界与后续方向
+
+- 日历的自建事件和标签目前只在当前浏览器，尚未同步 SQLite 或 Obsidian。
+- Obsidian 到 Workspace 的知识、待办、博客链路是单向生成；Persona 只反向写 Daily Note。
+- 当前上下文检索基于近期 Event 和结构化记忆，没有向量检索或完整 RAG。
+- 服务端默认 provider 配置仍是 DeepSeek/mock；多厂商能力通过每次请求的 OpenAI-compatible 自定义连接实现。
+- SQLite 适合当前单机 MVP；只有出现多用户、并发写入或远程部署需求时，才需要评估 PostgreSQL。
+
+## 12. 常用启动命令
+
+```bash
+npm run dev:mock         # 一键启动 Workspace + 真实 Persona API（脚本名为历史遗留）
+npm run dev              # Next.js Workspace :5173
+npm run dev:blog         # 独立 Next.js Blog :5175
+npm run dev:backend      # Persona API :3001，真实模型
+npm run dev:backend:mock # Persona API :3001，mock 模型
+npm run dev:content      # 同步后启动 VitePress :5174
+npm run sync             # 手动生成 Workspace 内容读模型
+npm run build:blog       # 构建独立 Blog
+npm run watch            # 监听 Markdown 并持续同步
+```
+
+当前 MVP 的最短闭环是：用户在网页或 Telegram 输入内容 -> Event 入 SQLite -> Persona 基于历史与记忆回复 -> 后台分析写回结构化记忆 -> 每日总结进入 SQLite -> 用户按需归档到 Obsidian。

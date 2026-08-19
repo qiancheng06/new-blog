@@ -23,8 +23,14 @@ Next.js Workspace app (:5173)
         |
         +-- Persona backend (:3001)
               |
-              +-- SQLite memory database
-              +-- LLM provider adapters
+        +-- SQLite memory database
+        +-- LLM provider adapters
+
+Standalone Next.js Blog (:5175)
+  |
+  +-- generated blog manifest and Markdown copy
+        |
+        +-- Obsidian blog/*.md via sync-projects.js
 ```
 
 The key rule is separation of sources:
@@ -56,6 +62,9 @@ apps/workspace/
     watch.js                   local watch helper
   .vitepress/                  VitePress content site config/theme
   legacy/                      old standalone HTML assets
+apps/blog/
+  app/                         standalone public blog routes
+  src/                         blog data adapter and site chrome
 ```
 
 ## Runtime Entrypoints
@@ -63,6 +72,7 @@ apps/workspace/
 | Entrypoint | Command | Role |
 | --- | --- | --- |
 | `http://127.0.0.1:5173/` | `npm.cmd run dev` | Primary Workspace app |
+| `http://127.0.0.1:5175/` | `npm.cmd run dev:blog` | Standalone public Blog app |
 | `http://127.0.0.1:5174/` | `npm.cmd run dev:content` | VitePress content site |
 | `http://127.0.0.1:3001/` | `npm.cmd run dev:backend` or `npm.cmd run dev:backend:mock` | Persona API |
 | `apps/workspace/legacy/*.html` | none | Historical fallback/reference only |

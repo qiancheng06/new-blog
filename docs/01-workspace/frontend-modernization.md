@@ -7,8 +7,11 @@ Workspace migration slice landed.
 
 - `apps/workspace/` is the primary Next.js Workspace app.
 - `npm.cmd run dev` serves the Workspace app at `http://127.0.0.1:5173/`.
+- `apps/blog/` is the standalone public Next.js blog app.
+- `npm.cmd run dev:blog` serves the blog at `http://127.0.0.1:5175/`.
 - VitePress remains as the long-term Obsidian/Markdown content site.
 - `npm.cmd run dev:content` serves the content site at `http://127.0.0.1:5174/`.
+- The public blog is served by the separate Blog app at `http://127.0.0.1:5175/` and is excluded from both Workspace and VitePress.
 - Legacy standalone HTML under `apps/workspace/legacy/` is reference material
   and migration fallback, not the primary entrypoint.
 
@@ -24,7 +27,8 @@ Workspace has multiple long-term data sources:
 The frontend must not read either source directly. UI code must go through a
 middle layer:
 
-- Obsidian content enters Workspace through VitePress or generated JSON.
+- Knowledge, project, and todo content enters Workspace through VitePress or generated JSON.
+- Blog content enters the standalone Blog app through generated `apps/workspace/public/data/blog-posts.json` and `apps/workspace/public/data/blog/*.md`.
 - Persona memory enters Workspace through Application APIs on
   `http://127.0.0.1:3001`.
 - Shared frontend adapters live under `apps/workspace/src/shared/`.
@@ -39,7 +43,9 @@ middle layer:
 - Synced frontend JSON:
   - `apps/workspace/public/data/projects.json`
   - `apps/workspace/public/data/todos.json`
-  - `apps/workspace/public/data/knowledge.json`
+- `apps/workspace/public/data/knowledge.json`
+- `apps/workspace/public/data/blog-posts.json`
+- `apps/workspace/public/data/blog/*.md`
 
 ## Current Next.js Coverage
 
@@ -59,3 +65,44 @@ under `apps/workspace/public/data/` is ignored.
 
 Do not remove VitePress or legacy HTML until replacement feature coverage is
 verified.
+
+## Second Phase Usability Work
+
+The second frontend phase keeps the first migration architecture intact and
+focuses on real daily workflow quality:
+
+- Shared panel chrome lives in `apps/workspace/src/shared/ui/Panel.tsx`.
+- Shared loading, empty, and error states live in
+  `apps/workspace/src/shared/ui/StateBlock.tsx`.
+- Projects, Todos, Calendar, and Knowledge all show explicit skeleton, empty,
+  and data-load failure states.
+- Mobile rules keep nav, calendar cells, content actions, and the chat dock
+  usable on narrow screens.
+- `npm.cmd run check:workspace` now checks that the Next.js entrypoint,
+  legacy assets, shared data adapters, shared UI states, and Application API
+  boundaries remain present.
+
+Frontend React components must continue to import external data only through
+`apps/workspace/src/shared/`.
+
+## Plane-Inspired Workspace Shell
+
+The primary Next.js Workspace now uses a compact operational shell inspired by
+Plane's information density while keeping Persona's identity and application
+boundaries intact:
+
+- Desktop uses a persistent workspace rail and a central workflow column;
+  tablet collapses the rail and mobile exposes it as a drawer-style section.
+- Projects, Todos, Calendar, Knowledge, Memory, and Companion Chat remain
+  available from the primary page and keep their existing data contracts.
+- Persona wallpaper is retained as a compact context strip rather than the
+  primary page structure.
+- Appearance preferences are local UI state only. Theme, accent hue, wallpaper
+  dimming, and motion settings remain stored in browser local storage.
+- User-provided visual assets are loaded from
+  `public/assets/persona/wallpaper-desktop.webp`,
+  `public/assets/persona/wallpaper-mobile.webp`, and
+  `public/assets/persona/avatar.webp`; neutral CSS colors remain as fallbacks.
+- VitePress, legacy HTML, Obsidian sync, and Persona Application APIs are not
+  replaced by the visual shell. Plane is a visual reference only, not a runtime
+  dependency.

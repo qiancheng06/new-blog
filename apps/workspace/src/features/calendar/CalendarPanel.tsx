@@ -1,16 +1,27 @@
 "use client"
 
 import { useEffect, useMemo, useState } from "react"
+import { ChevronLeft, ChevronRight } from "lucide-react"
 import { getWorkspaceTodos, type WorkspaceTodo } from "@/shared/data/workspaceData"
 import { contentUrl } from "@/shared/data/workspaceSources"
+import { Panel } from "@/shared/ui/Panel"
+import { SkeletonRows, StateBlock } from "@/shared/ui/StateBlock"
 
 export function CalendarPanel() {
   const [todos, setTodos] = useState<WorkspaceTodo[]>([])
   const [cursor, setCursor] = useState(() => new Date())
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState("")
 
   useEffect(() => {
     async function load() {
-      setTodos(await getWorkspaceTodos())
+      try {
+        setTodos(await getWorkspaceTodos())
+      } catch {
+        setError("日历待办投影暂不可用。请运行 npm.cmd run sync 后刷新页面。")
+      } finally {
+        setLoading(false)
+      }
     }
 
     void load()
@@ -39,38 +50,48 @@ export function CalendarPanel() {
   }
 
   return (
-    <section className="feature-panel" id="calendar">
-      <div className="feature-heading">
-        <div>
-          <p className="eyebrow">Calendar</p>
-          <h2>Todo Calendar</h2>
-          <p>Dated todo items from the synced JSON layer. Editing remains available through the legacy fallback.</p>
-          <div className="inline-stats" aria-label="Calendar summary">
-            <span>{todos.filter((todo) => todo.date?.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length} this month</span>
-            <span>{todos.filter((todo) => !todo.done).length} open</span>
+    <Panel
+      id="calendar"
+      eyebrow="日历"
+      title="待办日历"
+      description="主页保留同步待办的日期概览，完整日程在独立日历页管理。"
+      stats={
+        <>
+          <span>{todos.filter((todo) => todo.date?.startsWith(`${year}-${String(month + 1).padStart(2, "0")}`)).length} 个本月事项</span>
+          <span>{todos.filter((todo) => !todo.done).length} 个待处理</span>
+        </>
+      }
+      actions={
+        <div className="calendar-actions">
+          <a className="compact-link" href="/calendar">打开日历</a>
+          <a className="compact-link calendar-source" href={contentUrl("/todo/")} target="_blank" rel="noreferrer">
+            内容来源
+          </a>
+          <div className="calendar-month-nav">
+            <button className="compact-button" type="button" onClick={() => shiftMonth(-1)} aria-label="上个月">
+              <ChevronLeft size={16} />
+            </button>
+            <button className="compact-button" type="button" onClick={jumpToday}>今天</button>
+            <strong>{year}年{month + 1}月</strong>
+            <button className="compact-button" type="button" onClick={() => shiftMonth(1)} aria-label="下个月">
+              <ChevronRight size={16} />
+            </button>
           </div>
         </div>
-        <div className="calendar-actions">
-          <a className="compact-link" href={contentUrl("/todo/")} target="_blank" rel="noreferrer">
-            Source
-          </a>
-          <button className="compact-button" type="button" onClick={jumpToday}>
-            Today
-          </button>
-          <button className="compact-button" type="button" onClick={() => shiftMonth(-1)} aria-label="Previous month">
-            &lt;
-          </button>
-          <strong>
-            {year}-{String(month + 1).padStart(2, "0")}
-          </strong>
-          <button className="compact-button" type="button" onClick={() => shiftMonth(1)} aria-label="Next month">
-            &gt;
-          </button>
-        </div>
-      </div>
+      }
+    >
 
-      <div className="calendar-grid">
-        {["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"].map((day) => (
+      {loading ? <SkeletonRows rows={3} /> : null}
+      {!loading && error ? <StateBlock title="日历加载失败" message={error} tone="error" /> : null}
+      {!loading && !error && byDate.size === 0 ? (
+        <StateBlock
+          title="暂无带日期的待办"
+          message="同步后的待办 Markdown 出现 @YYYY-MM-DD 日期后，事项会显示在这里。"
+        />
+      ) : null}
+
+      {!loading && !error && byDate.size > 0 ? <div className="calendar-grid">
+        {["一", "二", "三", "四", "五", "六", "日"].map((day) => (
           <div key={day} className="calendar-weekday">
             {day}
           </div>
@@ -80,21 +101,28 @@ export function CalendarPanel() {
           const items = byDate.get(dateKey) ?? []
           const today = dateKey === toDateKey(new Date())
           return (
-            <article key={dateKey} className={`calendar-cell ${cell.inMonth ? "" : "muted"} ${today ? "today" : ""}`}>
-              <strong>{cell.date.getDate()}</strong>
+            <article
+              key={dateKey}
+              className={`calendar-cell ${cell.inMonth ? "" : "muted"} ${today ? "today" : ""}`}
+              aria-label={cell.date.toLocaleDateString("zh-CN", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}
+            >
+              <time dateTime={dateKey}>
+                <span className="calendar-date-short">{cell.date.getDate()}</span>
+                <span className="calendar-date-long">{cell.date.toLocaleDateString("zh-CN", { weekday: "short", month: "short", day: "numeric" })}</span>
+              </time>
               <div>
                 {items.slice(0, 3).map((todo, index) => (
                   <p key={`${dateKey}-${index}`} className={todo.done ? "done" : ""}>
                     {todo.text}
                   </p>
                 ))}
-                {items.length > 3 ? <small>+{items.length - 3} more</small> : null}
+                {items.length > 3 ? <small>还有 {items.length - 3} 项</small> : null}
               </div>
             </article>
           )
         })}
-      </div>
-    </section>
+      </div> : null}
+    </Panel>
   )
 }
 

@@ -18,6 +18,7 @@
 ## 常读文档
 
 - [current-architecture.md](current-architecture.md)
+- [deployment-and-client-architecture.md](deployment-and-client-architecture.md)
 - [domain-map.md](domain-map.md)
 - [glossary.md](glossary.md)
 - [AI_LOADING_GUIDE.md](AI_LOADING_GUIDE.md)

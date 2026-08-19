@@ -10,14 +10,19 @@ interface Service {
 
 const services: Service[] = [
   {
-    name: "Persona mock API",
-    command: "npm.cmd run dev:backend:mock",
+    name: "Persona API",
+    command: "npm.cmd run dev:backend",
     readyUrl: "http://127.0.0.1:3001/api/status",
   },
   {
     name: "Workspace dev server",
     command: "npm.cmd run dev",
     readyUrl: "http://127.0.0.1:5173/",
+  },
+  {
+    name: "Blog dev server",
+    command: "npm.cmd run dev:blog",
+    readyUrl: "http://127.0.0.1:5175/",
   },
 ]
 
@@ -53,7 +58,8 @@ try {
   console.log("")
   console.log("local demo ready")
   console.log("- Workspace: http://127.0.0.1:5173/")
-  console.log("- Persona mock API: http://127.0.0.1:3001/api/status")
+  console.log("- Blog: http://127.0.0.1:5175/")
+  console.log("- Persona API: http://127.0.0.1:3001/api/status")
   console.log("")
   console.log("Press Ctrl+C to stop services started by this command.")
 } catch (err) {

@@ -32,6 +32,8 @@ import {
   getDailySummaries,
   getDailySummary,
 } from "../../application/daily-summary.js"
+import type { ProcessMessageOptions } from "../../ai-runtime/operators/process-message.js"
+import { testModelConnection } from "../../application/model-connection.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
@@ -75,17 +77,19 @@ function readBody(req: IncomingMessage, maxBytes: number): Promise<string> {
 }
 
 async function handleChat(req: IncomingMessage, res: ServerResponse) {
-  const parsed = await readJsonObject<{ text?: string; page?: string; evaluationRunId?: string }>(req, res)
+  const parsed = await readJsonObject<{ text?: string; page?: string; evaluationRunId?: string; ai?: unknown }>(req, res)
   if (!parsed) return
 
   const text = parsed.text?.trim()
   if (!text) return json(res, 400, { error: "text is required" })
+  const ai = parseChatAiParameters(parsed.ai)
+  if ("error" in ai) return json(res, 400, { error: ai.error })
 
   const event = createWorkspaceEvent({ text, page: parsed.page, evaluationRunId: parsed.evaluationRunId })
   console.log(`[web] ${text.slice(0, 60)}`)
 
   try {
-    const result = await handleConversationEvent(event)
+    const result = await handleConversationEvent(event, { ai: ai.value })
     json(res, 200, {
       reply: result.companionReply,
       eventId: result.event.id,
@@ -95,6 +99,122 @@ async function handleChat(req: IncomingMessage, res: ServerResponse) {
     console.error("[web error]", err instanceof Error ? err.message : err)
     json(res, 500, { reply: CONVERSATION_FALLBACK_REPLY, error: "processing failed" })
   }
+}
+
+async function handleAiConnectionTest(req: IncomingMessage, res: ServerResponse) {
+  const parsed = await readJsonObject<{ ai?: unknown }>(req, res)
+  if (!parsed) return
+  const ai = parseChatAiParameters(parsed.ai)
+  if ("error" in ai) return json(res, 400, { error: ai.error })
+
+  try {
+    json(res, 200, await testModelConnection(ai.value))
+  } catch (err) {
+    console.error("[ai connection test error]", err instanceof Error ? err.message : err)
+    json(res, 502, { error: "model connection failed" })
+  }
+}
+
+function parseChatAiParameters(input: unknown): { value: ProcessMessageOptions } | { error: string } {
+  if (input === undefined) return { value: {} }
+  if (!input || typeof input !== "object" || Array.isArray(input)) return { error: "ai must be an object" }
+
+  const value = input as Record<string, unknown>
+  const endpoint = parseOptionalString(value.endpoint, "ai.endpoint", 2048)
+  if (typeof endpoint === "object") return { error: endpoint.error }
+  const model = parseOptionalString(value.model, "ai.model", 200)
+  if (typeof model === "object") return { error: model.error }
+  const apiKey = parseOptionalString(value.apiKey, "ai.apiKey", 4000)
+  if (typeof apiKey === "object") return { error: apiKey.error }
+  const connectionError = validateCustomConnection(endpoint, model, apiKey)
+  if (connectionError) return { error: connectionError }
+  const temperature = parseBoundedNumber(value.temperature, "ai.temperature", 0, 2)
+  if (typeof temperature === "string") return { error: temperature }
+  const topP = parseBoundedNumber(value.topP, "ai.topP", 0.1, 1)
+  if (typeof topP === "string") return { error: topP }
+  const maxTokens = parseBoundedNumber(value.maxTokens, "ai.maxTokens", 128, 4096, true)
+  if (typeof maxTokens === "string") return { error: maxTokens }
+  const historyLimit = parseBoundedNumber(value.historyLimit, "ai.historyLimit", 0, 10, true)
+  if (typeof historyLimit === "string") return { error: historyLimit }
+  const memoryEnabled = parseOptionalBoolean(value.memoryEnabled, "ai.memoryEnabled")
+  if (typeof memoryEnabled === "string") return { error: memoryEnabled }
+  const backgroundAnalysis = parseOptionalBoolean(value.backgroundAnalysis, "ai.backgroundAnalysis")
+  if (typeof backgroundAnalysis === "string") return { error: backgroundAnalysis }
+
+  if (value.instructions !== undefined && typeof value.instructions !== "string") {
+    return { error: "ai.instructions must be a string" }
+  }
+  const instructions = value.instructions?.trim()
+  if (instructions && instructions.length > 1000) return { error: "ai.instructions must be at most 1000 characters" }
+
+  return {
+    value: {
+      endpoint,
+      model,
+      apiKey,
+      temperature,
+      topP,
+      maxTokens,
+      historyLimit,
+      memoryEnabled,
+      backgroundAnalysis,
+      ...(instructions ? { instructions } : {}),
+    },
+  }
+}
+
+function parseOptionalString(
+  input: unknown,
+  name: string,
+  maxLength: number,
+): string | undefined | { error: string } {
+  if (input === undefined || input === "") return undefined
+  if (typeof input !== "string") return { error: `${name} must be a string` }
+  const value = input.trim()
+  if (!value) return undefined
+  return value.length <= maxLength ? value : { error: `${name} must be at most ${maxLength} characters` }
+}
+
+function validateCustomConnection(endpoint?: string, model?: string, apiKey?: string): string | undefined {
+  if (!endpoint && !model && !apiKey) return undefined
+  if (!endpoint) return "ai.endpoint is required for a custom model connection"
+  if (!model) return "ai.model is required for a custom model connection"
+
+  let parsed: URL
+  try {
+    parsed = new URL(endpoint)
+  } catch {
+    return "ai.endpoint must be a valid URL"
+  }
+
+  const localHttp = parsed.protocol === "http:"
+    && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]")
+  if (parsed.protocol !== "https:" && !localHttp) {
+    return "ai.endpoint must use HTTPS, except for localhost"
+  }
+  if (parsed.username || parsed.password) return "ai.endpoint must not include credentials"
+  if (!localHttp && !apiKey) return "ai.apiKey is required for a remote custom model connection"
+  return undefined
+}
+
+function parseBoundedNumber(
+  input: unknown,
+  name: string,
+  min: number,
+  max: number,
+  integer = false,
+): number | undefined | string {
+  if (input === undefined) return undefined
+  if (typeof input !== "number" || !Number.isFinite(input) || input < min || input > max) {
+    return `${name} must be a number between ${min} and ${max}`
+  }
+  if (integer && !Number.isInteger(input)) return `${name} must be an integer`
+  return input
+}
+
+function parseOptionalBoolean(input: unknown, name: string): boolean | undefined | string {
+  if (input === undefined) return undefined
+  return typeof input === "boolean" ? input : `${name} must be a boolean`
 }
 
 function handleHealth(_req: IncomingMessage, res: ServerResponse) {
@@ -224,7 +344,7 @@ async function handleMemoryTopicState(req: IncomingMessage, res: ServerResponse)
   }
 }
 
-async function handler(req: IncomingMessage, res: ServerResponse) {
+async function handler(req: IncomingMessage, res: ServerResponse, onShutdownRequest?: () => void) {
   applyCorsHeaders(req, res)
 
   if (req.method === "OPTIONS") {
@@ -244,8 +364,14 @@ async function handler(req: IncomingMessage, res: ServerResponse) {
     if (url === "/api/chat" && req.method === "POST") {
       return await handleChat(req, res)
     }
+    if (url === "/api/ai/test" && req.method === "POST") {
+      return await handleAiConnectionTest(req, res)
+    }
     if (url === "/health" && req.method === "GET") {
       return handleHealth(req, res)
+    }
+    if (url === "/api/runtime/shutdown" && req.method === "POST") {
+      return handleRuntimeShutdown(req, res, onShutdownRequest)
     }
     if (url === "/api/events" && req.method === "GET") {
       return handleEvents(req, res)
@@ -461,14 +587,15 @@ async function handleDailySummaryArchive(req: IncomingMessage, date: string, res
 export interface ApiServerOptions {
   port?: number
   hostname?: string
+  onShutdownRequest?: () => void
 }
 
-export function createApiServer(): Server {
-  return createServer(handler)
+export function createApiServer(options: Pick<ApiServerOptions, "onShutdownRequest"> = {}): Server {
+  return createServer((req, res) => handler(req, res, options.onShutdownRequest))
 }
 
 export function startApiServer(options: ApiServerOptions = {}): Server {
-  const server = createApiServer()
+  const server = createApiServer(options)
   const port = options.port ?? config.apiPort
   const hostname = options.hostname ?? config.apiHost
 
@@ -486,4 +613,22 @@ export function stopApiServer(server: Server): Promise<void> {
       else resolve()
     })
   })
+}
+
+function handleRuntimeShutdown(req: IncomingMessage, res: ServerResponse, onShutdownRequest?: () => void): void {
+  if (!isLoopbackAddress(req.socket.remoteAddress)) {
+    json(res, 403, { error: "local access only" })
+    return
+  }
+  if (!onShutdownRequest) {
+    json(res, 409, { error: "runtime shutdown is unavailable" })
+    return
+  }
+
+  json(res, 202, { stopping: true })
+  setImmediate(onShutdownRequest)
+}
+
+function isLoopbackAddress(address: string | undefined): boolean {
+  return address === "127.0.0.1" || address === "::1" || address === "::ffff:127.0.0.1"
 }
