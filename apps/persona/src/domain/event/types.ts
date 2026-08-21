@@ -1,4 +1,9 @@
+import { createHash } from "crypto"
 import { z } from "zod"
+
+const TELEGRAM_EVENT_NAMESPACE = Buffer.from("a82228d5fc664f4983ef70fbc9006e10", "hex")
+const WORKSPACE_EVENT_NAMESPACE = Buffer.from("1aa87ef80f9d4d778c807f5479026caf", "hex")
+const WEB_CAPTURE_EVENT_NAMESPACE = Buffer.from("ac51f67c382e4e3f8c8a1fc27edfa2a4", "hex")
 
 export const EventSource = z.enum(["telegram", "system", "web"])
 export type EventSource = z.infer<typeof EventSource>
@@ -19,13 +24,15 @@ export const TelegramPayload = z.object({
   text: z.string(),
   message_id: z.number(),
   reply_to: z.number().optional(),
+  due_date: z.string().optional(),
 })
 export type TelegramPayload = z.infer<typeof TelegramPayload>
 
-export type TelegramEventType = "message" | "note" | "todo" | "idea" | "journal"
+export type TelegramEventType = "message" | "note" | "todo" | "project" | "idea" | "journal"
 
 export function createTelegramEvent(payload: TelegramPayload, type: TelegramEventType = "message"): Event {
   return {
+    id: createTelegramEventId(payload.chat_id, payload.message_id),
     source: "telegram",
     type,
     payload: payload as unknown as Record<string, unknown>,
@@ -86,6 +93,84 @@ export function createDailyNoteExportedEvent(payload: DailyNoteExportedPayload):
   }
 }
 
+export interface PersonaSnapshotExportedPayload {
+  relative_path: string
+  status: "created" | "updated" | "unchanged"
+  counts: {
+    profile: number
+    topics: number
+    timeline: number
+    projects: number
+  }
+  truncated: {
+    profile: boolean
+    topics: boolean
+    timeline: boolean
+    projects: boolean
+  }
+}
+
+export function createPersonaSnapshotExportedEvent(payload: PersonaSnapshotExportedPayload): Event {
+  return {
+    source: "system",
+    type: "persona_snapshot_exported",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "long_term_archive",
+      visibility: "user",
+    },
+  }
+}
+
+export interface AnalysisRetryRequestedPayload {
+  analysis_job_id: string
+  source_event_id: string
+}
+
+export function createAnalysisRetryRequestedEvent(payload: AnalysisRetryRequestedPayload): Event {
+  return {
+    source: "web",
+    type: "analysis_retry_requested",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "analysis_recovery",
+      visibility: "user",
+    },
+  }
+}
+
+export interface ConversationRetryRequestedPayload {
+  conversation_job_id: string
+  source_event_id: string
+  reason: "manual" | "idempotent_replay"
+}
+
+export function createConversationRetryRequestedEvent(payload: ConversationRetryRequestedPayload): Event {
+  return {
+    source: "web",
+    type: "conversation_retry_requested",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "conversation_recovery",
+      visibility: "user",
+    },
+  }
+}
+
+export function createTelegramEventId(chatId: number, messageId: number): string {
+  const hash = createHash("sha1")
+    .update(TELEGRAM_EVENT_NAMESPACE)
+    .update(`${chatId}:${messageId}`, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
 export interface CompanionReplyPayload {
   text: string
   in_reply_to: string
@@ -116,18 +201,63 @@ export interface WorkspacePayload {
   evaluationRunId?: string
 }
 
-export function createWorkspaceEvent(payload: WorkspacePayload): Event {
+export function createWorkspaceEvent(payload: WorkspacePayload, options: { requestId?: string } = {}): Event {
   const metadata = payload.evaluationRunId?.trim()
     ? { purpose: "real_mode_evaluation", run_id: payload.evaluationRunId.trim() }
     : {}
 
   return {
+    id: options.requestId ? createWorkspaceEventId(options.requestId) : undefined,
     source: "web",
     type: "message",
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
     metadata,
   }
+}
+
+export function createWorkspaceEventId(requestId: string): string {
+  const hash = createHash("sha1")
+    .update(WORKSPACE_EVENT_NAMESPACE)
+    .update(requestId, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
+}
+
+export interface WebCapturePayload {
+  text: string
+}
+
+export function createWebCaptureEvent(
+  type: "note" | "idea" | "journal",
+  payload: WebCapturePayload,
+  options: { requestId?: string } = {},
+): Event {
+  return {
+    id: options.requestId ? createWebCaptureEventId(options.requestId) : undefined,
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "capture",
+      visibility: "user",
+    },
+  }
+}
+
+export function createWebCaptureEventId(requestId: string): string {
+  const hash = createHash("sha1")
+    .update(WEB_CAPTURE_EVENT_NAMESPACE)
+    .update(requestId, "utf-8")
+    .digest()
+  hash[6] = (hash[6] & 0x0f) | 0x50
+  hash[8] = (hash[8] & 0x3f) | 0x80
+  const hex = hash.subarray(0, 16).toString("hex")
+  return `${hex.slice(0, 8)}-${hex.slice(8, 12)}-${hex.slice(12, 16)}-${hex.slice(16, 20)}-${hex.slice(20)}`
 }
 
 export interface MemoryProfileCorrectionPayload {
@@ -143,6 +273,176 @@ export function createMemoryProfileCorrectionEvent(payload: MemoryProfileCorrect
     payload: payload as unknown as Record<string, unknown>,
     timestamp: new Date().toISOString(),
     metadata: { purpose: "memory_governance" },
+  }
+}
+
+export interface WebTodoPayload {
+  text: string
+  due_date?: string
+  project_id?: string
+}
+
+export function createWebTodoEvent(payload: WebTodoPayload): Event {
+  return {
+    source: "web",
+    type: "todo",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface TodoStateChangePayload {
+  todo_id: string
+  source_event_id: string
+  status: "open" | "done" | "cancelled"
+  reason: string
+}
+
+export function createTodoStateChangeEvent(payload: TodoStateChangePayload): Event {
+  const type = payload.status === "done"
+    ? "todo_completed"
+    : payload.status === "cancelled"
+      ? "todo_cancelled"
+      : "todo_reopened"
+  return {
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface TodoProjectAssignmentPayload {
+  todo_id: string
+  source_event_id: string
+  previous_project_id: string | null
+  project_id: string | null
+  reason: string
+}
+
+export function createTodoProjectAssignmentEvent(payload: TodoProjectAssignmentPayload): Event {
+  return {
+    source: "web",
+    type: payload.project_id ? "todo_project_assigned" : "todo_project_unassigned",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "todo_management", visibility: "user" },
+  }
+}
+
+export interface WebProjectPayload {
+  text: string
+  summary: string
+  topics: string[]
+}
+
+export function createWebProjectEvent(payload: WebProjectPayload): Event {
+  return {
+    source: "web",
+    type: "project",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
+  }
+}
+
+export interface ProjectDetailsUpdatedPayload {
+  project_id: string
+  source_event_id: string | null
+  name: string
+  summary: string
+  topics: string[]
+  reason: string
+}
+
+export function createProjectDetailsUpdatedEvent(payload: ProjectDetailsUpdatedPayload): Event {
+  return {
+    source: "web",
+    type: "project_details_updated",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
+  }
+}
+
+export interface ProjectStateChangePayload {
+  project_id: string
+  source_event_id: string | null
+  status: "active" | "paused" | "done" | "archived"
+  reason: string
+}
+
+export function createProjectStateChangeEvent(payload: ProjectStateChangePayload): Event {
+  const type = payload.status === "active"
+    ? "project_reactivated"
+    : payload.status === "paused"
+      ? "project_paused"
+      : payload.status === "done"
+        ? "project_completed"
+        : "project_archived"
+  return {
+    source: "web",
+    type,
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "project_management", visibility: "user" },
+  }
+}
+
+export interface WorkingStateUpdatedPayload {
+  current_project_id: string | null
+  active_topics: string[]
+  current_questions: string[]
+  mode: "S1"
+  reason: string
+}
+
+export function createWorkingStateUpdatedEvent(payload: WorkingStateUpdatedPayload): Event {
+  return {
+    source: "web",
+    type: "working_state_updated",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "working_state", visibility: "user" },
+  }
+}
+
+export interface WorkingStateProjectClearedPayload {
+  project_id: string
+  project_state_event_id: string
+  reason: string
+}
+
+export function createWorkingStateProjectClearedEvent(payload: WorkingStateProjectClearedPayload): Event {
+  return {
+    source: "web",
+    type: "working_state_project_cleared",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: { purpose: "working_state", visibility: "user" },
+  }
+}
+
+export interface MemoryProposalReviewPayload {
+  proposal_id: string
+  source_event_id: string
+  proposal_key: string
+  decision: "accept" | "reject"
+  reason: string
+}
+
+export function createMemoryProposalReviewEvent(payload: MemoryProposalReviewPayload): Event {
+  return {
+    source: "web",
+    type: payload.decision === "accept" ? "memory_proposal_accepted" : "memory_proposal_rejected",
+    payload: payload as unknown as Record<string, unknown>,
+    timestamp: new Date().toISOString(),
+    metadata: {
+      purpose: "memory_governance",
+      visibility: "user",
+    },
   }
 }
 

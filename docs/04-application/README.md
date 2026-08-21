@@ -56,4 +56,34 @@ Telegram 文本到 Event 的纯转换逻辑位于 `apps/persona/src/interface/te
 
 本地 Workspace 的 Companion chat 入口默认连接 Application API `http://127.0.0.1:3001`。在线检查使用 `GET /health`，聊天请求使用 `POST /api/chat`；`/api/chat` 会进入 Conversation Flow，并可能按当前 LLM 配置触发真实模型调用。
 
-Workspace 可观测面板如果需要展示后端在线状态、事件概览或运行摘要，应通过 Application 的只读接口读取：`GET /health` 用于进程与计数健康检查，`GET /api/events` 用于最近事件列表，`GET /api/status` 用于状态摘要。Application 负责收敛查询边界，不让 Workspace 直接读取 Memory、DB 或 Infra 适配器。
+Workspace 可观测面板如果需要展示后端在线状态、事件概览或运行摘要，应通过 Application 的只读接口读取：`GET /health` 用于进程与计数健康检查，`GET /api/events` 用于隐私安全的最近事件列表和筛选，`GET /api/events/:id` 用于安全详情，`GET /api/conversations` 与 `GET /api/conversations/:id` 用于持久化对话回放，`GET /api/status` 用于状态摘要。Event Feed 和 Conversation History 都只返回安全投影，不暴露原始 payload、metadata、页面/评估上下文或 Telegram 标识。Application 负责收敛查询边界，不让 Workspace 直接读取 Memory、DB 或 Infra 适配器。
+
+Working State 通过 `GET/POST /api/working-state` 进入 Application。写入必须携带原因并先追加审计 Event；Project 进入 done/archived 时，Application 会在同一事务内清除对应的当前 Project。该状态只作为私有 Prompt 工作上下文，不进入长期 Memory。
+
+Note、Idea、Journal 通过 `POST /api/captures` 或 Telegram 命令进入同一
+Capture 编排。Application 原子保存 Event 和 Analysis job，不调用
+Companion；Workspace 可通过只读 Capture API 查看安全字段和后台分析状态。
+失败任务继续使用现有 `POST /api/analysis-jobs/:id/retry` 恢复。
+
+## Telegram redelivery contract
+
+`handleConversationEvent` persists inputs through an insert-once boundary. The
+first Telegram delivery continues through Companion and asynchronous Memory;
+later deliveries of the same `(chat_id, message_id)` return
+`duplicate: true` and do not call the model, append a reply, apply Memory, or
+send a second Telegram response. Command Events use the same boundary.
+
+## Ordered asynchronous Memory commits
+
+Each message reserves a Memory commit position before awaiting Companion. Once
+Companion returns, Analysis may run concurrently with later messages, while the
+resulting patches commit in reservation order. Failed Analysis and failed
+Companion paths release their positions, so one request cannot permanently
+block the queue. The queue is process-local; durable source provenance remains
+the immutable Event id on every written Memory row.
+
+Analysis execution state itself is durable in `analysis_jobs`. Workspace may
+inspect it through `GET /api/analysis-jobs` and retry a failed job through the
+audited `POST /api/analysis-jobs/:id/retry` command. The API exposes only state,
+timestamps, counters, source Event ids, and bounded error codes; private source
+or provider content is not part of this read model.

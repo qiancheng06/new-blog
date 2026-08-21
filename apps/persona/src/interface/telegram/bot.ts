@@ -7,6 +7,7 @@ import {
 } from "../../application/conversation.js"
 import { buildTelegramEvent } from "./events.js"
 import { isTelegramChatAllowed } from "./access.js"
+import { setTelegramRuntimeStatus } from "../../application/runtime-health.js"
 
 export const bot = new Bot(config.telegramToken)
 
@@ -57,6 +58,10 @@ bot.on("message:text", async (ctx: Context) => {
   if (!shouldReply) {
     try {
       const result = await handleConversationEvent(event, { shouldReply: false })
+      if (result.duplicate) {
+        console.log(`  -> duplicate ignored id:${result.event.id.slice(0, 8)}`)
+        return
+      }
       console.log(`  -> event:${event.type} id:${result.event.id.slice(0, 8)}`)
     } catch (err) {
       console.error("  -> command error:", err instanceof Error ? err.message : err)
@@ -67,6 +72,10 @@ bot.on("message:text", async (ctx: Context) => {
 
   try {
     const result = await handleConversationEvent(event)
+    if (result.duplicate) {
+      console.log(`  -> duplicate ignored id:${result.event.id.slice(0, 8)}`)
+      return
+    }
     console.log(`  -> event:${event.type} id:${result.event.id.slice(0, 8)}`)
     console.log(`  -> companion: ${result.companionReply?.slice(0, 60)}...`)
     await ctx.reply(result.companionReply ?? CONVERSATION_FALLBACK_REPLY, { reply_to_message_id: msgId })
@@ -79,6 +88,8 @@ bot.on("message:text", async (ctx: Context) => {
 export async function startBot(): Promise<void> {
   if (pollingPromise) return pollingPromise
 
+  setTelegramRuntimeStatus("starting")
+
   if (!errorHandlerInstalled) {
     bot.catch((err) => {
       console.error("[telegram bot error]", err.error instanceof Error ? err.error.message : err.error)
@@ -87,7 +98,14 @@ export async function startBot(): Promise<void> {
   }
 
   const started = bot.start()
-  const tracked = started.finally(() => {
+  setTelegramRuntimeStatus("running")
+  const tracked = started.then(
+    () => { setTelegramRuntimeStatus("stopped") },
+    (err) => {
+      setTelegramRuntimeStatus("failed")
+      throw err
+    },
+  ).finally(() => {
     if (pollingPromise === tracked) pollingPromise = null
   })
   pollingPromise = tracked
@@ -101,4 +119,7 @@ export async function stopBot(): Promise<void> {
     await bot.stop()
   }
   await activePolling?.catch(() => undefined)
+  if (!config.telegramToken) setTelegramRuntimeStatus("disabled")
+  else if (bot.isRunning()) setTelegramRuntimeStatus("running")
+  else setTelegramRuntimeStatus("stopped")
 }

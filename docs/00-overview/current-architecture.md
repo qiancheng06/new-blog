@@ -1,6 +1,6 @@
 # Persona Workspace 当前架构
 
-> 更新时间：2026-08-19
+> 更新时间：2026-08-21
 >
 > 当前形态：本地优先的模块化单体，Next.js 工作台与 Persona API 分进程运行，Obsidian 作为内容库和人工审阅层。
 
@@ -20,10 +20,10 @@ flowchart LR
   end
 
   subgraph persona["Persona OS :3001"]
-    api["HTTP API<br/>Chat / Memory / Calendar / Daily Summary / Status"]
-    app["Application<br/>Conversation / Memory / Calendar / Durable Jobs"]
+    api["HTTP API<br/>Chat / Memory / Calendar / Projects / Todos / Status"]
+    app["Application<br/>Conversation / Capture / Memory / Schedulers / Durable Jobs"]
     ai["AI Runtime<br/>Companion / Research / Critic / Memory Patch"]
-    domain["Domain<br/>Event / Topic / Profile / Timeline / Daily Note"]
+    domain["Domain<br/>Event / Conversation / Project / Todo / Working State / Memory"]
   end
 
   subgraph storage["数据与内容"]
@@ -72,9 +72,9 @@ flowchart LR
 | Workspace 同步 | `apps/workspace/scripts/` | 从 Obsidian 和项目 Markdown 生成前端只读数据 |
 | VitePress 内容站 | `apps/workspace/.vitepress/` | 直接浏览私人 Markdown 内容和本地全文搜索 |
 | Persona 接口层 | `apps/persona/src/interface/` | HTTP API、CORS、本机运行时关闭接口、Telegram 适配 |
-| Persona 应用层 | `apps/persona/src/application/` | 对话、记忆读写、模型测试、每日总结和归档用例 |
+| Persona 应用层 | `apps/persona/src/application/` | 对话恢复、事件/会话查询、Capture、项目、待办、工作状态、记忆、日历、每日总结和快照调度 |
 | Persona AI Runtime | `apps/persona/src/ai-runtime/` | Prompt、同步回复、异步分析、Memory Patch |
-| Persona 领域层 | `apps/persona/src/domain/` | Event、Topic、Profile、Timeline、Daily Note 规则 |
+| Persona 领域层 | `apps/persona/src/domain/` | Event、Conversation Job、Analysis Job、Project、Todo、Working State、Memory Proposal、Topic、Profile、Timeline 规则 |
 | Persona 基础设施 | `apps/persona/src/infra/` | SQLite、LLM、Obsidian 文件写入和环境配置 |
 | 历史兼容资产 | `apps/workspace/legacy/` | 仅作迁移参考，不是当前入口 |
 
@@ -106,6 +106,7 @@ sequenceDiagram
 ### 核心约束
 
 - 每条用户输入先写成 `events` 事实，再调用模型。
+- `conversation_jobs` 为同步回复提供幂等、单飞、失败保留和人工重试；相同 Idempotency-Key 不会重复调用模型或生成回复。
 - 原始 Event 不修改；Topic、Profile、Timeline 是可更新的记忆投影。
 - 对话回复同步返回，Research/Critic/Memory Patch 由 SQLite 持久化任务执行，进程重启后继续。
 - 任务使用租约、幂等键和最多三次退避重试；记忆写入和任务完成状态在同一事务提交。
@@ -114,6 +115,8 @@ sequenceDiagram
 - 服务端默认支持 DeepSeek 和 mock；网页自定义连接通过 OpenAI-compatible endpoint、model、API key 接入其他厂商。
 - 自定义 API key 只放当前标签会话的 `sessionStorage`，不写 `localStorage`、SQLite 或生成文件。
 - 后台记忆任务只使用 `PERSONA_ANALYSIS_*` 或服务端默认连接，不继承浏览器临时 Key。
+- Capture 等无需同步回复的输入使用可审计 `analysis_jobs`；有序提交守卫避免并发分析把较旧画像覆盖到较新状态。
+- 低置信度画像更新进入 `memory_proposals`，经接受或拒绝后再改变长期画像。
 
 ## 4. 每日总结与 Obsidian
 
@@ -140,6 +143,7 @@ flowchart LR
 - 归档时只维护 Markdown 中的 `PERSONA:DAILY_NOTE` 管理块，用户写在管理块外的内容会被保留。
 - 文件写入使用路径校验、冲突检测和原子替换，避免越界写入或覆盖人工笔记。
 - Persona 向 Obsidian 的自动写入目前仅用于 Daily Note；知识、待办和博客仍以人工 Markdown 为源。
+- Daily Summary 与 Persona Snapshot 均有 SQLite 运行记录和可恢复调度器；快照只维护 Obsidian 中受控的 Persona 管理块。
 
 ## 5. Obsidian、知识库与博客数据流
 
@@ -187,6 +191,12 @@ VitePress 直接使用 Obsidian Vault 作为 `srcDir`，用于私人内容浏览
 | 每日总结 | SQLite `daily_notes` | 运行时记录 | Daily Summary 用例 | 工具页、归档流程 |
 | 日历事件与标签 | SQLite `calendar_events`、`calendar_tags` | 跨客户端事实源 | Calendar API | 桌面浏览器、手机浏览器、未来 Windows App |
 | 后台任务 | SQLite `background_jobs` | 可恢复运行队列 | Conversation、Worker | 状态页、Worker、失败任务重试 |
+| 对话恢复任务 | SQLite `conversation_jobs` | 回复执行状态 | Conversation API | 幂等重放、失败重试、会话历史 |
+| 治理分析任务 | SQLite `analysis_jobs` | Capture 分析状态 | Capture、Analysis Runtime | 状态页、人工重试 |
+| 项目与待办 | SQLite `projects`、`todos` | Persona 运行时事实源 | Project/Todo API、Capture 投影 | Prompt、工作状态、API 客户端 |
+| 当前工作状态 | SQLite `working_state` | 单例运行状态 | Working State API | Prompt、状态页、跨端客户端 |
+| 记忆提案与搜索 | SQLite `memory_proposals`、FTS5 `memory_search` | 治理记录与可重建索引 | Memory Runtime、用户审阅 | Prompt、记忆搜索 API |
+| 调度运行记录 | SQLite `daily_summary_runs`、`persona_snapshot_runs` | 可恢复调度状态 | 两个 Scheduler | 健康检查、失败诊断 |
 | Persona 每日笔记 | `${OBSIDIAN_VAULT_PATH}/${PERSONA_DAILY_NOTE_DIR}` | 人工可读归档 | Persona Exporter + 用户 | Obsidian、VitePress |
 | 知识库 | `${OBSIDIAN_VAULT_PATH}/knowledge` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress |
 | 待办 | `${OBSIDIAN_VAULT_PATH}/todo` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress、Next 日历只读投影 |
@@ -198,7 +208,7 @@ VitePress 直接使用 Obsidian Vault 作为 `srcDir`，用于私人内容浏览
 | 外观、快捷入口、侧栏收藏 | 浏览器 `localStorage` | 单浏览器偏好 | Workspace UI | Workspace UI |
 | 服务端密钥和运行配置 | 根目录 `.env` | 本机配置 | 开发者 | Persona、同步脚本 |
 
-SQLite 当前包含 Event、Memory、Daily Note、Calendar 和 Background Job 共九张业务表，并启用 WAL 与外键。PostgreSQL、向量库和图数据库都不在当前运行链路中。
+SQLite 当前统一承载 Event、Conversation/Analysis Job、Project、Todo、Working State、Memory Proposal、Memory、Daily Note、Calendar、Background Job 和调度运行记录，并启用 WAL、外键与 FTS5。PostgreSQL、向量库和图数据库都不在当前运行链路中。
 
 ## 7. 当前前端模块
 
@@ -223,13 +233,15 @@ SQLite 当前包含 Event、Memory、Daily Note、Calendar 和 Background Job �
 主要接口如下：
 
 - 对话与模型：`POST /api/chat`、`POST /api/ai/test`
-- 运行状态：`GET /health`、`GET /api/status`
-- Event：`GET /api/events`
+- 运行状态：`GET /health`、`GET /ready`、`GET /api/status`
+- Event 与会话：`GET /api/events`、`GET /api/conversations`
+- Capture、项目、待办与工作状态：对应资源的查询、创建和状态变更接口
 - 记忆：`GET /api/memory` 及 topics/profile/timeline/sources 子接口
 - 记忆治理：Profile correction/state、Topic state 接口
 - 每日总结：创建、列表、按日期读取和归档接口
 - 日历：范围读取以及 Event/Tag 的创建、更新、软删除接口
-- 后台任务：状态统计、失败任务元数据查询和手动重试接口
+- 后台任务：`background_jobs`、`analysis_jobs`、`conversation_jobs` 的状态统计、隐私安全元数据查询和手动重试接口
+- Obsidian 快照：受控归档与自动调度接口
 - 本机关闭：`POST /api/runtime/shutdown`
 
 浏览器默认直接请求 `http://127.0.0.1:3001`。Next.js 的 `/api/persona/runtime` 只承担本地进程的健康检查、固定命令启动和受控关闭，不代理普通聊天数据。
@@ -249,6 +261,7 @@ SQLite 当前包含 Event、Memory、Daily Note、Calendar 和 Background Job �
 - 模型设置不锁死 DeepSeek，支持自定义 OpenAI-compatible endpoint、model 和临时 API key。
 - 增加真实连接测试，以及网页内启动和关闭本地 Persona API 的能力。
 - 完成基础记忆写回、来源审计、状态治理和每日总结到 Obsidian 的闭环。
+- 合入对话幂等与恢复任务、Capture、项目/待办投影、工作状态、记忆提案、FTS 检索、事件/会话历史和 Persona Snapshot 调度。
 
 ### 日历与内容
 
@@ -269,7 +282,7 @@ SQLite 当前包含 Event、Memory、Daily Note、Calendar 和 Background Job �
 
 - Calendar 和记忆任务已服务端化；离线时保留本次已加载视图，但不接受离线写入队列。
 - Obsidian 到 Workspace 的知识、待办、博客链路是单向生成；Persona 只反向写 Daily Note。
-- 当前上下文检索基于近期 Event 和结构化记忆，没有向量检索或完整 RAG。
+- 当前上下文检索基于近期 Event、结构化记忆与 SQLite FTS5，没有向量检索或完整 RAG。
 - 服务端默认 provider 配置仍是 DeepSeek/mock；多厂商能力通过每次请求的 OpenAI-compatible 自定义连接实现。
 - SQLite 适合当前单机 MVP；只有出现多用户、并发写入或远程部署需求时，才需要评估 PostgreSQL。
 

@@ -103,6 +103,10 @@ export function startBackgroundTaskWorker(): void {
   scheduleWorker(0)
 }
 
+export function isBackgroundTaskWorkerRunning(): boolean {
+  return workerRunning
+}
+
 export function stopBackgroundTaskWorker(): void {
   workerRunning = false
   if (workerTimer) clearTimeout(workerTimer)

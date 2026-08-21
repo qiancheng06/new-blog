@@ -16,15 +16,47 @@ npm.cmd run verify:local
 This gate must pass without calling real LLM or Telegram services. It covers:
 
 - Persona backend TypeScript build.
+- Fresh SQLite schema contract that executes `schema.sql` in an empty temporary
+  database and verifies task-specific error-code, proposal-state, and confidence
+  constraints.
 - No-network API smoke test for `/api/chat -> Event -> Prompt Builder -> mock reply -> async Memory patch`.
-- No-network API contract test for `/health`, `/api/chat`, `/api/events`, `/api/status`, `OPTIONS`, and `404`.
+- No-network API contract test for `/health`, `/ready`, `/api/chat`, `/api/events`, `/api/conversations`, `/api/status`, `OPTIONS`, and `404`.
+- Event Feed list/detail, filters, search, and pagination expose only the safe
+  projection; raw Event payload/metadata and Telegram identifiers are neither
+  returned nor searchable, and explicit non-user visibility suppresses both
+  preview content and search matching.
+- Conversation History list/detail reconstructs successful and failed turns
+  from durable jobs without exposing or searching Telegram identifiers, Web
+  page/evaluation metadata, provider details, or non-user-visible text.
 - No-network Telegram contract test for command text-to-Event mapping, command
   no-reply boundaries, and real-mode evaluation metadata labeling.
+- No-network Todo lifecycle contract for Web and Telegram capture, deterministic
+  redelivery, due-date validation, audited state transitions, prompt visibility,
+  and source Event/projection transaction rollback.
+- No-network Project lifecycle contract for creation/detail/state audits,
+  Project-Todo integrity, Telegram redelivery, private Prompt visibility,
+  historical backfill, and transaction rollback.
+- No-network Working State contract for normalized partial updates, S1-only
+  mode enforcement, audit provenance, private Prompt context, Project terminal
+  auto-clear, state restoration, and transaction rollback.
+- No-network Capture contract for Web/Telegram note, idea, and journal
+  idempotency; reply-free durable Analysis; source-linked Memory writes;
+  privacy-safe retrieval; and Event/job transaction rollback.
 - No-network runtime burst contract test for repeated mock `/api/chat` requests,
   health/status availability, and async Memory patch completion.
 - No-network Persona runtime startup contract test for the formal runtime
-  entrypoint, `/health` readiness, pending-work observability, and graceful
+  entrypoint, liveness/readiness, pending-work observability, and graceful
   `stop()` draining behavior.
+- No-network automatic Daily Summary contract for per-date single-flight,
+  finalization, archive-stage recovery, retry state, timezone scheduling, and
+  graceful scheduler stop.
+- Temporary-Vault Obsidian contract for shared canonical path safety, atomic
+  Daily Note and Persona Snapshot writes, governed Memory filtering, user block
+  preservation, deterministic idempotency, conflict handling, and audit Events.
+- No-network Persona Snapshot scheduler contract for local-time planning,
+  same-date single-flight, durable failures, bounded retry, and startup recovery.
+- No-network Conversation job contract for Web idempotent replay, concurrent
+  single-flight, audited manual retry, stored reply reuse, and startup recovery.
 - No-network real-mode docs contract test for required P16 checklist/template
   sections, evidence boundaries, and secret-safety statements.
 - Persona prompt fixture test for Companion visibility boundaries, private Memory handling, recent-history filtering, and deterministic hidden Analysis output.
@@ -35,6 +67,13 @@ This gate must pass without calling real LLM or Telegram services. It covers:
   larger than 64 KiB before creating Events or changing Memory.
 - Analysis JSON is runtime-validated before use; each Memory patch and each
   governance Event/projection change is atomic and covered by rollback tests.
+- `cooling_required` Profile updates persist as reviewable proposals and remain
+  outside active Profile/Companion context until an audited acceptance; review
+  rollback and one-time decisions are covered by no-network contracts.
+- Query-aware Memory retrieval covers Profile, Topic, Timeline, and Daily Note
+  projections; Chinese trigram/short-query behavior, source-driven index rebuild,
+  state filtering, proposal isolation, and Prompt ordering have a no-network
+  contract.
 - Runtime diagnostics contract test for redacted, no-network real-mode readiness output.
 - Real-mode cleanup contract test for tagged evaluation data preview and safe timeline-only cleanup.
 - Workspace entrypoint contract test for the served `http://127.0.0.1:5173/` primary UI path and legacy HTML boundaries.
@@ -45,14 +84,35 @@ This gate must pass without calling real LLM or Telegram services. It covers:
 Use individual commands only for focused diagnosis:
 
 - `npm.cmd run build:backend` for Persona backend type/build failures.
+- `npm.cmd run contract:db-schema` for fresh-install schema and constraint failures.
 - `npm.cmd run smoke:api` for no-network API and Memory write/read failures.
-- `npm.cmd run contract:api` for Application API request/response shape failures.
+- `npm.cmd run contract:api` for Application API request/response shape,
+  Event Feed and Conversation History privacy, filtering, search, pagination,
+  and detail failures.
+- `npm.cmd run contract:memory-search` for FTS synchronization, query-aware
+  Prompt retrieval, Chinese matching, state filtering, and proposal isolation.
+- `npm.cmd run contract:conversation-jobs` for Companion execution recovery,
+  Web idempotency, and retry audit failures.
 - `npm.cmd run contract:telegram` for Telegram command mapping, no-reply boundary,
   and evaluation run labeling failures.
+- `npm.cmd run contract:todos` for Todo projection, lifecycle, private prompt
+  context, Telegram idempotency, and atomic rollback failures.
+- `npm.cmd run contract:projects` for Project lifecycle, Todo relationship,
+  migration, private Prompt context, and atomic rollback failures.
+- `npm.cmd run contract:working-state` for persisted focus, S1 enforcement,
+  private Prompt context, Project terminal linkage, and atomic rollback failures.
+- `npm.cmd run contract:captures` for immutable Capture intake, no-reply
+  Analysis, safe retrieval, Memory provenance, idempotency, and rollback failures.
 - `npm.cmd run contract:runtime-burst` for repeated mock API request loops,
   health/status regressions, and async Memory patch timing failures.
 - `npm.cmd run contract:runtime-startup` for formal Persona runtime entrypoint
   startup, health readiness, and shutdown regressions.
+- `npm.cmd run contract:daily-summary-scheduler` for automatic previous-day
+  finalization, idempotency, archive recovery, and schedule regressions.
+- `npm.cmd run contract:obsidian-archive` for Daily Note/Persona Snapshot
+  rendering, governed visibility, path safety, idempotency, and conflict failures.
+- `npm.cmd run contract:obsidian-snapshot-scheduler` for automatic Snapshot
+  schedule, idempotency, failure classification, retry, and recovery regressions.
 - `npm.cmd run contract:real-mode-docs` for real-mode checklist/template drift
   that could hide a P16 gate or weaken evidence boundaries.
 - `npm.cmd run fixture:persona` for Persona prompt boundary and mock Analysis fixture failures.
@@ -134,6 +194,8 @@ The current architecture stage is considered done when:
 - Memory write/read loop is covered by `smoke:api`.
 - LLM provider supports real DeepSeek mode and no-network mock mode.
 - Workspace status/chat UI uses Application APIs only.
+- Workspace Event views consume the Application safe projection and never read
+  raw Event rows or private Telegram identifiers.
 - Workspace Memory/Profile panel reads Application memory APIs only and does not
   use legacy HTML or direct SQLite access.
 
@@ -144,5 +206,4 @@ These remain future product-level gates:
 - Real DeepSeek conversation quality evaluation.
 - Telegram end-to-end runtime verification.
 - Long-running reliability test.
-- User-editable Memory/Profile management.
-- Daily summary and Obsidian write-back loop.
+- Workspace proposal-review/search UI and future semantic embedding ranking.

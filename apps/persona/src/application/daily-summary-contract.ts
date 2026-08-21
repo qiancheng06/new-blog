@@ -36,6 +36,7 @@ interface GenerationResponse {
     highlights: string[]
     topicDistribution: Record<string, number>
     sourceEventId: string | null
+    finalizedAt: string | null
     createdAt: string
     updatedAt: string
   }
@@ -64,6 +65,7 @@ async function verifyGeneration(portNumber: number): Promise<GenerationResponse>
   assert(body.note.topicDistribution.conversation === 3, "Daily Note topic distribution mismatch")
   assert(body.eventCount === 3, "Daily Summary must count two user Events and one Companion reply")
   assert(body.note.sourceEventId === body.summaryEventId, "Daily Note must reference its summary_ready Event")
+  assert(body.note.finalizedAt === null, "manual Daily Summary generation must remain unfinalized")
   assert(body.note.createdAt.length > 0 && body.note.updatedAt.length > 0, "Daily Note timestamps must be populated")
 
   const event = queryOne<{ source: string; type: string; payload: string; metadata: string }>(
@@ -108,6 +110,7 @@ async function verifyIdempotentRefresh(
   assert(second.note.id === noteId, "Daily Summary refresh must preserve Daily Note id")
   assert(second.summaryEventId !== firstSummaryEventId, "Daily Summary refresh must append a new audit Event")
   assert(second.note.sourceEventId === second.summaryEventId, "refreshed Daily Note must reference latest summary Event")
+  assert(second.note.finalizedAt === null, "manual Daily Summary refresh must remain unfinalized")
 
   const noteCount = queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM daily_notes WHERE date = ?", [contractDate])
   assert(noteCount?.count === 1, "Daily Summary refresh must keep one Daily Note per date")

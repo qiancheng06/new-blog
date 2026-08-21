@@ -15,7 +15,32 @@ Response `200`:
   events_today: number,
   background_tasks: {
     pending: number
+  },
+  analysis_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
   }
+}
+```
+
+`/health` is the process liveness probe. It remains `200` with the stable legacy
+shape even when a dependency check fails; dependency readiness belongs to
+`/ready`.
+
+### `GET /ready`
+
+Returns `200` with `status: "ready"` when SQLite schema access and the selected
+LLM configuration are available. It returns `503` with `status: "not_ready"`
+when either core component fails. Telegram, Obsidian, Daily Summary scheduling,
+failed Analysis jobs, and pending background work remain visible but do not
+block readiness.
+
+```ts
+{
+  status: "ready" | "not_ready",
+  components: RuntimeComponents
 }
 ```
 
@@ -26,9 +51,14 @@ Request:
 ```ts
 {
   text: string,
-  page?: string
+  page?: string,
+  requestId?: string
 }
 ```
+
+`requestId` is an opaque 1-128 character idempotency key using letters,
+numbers, `.`, `_`, `:`, or `-`. Browsers may send the same value through the
+`Idempotency-Key` header instead. When both are present they must match.
 
 Success response `200`:
 
@@ -36,13 +66,108 @@ Success response `200`:
 {
   reply: string,
   eventId: string,
-  replyEventId: string
+  replyEventId: string,
+  duplicate: boolean,
+  conversationJobId: string,
+  conversationJobStatus: "succeeded"
 }
 ```
 
 `eventId` identifies the immutable user input Event. `replyEventId` identifies the
 linked `system/companion_reply` output Event whose `in_reply_to` points back to the
 input Event.
+
+The first accepted request persists the input Event and Conversation job in one
+transaction. Concurrent requests with the same key share one Companion call.
+A completed replay returns the stored reply without another model call or reply
+Event. Reusing a key with different input returns `409`. A failed response
+returns bounded `eventId` and `conversationJobId` recovery identifiers without
+provider errors; replaying the same key creates an audited retry attempt.
+
+```ts
+{ error: "idempotency key conflict" } // 409
+{
+  reply: string,
+  error: "processing failed",
+  eventId: string,
+  conversationJobId: string
+} // 500, retryable with the same request key or job retry API
+```
+
+### Event Feed APIs
+
+`GET /api/events` returns a privacy-safe Event projection ordered by Event time
+descending. Optional query parameters are `source=telegram|system|web`, `type`,
+`q`, `since`, `before`, `limit`, and `offset`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    source: "telegram" | "system" | "web",
+    type: string,
+    timestamp: string,
+    createdAt: string,
+    preview: string,
+    purpose: string | null,
+    visibility: string | null
+  }>,
+  events: EventFeedRecord[],
+  limit: number,
+  offset: number
+}
+```
+
+`events` is a compatibility alias of `items`. `GET /api/events/:id` returns
+`{ event: EventFeedRecord }`, or `404` when the Event does not exist. Invalid
+sources, types, or time ranges return `400`; pagination is normalized to a
+non-negative offset and a limit between 1 and 100.
+
+The feed never returns raw `payload` or `metadata`. Telegram `chat_id`,
+`user_id`, and `message_id` values are neither exposed nor searchable. Search
+is restricted to bounded user-readable `text`, `summary`, and `reason` fields.
+An Event with an explicit non-`user` visibility remains classifiable in the
+feed, but its preview is empty and its content does not participate in search.
+
+### Conversation History APIs
+
+`GET /api/conversations` returns persisted user/Companion turns ordered by
+input time descending. Optional query parameters are `source=web|telegram`,
+`status=pending|running|succeeded|failed`, `q`, `since`, `before`, `limit`, and
+`offset`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    replyEventId: string | null,
+    source: "web" | "telegram",
+    status: "pending" | "running" | "succeeded" | "failed",
+    errorCode: "companion_error" | "reply_error" | "state_error" | "interrupted" | null,
+    userText: string | null,
+    assistantText: string | null,
+    timestamp: string,
+    replyTimestamp: string | null,
+    createdAt: string,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+`GET /api/conversations/:id` returns `{ conversation }` by Conversation job id,
+or `404`. Invalid sources, statuses, or time ranges return `400`; pagination is normalized
+to a non-negative offset and a limit between 1 and 100. Each returned text field
+is bounded to 16,000 characters.
+
+The read model joins Conversation jobs to their immutable input/reply Events but
+never returns raw payload or metadata. Telegram identifiers, Web page context,
+evaluation labels, and retry metadata are neither exposed nor searchable.
+Malformed or explicit non-`user` Event content is returned as `null` and does
+not participate in search. Failed turns remain visible through bounded status
+and error codes so the UI can explain missing replies without provider details.
 
 ### `POST /api/daily-summaries`
 
@@ -67,6 +192,7 @@ Success response `200`:
     archivePath: string | null,
     archiveEventId: string | null,
     archivedAt: string | null,
+    finalizedAt: string | null,
     createdAt: string,
     updatedAt: string
   },
@@ -78,6 +204,8 @@ Success response `200`:
 Generation reads only the bounded user/Companion event window for that local
 date. It atomically appends a `system/summary_ready` Event and upserts the unique
 Daily Note. Refreshing a date preserves the Note id and appends a new audit Event.
+Manual generation leaves `finalizedAt` empty. The runtime scheduler finalizes the
+previous local date after its configured close time.
 
 ### `GET /api/daily-summaries`
 
@@ -115,6 +243,45 @@ records the relative path and audit Event id on the Daily Note projection. A
 file with the same name but no unique managed block returns `409` and is never
 overwritten. A missing, inaccessible, or unsafe vault returns `503`.
 
+### `POST /api/archives/obsidian/snapshot`
+
+Exports the current governed Persona projections into
+`<PERSONA_OBSIDIAN_SNAPSHOT_DIR>/Persona OS.md`. Send an empty JSON object with
+`Content-Type: application/json`.
+
+```ts
+{
+  snapshotEventId: string,
+  relativePath: string,
+  status: "created" | "updated" | "unchanged",
+  exportedAt: string,
+  dataUpdatedThrough: string | null,
+  counts: {
+    profile: number,
+    topics: number,
+    timeline: number,
+    projects: number
+  },
+  truncated: {
+    profile: boolean,
+    topics: boolean,
+    timeline: boolean,
+    projects: boolean
+  }
+}
+```
+
+The deterministic managed block contains active Profile/Topic rows, Timeline,
+and Projects, with at most 500 records per category. Suppressed/archived Memory
+and Memory proposals remain excluded. Successful requests append a
+`system/persona_snapshot_exported` audit Event containing only path, status,
+counts, and truncation flags. The Event never duplicates Memory text.
+
+User Markdown outside the managed block is preserved. Identical projection data
+returns `unchanged`; a same-name file without one valid block returns `409`.
+Missing, inaccessible, or unsafe Vault configuration returns `503` without an
+audit Event.
+
 Error responses:
 
 ```ts
@@ -135,16 +302,55 @@ Response `200`:
 
 ```ts
 {
-  status: "ok",
+  status: "ok" | "degraded" | "not_ready",
+  ready: boolean,
+  components: RuntimeComponents,
   uptime: number,
   events_today: number,
   background_tasks: {
     pending: number
   },
+  analysis_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
+  },
+  conversation_jobs: {
+    pending: number,
+    running: number,
+    succeeded: number,
+    failed: number
+  },
   memory: {
     topics: number,
     profile: number,
-    timelineEvents: number
+    timelineEvents: number,
+    pendingProposals: number
+  },
+  todos: {
+    open: number,
+    done: number,
+    cancelled: number,
+    overdue: number,
+    dueToday: number
+  },
+  projects: {
+    active: number,
+    paused: number,
+    done: number,
+    archived: number
+  },
+  captures: {
+    notes: number,
+    ideas: number,
+    journals: number
+  },
+  working_state: {
+    mode: "S1",
+    hasCurrentProject: boolean,
+    activeTopicCount: number,
+    currentQuestionCount: number
   },
   recent_events: Array<{
     id: string,
@@ -155,6 +361,289 @@ Response `200`:
   }>
 }
 ```
+
+`RuntimeComponents` contains only bounded states and counts: database, LLM
+provider/mode, Telegram lifecycle, Obsidian availability, Daily Summary
+scheduler state, Persona Snapshot scheduler state, Conversation/Analysis job
+counts, and pending background task count. Both scheduler components expose
+only status, target/completed dates, next run time, failure count, and aggregate
+persisted run counts. They never include
+configured paths, tokens, prompts, message content, provider output, or raw
+errors. Optional component failure changes the overall status to `degraded`
+without changing `ready`.
+
+### Capture APIs
+
+Capture is an immutable `note`, `idea`, or `journal` Event. It has no editable
+projection and never produces a Companion reply.
+
+`POST /api/captures` accepts Web input:
+
+```ts
+// request
+{
+  type: "note" | "idea" | "journal",
+  text: string,
+  requestId?: string
+}
+
+// response 202 for a new Capture; 200 for an idempotent replay
+{
+  duplicate: boolean,
+  capture: {
+    id: string,
+    source: "web" | "telegram",
+    type: "note" | "idea" | "journal",
+    text: string,
+    timestamp: string,
+    createdAt: string,
+    analysis: {
+      jobId: string,
+      status: "pending" | "running" | "succeeded" | "failed",
+      errorCode: string | null
+    }
+  }
+}
+```
+
+`Idempotency-Key` may replace `requestId`; when both are supplied they must
+match. Reusing a key with changed type or text returns `409`. The source Event
+and pending Analysis job commit atomically. Analysis runs without a Conversation
+job or `companion_reply`, and successful Memory writes retain the Capture Event
+as provenance. Failed jobs use the existing Analysis retry API.
+
+`GET /api/captures` returns `{ items, limit, offset }`. Optional query parameters
+are `type=note|idea|journal|all`, `source=web|telegram|all`, `q`, `limit`, and
+`offset`. `GET /api/captures/:id` returns one Capture or `404`. These read models
+never expose raw Event payload, Telegram chat/user/message identifiers, prompts,
+or provider output.
+
+Telegram `/n`/`/note`, `/i`/`/idea`, and `/j`/`/journal` reuse this reply-free
+Analysis path. Todo and Project commands do not.
+
+### Working State APIs
+
+`GET /api/working-state` returns the persisted singleton:
+
+```ts
+{
+  workingState: {
+    id: "primary",
+    current_project_id: string | null,
+    active_topics: string[],
+    current_questions: string[],
+    mode: "S1",
+    state_event_id: string | null,
+    state_reason: string,
+    updated_at: string
+  }
+}
+```
+
+`POST /api/working-state` applies a partial reason-required update:
+
+```ts
+// request; at least one state field is required
+{
+  currentProjectId?: string | null,
+  activeTopics?: string[],
+  currentQuestions?: string[],
+  mode?: "S1",
+  reason: string
+}
+
+// response 200
+{ eventId: string, workingState: WorkingState }
+```
+
+The selected Project must be active or paused. Missing Projects return `404`;
+terminal Projects and unchanged values return `409`. S2/S3/S4 are deliberately
+disabled and return `400`. Accepted changes append `working_state_updated` and
+update the singleton atomically.
+
+Working State enters bounded private Companion and Analysis context with Project
+name, topic labels, questions, and S1 mode, never internal ids. It remains
+outside Profile, long-term Memory, and `memory_search`.
+
+### Project lifecycle APIs
+
+Project is a user-managed Workspace entity represented inside Persona by an
+immutable creation Event plus a mutable runtime projection. It is working
+context, not an automatically inferred Memory record.
+
+`POST /api/projects` creates an active Project:
+
+```ts
+// request
+{ name: string, summary?: string, topics?: string[] }
+
+// response 201
+{ eventId: string, project: Project }
+```
+
+`GET /api/projects` returns `{ items, limit, offset }` and accepts `status`,
+`topic`, `limit`, and `offset`. `GET /api/projects/:id` returns one Project.
+Names are case-insensitively unique.
+
+`POST /api/projects/:id/details` changes name, summary, or topics and requires a
+human reason. `POST /api/projects/:id/state` accepts `active`, `paused`, `done`,
+or `archived` plus a reason. Completing or archiving a Project with open linked
+Todos returns `409`; done/archived Projects may only return to `active`.
+Accepted changes append `project_details_updated`, `project_paused`,
+`project_completed`, `project_archived`, or `project_reactivated` Events in the
+same transaction as the projection update.
+
+Completing or archiving the current Working State Project also appends
+`working_state_project_cleared` and clears `current_project_id` in that same
+transaction. The response then includes `workingStateEventId`; unrelated
+Project transitions omit it.
+
+Telegram `/p` and `/project` create Projects through the same idempotent Event
+boundary. Runtime startup restores missing projections from valid historical
+Project Events before restoring Todo projections. Only active Project names,
+summaries, and topic labels enter bounded private Prompt context; ids and
+non-active Projects are excluded.
+
+### Todo lifecycle APIs
+
+Todo is a user-managed Workspace entity, not a Memory projection. Creation is
+represented by an immutable `todo` Event and a mutable `todos` row. Both writes
+commit in one transaction, including Todo commands received from Telegram.
+
+`POST /api/todos` creates a Todo:
+
+```ts
+// request
+{ title: string, dueDate?: "YYYY-MM-DD" | null, projectId?: string | null }
+
+// response 201
+{ eventId: string, todo: Todo }
+```
+
+`GET /api/todos` returns `{ items, limit, offset }`. Optional query parameters
+are `status=open|done|cancelled|all`, `projectId`, `dueBefore=YYYY-MM-DD`,
+`dueAfter=YYYY-MM-DD`, `limit`, and `offset`. `GET /api/todos/:id` returns one
+Todo or `404`.
+
+`POST /api/todos/:id/state` applies a reason-required state transition:
+
+```ts
+// request
+{ status: "open" | "done" | "cancelled", reason: string }
+
+// response 200
+{ eventId: string, todo: Todo }
+```
+
+Allowed transitions are `open -> done|cancelled` and
+`done|cancelled -> open`. Repeating the current state or requesting another
+terminal state returns `409`. Every accepted transition appends one of
+`todo_completed`, `todo_cancelled`, or `todo_reopened` before updating the
+projection in the same transaction.
+
+`POST /api/todos/:id/project` assigns or unassigns a Todo with
+`{ projectId: string | null, reason: string }`. Open Todos may belong only to
+active or paused Projects. Reopening a Todo inside a done/archived Project and
+creating a new open Todo there both return `409`. Linked Todo Prompt context
+uses the Project name, never its internal id.
+
+Telegram `/t` and `/todo` commands use the same projection path and remain
+idempotent across redelivery. A valid final `@YYYY-MM-DD` token becomes the due
+date, for example `/todo submit report @2026-08-01`; invalid date suffixes stay
+in the title.
+
+Only open Todos enter the private Companion and Analysis context. The bounded
+context contains title and optional due date, never internal ids. Completed and
+cancelled Todos are excluded. This contextual use does not make Todo part of
+long-term Memory or its search index.
+
+### `GET /api/conversation-jobs`
+
+Returns privacy-safe Companion execution state. Optional query parameters are
+`status`, `limit`, and `offset`; status is `pending`, `running`, `succeeded`, or
+`failed`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    status: "pending" | "running" | "succeeded" | "failed",
+    attemptCount: number,
+    errorCode: "companion_error" | "reply_error" | "state_error" | "interrupted" | null,
+    replyEventId: string | null,
+    retryEventId: string | null,
+    createdAt: string,
+    startedAt: string | null,
+    finishedAt: string | null,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/conversation-jobs/:id/retry`
+
+Retries one failed job synchronously and appends a
+`conversation_retry_requested` audit Event before the new attempt. Send `{}` as
+JSON. Success returns the job, retry Event id, stored reply, input Event id, and
+reply Event id. Missing jobs return `404`; non-failed jobs return `409`.
+
+Conversation jobs never store prompts, reply text, provider output, or raw
+errors. Reply text remains in the governed `companion_reply` Event. Startup
+marks interrupted pending/running jobs failed with the bounded `interrupted`
+code so they can be explicitly recovered.
+
+## Automatic Daily Summary
+
+The full Persona runtime automatically closes the previous local date at
+`PERSONA_DAILY_SUMMARY_TIME` (default `00:05`) when
+`PERSONA_DAILY_SUMMARY_ENABLED` is true. It generates and finalizes the note,
+then archives it when an Obsidian vault is configured. A finalized note is not
+generated again. If generation succeeded but archive failed, the retry resumes
+at archive without another model call. Run state is persisted per local date;
+startup recovers interrupted attempts and processes the oldest incomplete date
+first. Failures use bounded exponential retry, and graceful shutdown cancels
+future timers while draining the active task. Unfinished runs adopt the current
+Obsidian archive setting after restart, so disabling the optional integration
+can release a previous archive failure.
+
+### `GET /api/analysis-jobs`
+
+Returns privacy-safe Analysis execution state without source text or provider
+output. Optional query parameters are `status`, `limit`, and `offset`; status is
+one of `pending`, `running`, `succeeded`, or `failed`.
+
+```ts
+{
+  items: Array<{
+    id: string,
+    sourceEventId: string,
+    status: "pending" | "running" | "succeeded" | "failed",
+    attemptCount: number,
+    errorCode: "analysis_error" | "memory_error" | "interrupted" | null,
+    retryEventId: string | null,
+    createdAt: string,
+    startedAt: string | null,
+    finishedAt: string | null,
+    updatedAt: string
+  }>,
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/analysis-jobs/:id/retry`
+
+Retries one failed Analysis job. Send `{}` as JSON. The response is `202` with
+`{ job, retryEventId }`; the model call and Memory commit remain asynchronous.
+The request first appends an `analysis_retry_requested` audit Event. Missing
+jobs return `404`, while pending, running, or succeeded jobs return `409`.
+
+Successful Memory projection writes and the job's `succeeded` transition commit
+atomically. A retry never reapplies a succeeded job, and an older source Event
+cannot overwrite Profile state whose provenance Event is newer.
 
 ### `GET /api/memory`
 
@@ -175,7 +664,8 @@ Response `200`:
   stats: {
     topics: number,
     profile: number,
-    timelineEvents: number
+    timelineEvents: number,
+    pendingProposals: number
   },
   topics: TopicRow[],
   profile: ProfileRow[],
@@ -269,10 +759,89 @@ Response `200`:
 }
 ```
 
+### `GET /api/memory/search`
+
+Searches governed Memory projections using exact substring and FTS5/trigram
+retrieval. Query params:
+
+```ts
+{
+  q: string,       // required, 1-500 characters
+  limit?: number   // default 10, maximum 50
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: Array<{
+    entityType: "profile" | "topic" | "timeline" | "daily_note",
+    entityId: string,
+    title: string,
+    text: string,
+    sourceEventId: string | null,
+    date: string | null
+  }>,
+  limit: number
+}
+```
+
+Only active Profile/Topic rows are returned. Pending/rejected proposals are not
+indexed. Missing or oversized queries return `400`.
+
+### `GET /api/memory/proposals`
+
+Lists cooled Profile candidates without promoting them into AI context.
+
+```ts
+{
+  status?: "pending" | "accepted" | "rejected",
+  sourceEventId?: string,
+  limit?: number,
+  offset?: number
+}
+```
+
+Response `200`:
+
+```ts
+{
+  items: MemoryProposalRow[],
+  limit: number,
+  offset: number
+}
+```
+
+### `POST /api/memory/proposals/:id/review`
+
+Accepts or rejects one pending proposal exactly once.
+
+```ts
+{
+  decision: "accept" | "reject",
+  reason: string
+}
+```
+
+Success response `200`:
+
+```ts
+{
+  eventId: string,
+  proposal: MemoryProposalRow,
+  profile: ProfileRow | null
+}
+```
+
+Acceptance returns the written Profile row; rejection returns `profile: null`.
+The review Event, proposal transition, and optional Profile upsert commit in one
+transaction. Errors are `400` for invalid input, `404` for an unknown proposal,
+and `409` after the proposal has already been reviewed.
+
 ### `POST /api/memory/profile/corrections`
 
-Governed Profile correction. This is the only current Memory management write
-operation exposed to Workspace. It records an Event before updating Profile.
+Governed Profile correction. It records an Event before updating Profile.
 
 Request:
 
@@ -351,25 +920,32 @@ body returns `topic`.
 - The API binds to `127.0.0.1` unless `API_HOST` is explicitly configured.
 - `OPTIONS` returns `204` only for configured `PERSONA_ALLOWED_ORIGINS` and
   returns `403` for an unknown browser origin.
+- Trusted browser preflight allows `Content-Type` and `Idempotency-Key`.
 - Unknown routes return `404 { error: "not found" }`.
 - POST bodies must be JSON objects with `Content-Type: application/json` and
   may not exceed 64 KiB.
+- Telegram redelivery remains acknowledge-only and never sends a second reply;
+  Web replay recovery is enabled only when an idempotency key is present.
 - Daily Note archive writes are confined to the configured external Obsidian
   vault and reject unmanaged same-name files instead of overwriting them.
 - Memory list limits are normalized by the Application layer and capped at 100.
-- Memory APIs are read-only and must not mutate Events, Profile, Topics, or
-  Timeline rows.
-- `POST /api/memory/profile/corrections` is the only exception; it is a governed
-  Application write path and must first append an Event.
+- Memory GET APIs are read-only and must not mutate Events, Profile, Topics,
+  Timeline rows, or proposals.
+- `POST /api/memory/profile/corrections` and proposal review are governed
+  Application write paths and must append an Event.
 - `POST /api/memory/profile/state` and `POST /api/memory/topics/state` are
   governed projection-state write paths. They append governance Events before
   changing row state. The Event and projection change commit atomically.
+- Pending or rejected proposals never enter Profile or Companion context.
+- Search reads only the derived index through Application/Memory APIs. Direct
+  FTS access is not a supported interface.
 
 ## Safe paths
 
 - Import `createApiServer`, `startApiServer`, and `stopApiServer` from `apps/persona/src/interface/api/server.ts`.
 - Bind to port `0` or a test-specific port through `startApiServer({ port: 0 })`.
-- Call `GET /health` to verify process and database counters.
+- Call `GET /health` to verify process liveness.
+- Call `GET /ready` to verify core database and LLM configuration readiness.
 - Call `GET /api/events` to verify read-side routing.
 - Close the returned server with `stopApiServer(server)` or `server.close()`.
 
@@ -410,4 +986,39 @@ Run the stricter HTTP contract test:
 npm.cmd run contract:api
 ```
 
-The contract test starts the API on `127.0.0.1:3103`, verifies `/health`, `/api/chat` happy/error paths, `/api/events`, `/api/status`, read-only `/api/memory*` routes, `OPTIONS`, and `404`, then deletes its smoke rows and closes the server.
+The contract test starts the API on `127.0.0.1:3103`, verifies `/health`,
+`/ready`, `/api/chat` happy/error paths, privacy-safe Event Feed list/detail,
+filtering, search and pagination, persisted Conversation History list/detail,
+failure state and privacy boundaries, unavailable and successful governed
+Obsidian Snapshot behavior, `/api/status`, read-only
+`/api/memory*` routes, Capture reads/writes, Working State and Project/Todo lifecycle routes,
+`OPTIONS`, and `404`, then
+deletes its smoke rows and closes the server.
+
+Run the focused Todo lifecycle, Telegram projection, prompt-boundary, and
+transaction rollback contract with:
+
+```bash
+npm.cmd run contract:todos
+```
+
+Run the focused Project lifecycle, Todo relationship, Telegram projection,
+Prompt-boundary, migration, and rollback contract with:
+
+```bash
+npm.cmd run contract:projects
+```
+
+Run the focused persisted Working State, Prompt boundary, Project terminal
+linkage, and rollback contract with:
+
+```bash
+npm.cmd run contract:working-state
+```
+
+Run the focused immutable Capture, Telegram/Web idempotency, reply-free Analysis,
+Memory provenance, safe read-model, and rollback contract with:
+
+```bash
+npm.cmd run contract:captures
+```

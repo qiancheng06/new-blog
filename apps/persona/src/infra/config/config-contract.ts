@@ -18,6 +18,11 @@ assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace o
 assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
 assert(mockConfig.dailyNoteDirectory === "persona/daily-notes", "Daily Note directory default mismatch")
 assert(mockConfig.analysisModel === "deepseek-chat", "analysis model should fall back to the server model")
+assert(mockConfig.obsidianSnapshotDirectory === "persona/snapshots", "Obsidian Snapshot directory default mismatch")
+assert(mockConfig.obsidianSnapshotEnabled === false, "Snapshot scheduler should default off without a vault")
+assert(mockConfig.obsidianSnapshotTime === "00:15", "Snapshot schedule default mismatch")
+assert(mockConfig.dailySummaryEnabled, "Daily Summary scheduler should be enabled by default")
+assert(mockConfig.dailySummaryTime === "00:05", "Daily Summary schedule default mismatch")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
@@ -153,7 +158,7 @@ assert(
   "invalid IANA time zones should fail validation",
 )
 
-for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./daily-notes"]) {
+for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./daily-notes", "persona/bad:name"]) {
   const invalidDailyNoteDirectory = loadRuntimeConfig({
     LLM_PROVIDER: "mock",
     API_PORT: "3001",
@@ -164,6 +169,92 @@ for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "pers
     `invalid Daily Note directory should fail validation: ${invalidDirectory}`,
   )
 }
+
+for (const invalidDirectory of ["../outside", "/absolute", "C:\\absolute", "persona/./snapshots", "persona/bad:name"]) {
+  const invalidSnapshotDirectory = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    API_PORT: "3001",
+    PERSONA_OBSIDIAN_SNAPSHOT_DIR: invalidDirectory,
+  })
+  assert(
+    validateRuntimeConfig(invalidSnapshotDirectory)
+      .some((error) => error.includes("PERSONA_OBSIDIAN_SNAPSHOT_DIR")),
+    `invalid Obsidian Snapshot directory should fail validation: ${invalidDirectory}`,
+  )
+}
+
+const configuredSnapshot = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  OBSIDIAN_VAULT_PATH: "C:\\example-vault",
+  PERSONA_OBSIDIAN_SNAPSHOT_TIME: "23:50",
+})
+assert(configuredSnapshot.obsidianSnapshotEnabled === true, "configured vault should enable Snapshot scheduling")
+assert(configuredSnapshot.obsidianSnapshotTime === "23:50", "Snapshot schedule should preserve valid time")
+
+const disabledSnapshot = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  OBSIDIAN_VAULT_PATH: "C:\\example-vault",
+  PERSONA_OBSIDIAN_SNAPSHOT_ENABLED: "false",
+})
+assert(disabledSnapshot.obsidianSnapshotEnabled === false, "Snapshot scheduler should accept explicit false")
+
+const invalidSnapshotEnabled = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_OBSIDIAN_SNAPSHOT_ENABLED: "sometimes",
+})
+assert(
+  validateRuntimeConfig(invalidSnapshotEnabled)
+    .some((error) => error.includes("PERSONA_OBSIDIAN_SNAPSHOT_ENABLED")),
+  "invalid Snapshot enabled flag should fail validation",
+)
+
+const missingSnapshotVault = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_OBSIDIAN_SNAPSHOT_ENABLED: "true",
+})
+assert(
+  validateRuntimeConfig(missingSnapshotVault).some((error) => error.includes("OBSIDIAN_VAULT_PATH")),
+  "enabled Snapshot scheduler should require an Obsidian vault",
+)
+
+for (const invalidTime of ["24:00", "9:30", "12:60", "noon"]) {
+  const invalidSnapshotTime = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    PERSONA_OBSIDIAN_SNAPSHOT_TIME: invalidTime,
+  })
+  assert(
+    validateRuntimeConfig(invalidSnapshotTime).some((error) => error.includes("PERSONA_OBSIDIAN_SNAPSHOT_TIME")),
+    `invalid Snapshot time should fail validation: ${invalidTime}`,
+  )
+}
+
+const disabledDailySummary = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_DAILY_SUMMARY_ENABLED: "false",
+  PERSONA_DAILY_SUMMARY_TIME: "23:45",
+})
+assert(!disabledDailySummary.dailySummaryEnabled, "Daily Summary scheduler should accept false")
+assert(disabledDailySummary.dailySummaryTime === "23:45", "Daily Summary schedule should preserve valid time")
+
+for (const invalidTime of ["24:00", "9:30", "12:60", "noon"]) {
+  const invalidDailySummaryTime = loadRuntimeConfig({
+    LLM_PROVIDER: "mock",
+    PERSONA_DAILY_SUMMARY_TIME: invalidTime,
+  })
+  assert(
+    validateRuntimeConfig(invalidDailySummaryTime).some((error) => error.includes("PERSONA_DAILY_SUMMARY_TIME")),
+    `invalid Daily Summary time should fail validation: ${invalidTime}`,
+  )
+}
+
+const invalidDailySummaryEnabled = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  PERSONA_DAILY_SUMMARY_ENABLED: "sometimes",
+})
+assert(
+  validateRuntimeConfig(invalidDailySummaryEnabled).some((error) => error.includes("PERSONA_DAILY_SUMMARY_ENABLED")),
+  "invalid Daily Summary enabled flag should fail validation",
+)
 
 console.log("infra config contract ok")
 

@@ -6,6 +6,9 @@
 
 - Direction is one-way from the SQLite Daily Note projection to Obsidian.
 - The target is `<vault>/<PERSONA_DAILY_NOTE_DIR>/YYYY-MM-DD.md`.
+- Governed Persona snapshots target
+  `<vault>/<PERSONA_OBSIDIAN_SNAPSHOT_DIR>/Persona OS.md` through the manual
+  Application API; they are not reverse-imported into Workspace or Persona.
 - Persona may create the file or replace its single managed block; all content
   outside the block belongs to the user and must be preserved byte-for-byte.
 - An unmanaged same-name file is a conflict, never an implicit migration.

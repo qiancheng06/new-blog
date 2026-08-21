@@ -5,7 +5,9 @@ const evaluationRunId = "eval-telegram-contract"
 
 verifyCommandParsing()
 verifyCommandEventBuild()
+verifyProjectCommandEventBuild()
 verifyMessageEventBuild()
+verifyStableEventIdentity()
 verifyChatAllowlist()
 
 console.log("telegram contract ok")
@@ -13,6 +15,15 @@ console.log("telegram contract ok")
 function verifyCommandParsing(): void {
   assert(parseTelegramCommand("/n keep this")?.type === "note", "/n should parse as note")
   assert(parseTelegramCommand("/t check Workspace")?.type === "todo", "/t should parse as todo")
+  assert(parseTelegramCommand("/p Persona OS")?.type === "project", "/p should parse as project")
+  assert(parseTelegramCommand("/project Persona OS")?.content === "Persona OS", "/project content mismatch")
+  const datedTodo = parseTelegramCommand("/todo check Workspace @2099-04-01")
+  assert(datedTodo?.content === "check Workspace", "Todo due suffix must be removed from content")
+  assert(datedTodo?.dueDate === "2099-04-01", "Todo due suffix must be parsed")
+  assert(
+    parseTelegramCommand("/todo keep invalid date @2099-02-30")?.content === "keep invalid date @2099-02-30",
+    "invalid Todo due suffix must remain part of content",
+  )
   assert(parseTelegramCommand("/i possible direction")?.type === "idea", "/i should parse as idea")
   assert(parseTelegramCommand("/j daily note")?.type === "journal", "/j should parse as journal")
   assert(parseTelegramCommand("/note long form")?.type === "note", "/note should parse as note")
@@ -26,7 +37,7 @@ function verifyCommandEventBuild(): void {
   const result = buildTelegramEvent({
     chatId: 1001,
     userId: 2002,
-    text: "/t tomorrow check backend",
+    text: "/t tomorrow check backend @2099-04-01",
     messageId: 3003,
     replyTo: 2999,
     evaluationRunId,
@@ -40,6 +51,7 @@ function verifyCommandEventBuild(): void {
   assert(result.event.payload.message_id === 3003, "message id mismatch")
   assert(result.event.payload.reply_to === 2999, "reply id mismatch")
   assert(result.event.payload.text === "tomorrow check backend", "command payload should strip command prefix")
+  assert(result.event.payload.due_date === "2099-04-01", "command payload should preserve Todo due date")
   assert(result.event.metadata.purpose === "real_mode_evaluation", "evaluation metadata purpose mismatch")
   assert(result.event.metadata.run_id === evaluationRunId, "evaluation metadata run_id mismatch")
 }
@@ -58,6 +70,31 @@ function verifyMessageEventBuild(): void {
   assert(result.event.type === "message", "message event type mismatch")
   assert(result.event.payload.text === "normal companion message", "message payload text mismatch")
   assert(Object.keys(result.event.metadata).length === 0, "blank evaluation id should not add metadata")
+}
+
+function verifyProjectCommandEventBuild(): void {
+  const result = buildTelegramEvent({
+    chatId: 1001,
+    userId: 2002,
+    text: "/project Persona OS MVP",
+    messageId: 3007,
+  })
+
+  assert(result.shouldReply === false, "Project commands must not request Companion replies")
+  assert(result.event.type === "project", "Project command Event type mismatch")
+  assert(result.event.payload.text === "Persona OS MVP", "Project command payload mismatch")
+}
+
+function verifyStableEventIdentity(): void {
+  const first = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3005 })
+  const duplicate = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3005 })
+  const otherChat = buildTelegramEvent({ chatId: -1002, userId: 2002, text: "first", messageId: 3005 })
+  const otherMessage = buildTelegramEvent({ chatId: -1001, userId: 2002, text: "first", messageId: 3006 })
+
+  assert(first.event.id === duplicate.event.id, "same Telegram message must produce a stable Event id")
+  assert(first.event.id !== otherChat.event.id, "Telegram Event id must include chat id")
+  assert(first.event.id !== otherMessage.event.id, "Telegram Event id must include message id")
+  assert(/^[0-9a-f]{8}-[0-9a-f]{4}-5[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/.test(first.event.id ?? ""), "Telegram Event id must be UUID v5")
 }
 
 function verifyChatAllowlist(): void {

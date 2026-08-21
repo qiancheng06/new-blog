@@ -1,4 +1,5 @@
 const port = Number(process.env.API_PORT) || 3107
+const recoveryTag = `runtime-recovery-${Date.now()}`
 
 process.env.PERSONA_MAIN_AUTOSTART = "0"
 process.env.LLM_PROVIDER = "mock"
@@ -6,20 +7,43 @@ process.env.API_PORT = String(port)
 process.env.TELEGRAM_TOKEN = ""
 
 const { startPersonaRuntime } = await import("./index.js")
+const { initializeDb, run } = await import("../infra/db/pool.js")
+const { insertEvent } = await import("../domain/event/store.js")
+const { createWorkspaceEvent } = await import("../domain/event/types.js")
+const { ensureAnalysisJob, getAnalysisJobById } = await import("../domain/analysis-job/store.js")
+const {
+  beginConversationJobAttempt,
+  ensureConversationJob,
+  getConversationJobById,
+} = await import("../domain/conversation-job/store.js")
 const {
   getPendingBackgroundTaskCount,
   trackBackgroundTask,
 } = await import("../application/background-tasks.js")
 
+initializeDb()
+const recoveryEvent = insertEvent(createWorkspaceEvent({ text: recoveryTag }))
+const recoveryJob = ensureAnalysisJob(recoveryEvent.id)
+const conversationJob = ensureConversationJob(recoveryEvent.id)
+const runningConversationJob = beginConversationJobAttempt(conversationJob.id)
+assert(runningConversationJob?.status === "running", "Conversation recovery fixture must be running")
 const runtime = startPersonaRuntime({
   api: { port },
   telegram: false,
+  dailySummary: false,
+  obsidianSnapshot: false,
 })
 
 try {
   await waitForHealth(port)
   const address = runtime.apiServer.address()
   assert(typeof address === "object" && address?.address === "127.0.0.1", "runtime API should bind to loopback by default")
+  const recoveredJob = getAnalysisJobById(recoveryJob.id)
+  assert(recoveredJob?.status === "failed", "runtime startup must recover pending Analysis job")
+  assert(recoveredJob.error_code === "interrupted", "runtime startup recovery error code mismatch")
+  const recoveredConversationJob = getConversationJobById(conversationJob.id)
+  assert(recoveredConversationJob?.status === "failed", "runtime startup must recover running Conversation job")
+  assert(recoveredConversationJob.error_code === "interrupted", "Conversation recovery error code mismatch")
   let releaseTask = (): void => undefined
   const blockedTask = new Promise<void>((resolve) => {
     releaseTask = resolve
@@ -41,10 +65,16 @@ try {
   await stopPromise
   assert(stopCompleted, "runtime stop should complete after pending task settles")
   assert(getPendingBackgroundTaskCount() === 0, "shutdown should drain pending background tasks")
+  cleanupRecoveryRows()
   console.log("runtime startup contract ok")
 } catch (err) {
   await runtime.stop().catch(() => undefined)
+  cleanupRecoveryRows()
   throw err
+}
+
+function cleanupRecoveryRows(): void {
+  run("DELETE FROM events WHERE id = ?", [recoveryEvent.id])
 }
 
 async function readStatus(portNumber: number): Promise<{

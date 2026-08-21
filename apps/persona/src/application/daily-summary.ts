@@ -6,6 +6,7 @@ import {
   getDailyNoteByDate,
   listDailyNotes,
   markDailyNoteArchived,
+  markDailyNoteFinalized,
   upsertDailyNote,
   type DailyNoteListOptions,
   type DailyNoteRow,
@@ -22,6 +23,7 @@ import {
 
 const DAILY_EVENT_LIMIT = 200
 const SUMMARY_EVENT_TYPES = new Set(["message", "note", "todo", "idea", "journal", "companion_reply"])
+const generationTasks = new Map<string, Promise<DailySummaryGenerationResult>>()
 
 export interface DailyNote {
   id: string
@@ -33,6 +35,7 @@ export interface DailyNote {
   archivePath: string | null
   archiveEventId: string | null
   archivedAt: string | null
+  finalizedAt: string | null
   createdAt: string
   updatedAt: string
 }
@@ -58,8 +61,28 @@ export class DailySummaryArchiveUnavailableError extends Error {}
 
 export class DailySummaryArchiveConflictError extends Error {}
 
-export async function generateDailySummary(options: { date?: string } = {}): Promise<DailySummaryGenerationResult> {
+export function generateDailySummary(options: {
+  date?: string
+  finalize?: boolean
+} = {}): Promise<DailySummaryGenerationResult> {
   const date = resolveDailySummaryDate(options.date)
+  const running = generationTasks.get(date)
+  if (running) {
+    return options.finalize === true ? running.then(finalizeGenerationResult) : running
+  }
+
+  const task = generateDailySummaryForDate(date, options.finalize === true)
+    .finally(() => {
+      if (generationTasks.get(date) === task) generationTasks.delete(date)
+    })
+  generationTasks.set(date, task)
+  return task
+}
+
+async function generateDailySummaryForDate(
+  date: string,
+  finalized: boolean,
+): Promise<DailySummaryGenerationResult> {
   const range = getUtcRangeForDate(date, config.timeZone)
   const dailyEvents = getEventsBetween(range.start, range.end, DAILY_EVENT_LIMIT)
     .filter(isSummarizableEvent)
@@ -87,6 +110,7 @@ export async function generateDailySummary(options: { date?: string } = {}): Pro
       highlights: summary.highlights,
       topicDistribution: summary.topic_distribution,
       sourceEventId: summaryEvent.id,
+      finalized,
     })
 
     return {
@@ -148,9 +172,21 @@ export function archiveDailySummary(date: string): DailySummaryArchiveResult {
   })
 }
 
+function finalizeGenerationResult(result: DailySummaryGenerationResult): DailySummaryGenerationResult {
+  if (result.note.finalizedAt) return result
+  return {
+    ...result,
+    note: toDailyNote(markDailyNoteFinalized(result.note.date)),
+  }
+}
+
 export function getCurrentDailySummaryDate(now = new Date(), timeZone = config.timeZone): string {
   const parts = readDateTimeParts(now, timeZone)
   return `${parts.year}-${pad(parts.month)}-${pad(parts.day)}`
+}
+
+export function getPreviousDailySummaryDate(now = new Date(), timeZone = config.timeZone): string {
+  return addDays(getCurrentDailySummaryDate(now, timeZone), -1)
 }
 
 export function resolveDailySummaryDate(value: string | undefined): string {
@@ -230,6 +266,7 @@ function toDailyNote(row: DailyNoteRow): DailyNote {
     archivePath: row.archive_path,
     archiveEventId: row.archive_event_id,
     archivedAt: row.archived_at,
+    finalizedAt: row.finalized_at,
     createdAt: row.created_at,
     updatedAt: row.updated_at,
   }

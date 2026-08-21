@@ -17,6 +17,11 @@ export interface RuntimeConfig {
   timeZone: string
   obsidianVaultPath: string
   dailyNoteDirectory: string
+  obsidianSnapshotDirectory: string
+  obsidianSnapshotEnabled: boolean | null
+  obsidianSnapshotTime: string
+  dailySummaryEnabled: boolean | null
+  dailySummaryTime: string
 }
 
 export interface RuntimeConfigValidationOptions {
@@ -29,6 +34,7 @@ function optional(key: string): string {
 }
 
 export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): RuntimeConfig {
+  const obsidianVaultPath = env.OBSIDIAN_VAULT_PATH?.trim() || ""
   return {
     telegramToken: env.TELEGRAM_TOKEN?.trim() || "",
     telegramAllowedChatIds: parseNumberList(env.TELEGRAM_ALLOWED_CHAT_IDS),
@@ -45,8 +51,16 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
       "http://127.0.0.1:5174",
     ]),
     timeZone: env.PERSONA_TIME_ZONE?.trim() || "Asia/Shanghai",
-    obsidianVaultPath: env.OBSIDIAN_VAULT_PATH?.trim() || "",
+    obsidianVaultPath,
     dailyNoteDirectory: env.PERSONA_DAILY_NOTE_DIR?.trim() || "persona/daily-notes",
+    obsidianSnapshotDirectory: env.PERSONA_OBSIDIAN_SNAPSHOT_DIR?.trim() || "persona/snapshots",
+    obsidianSnapshotEnabled: parseBoolean(
+      env.PERSONA_OBSIDIAN_SNAPSHOT_ENABLED,
+      Boolean(obsidianVaultPath),
+    ),
+    obsidianSnapshotTime: env.PERSONA_OBSIDIAN_SNAPSHOT_TIME?.trim() || "00:15",
+    dailySummaryEnabled: parseBoolean(env.PERSONA_DAILY_SUMMARY_ENABLED, true),
+    dailySummaryTime: env.PERSONA_DAILY_SUMMARY_TIME?.trim() || "00:05",
   }
 }
 
@@ -89,6 +103,30 @@ export function validateRuntimeConfig(
 
   if (!isSafeRelativeDirectory(runtimeConfig.dailyNoteDirectory)) {
     errors.push("PERSONA_DAILY_NOTE_DIR must be a relative directory without '.' or '..' segments.")
+  }
+
+  if (!isSafeRelativeDirectory(runtimeConfig.obsidianSnapshotDirectory)) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_DIR must be a relative directory without '.' or '..' segments.")
+  }
+
+  if (runtimeConfig.obsidianSnapshotEnabled === null) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_ENABLED must be true or false.")
+  }
+
+  if (runtimeConfig.obsidianSnapshotEnabled === true && !runtimeConfig.obsidianVaultPath) {
+    errors.push("OBSIDIAN_VAULT_PATH is required when PERSONA_OBSIDIAN_SNAPSHOT_ENABLED is true.")
+  }
+
+  if (!isLocalTime(runtimeConfig.obsidianSnapshotTime)) {
+    errors.push("PERSONA_OBSIDIAN_SNAPSHOT_TIME must use 24-hour HH:mm format.")
+  }
+
+  if (!isLocalTime(runtimeConfig.dailySummaryTime)) {
+    errors.push("PERSONA_DAILY_SUMMARY_TIME must use 24-hour HH:mm format.")
+  }
+
+  if (runtimeConfig.dailySummaryEnabled === null) {
+    errors.push("PERSONA_DAILY_SUMMARY_ENABLED must be true or false.")
   }
 
   if (options.requireLlm && runtimeConfig.llmProvider !== "mock" && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
@@ -183,10 +221,28 @@ function isValidTimeZone(value: string): boolean {
   }
 }
 
+function parseBoolean(value: string | undefined, fallback: boolean): boolean | null {
+  if (value === undefined || value.trim() === "") return fallback
+  const normalized = value.trim().toLowerCase()
+  if (["true", "1", "yes", "on"].includes(normalized)) return true
+  if (["false", "0", "no", "off"].includes(normalized)) return false
+  return null
+}
+
 function isSafeRelativeDirectory(value: string): boolean {
   if (!value || /^[A-Za-z]:[\\/]/.test(value) || value.startsWith("/") || value.startsWith("\\")) return false
   const segments = value.split(/[\\/]+/)
-  return segments.length > 0 && segments.every((segment) => segment.length > 0 && segment !== "." && segment !== "..")
+  return segments.length > 0 && segments.every((segment) => (
+    segment.length > 0 &&
+    segment !== "." &&
+    segment !== ".." &&
+    !/[<>:"|?*\0]/.test(segment)
+  ))
+}
+
+function isLocalTime(value: string): boolean {
+  const match = /^(\d{2}):(\d{2})$/.exec(value)
+  return Boolean(match && Number(match[1]) <= 23 && Number(match[2]) <= 59)
 }
 
 export const config = loadRuntimeConfig()

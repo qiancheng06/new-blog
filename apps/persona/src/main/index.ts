@@ -2,6 +2,19 @@ import { initializeDb } from "../infra/db/pool.js"
 import { startApiServer, stopApiServer, type ApiServerOptions } from "../interface/api/server.js"
 import { assertRuntimeConfig, config } from "../infra/config/index.js"
 import { drainBackgroundTasks } from "../application/background-tasks.js"
+import { recoverAnalysisJobsAtStartup } from "../application/analysis-jobs.js"
+import { recoverConversationJobsAtStartup } from "../application/conversation-jobs.js"
+import { backfillTodoProjections } from "../application/todos.js"
+import { backfillProjectProjections } from "../application/projects.js"
+import { setTelegramRuntimeStatus } from "../application/runtime-health.js"
+import {
+  startDailySummaryScheduler,
+  type DailySummaryScheduler,
+} from "../application/daily-summary-scheduler.js"
+import {
+  startPersonaSnapshotScheduler,
+  type PersonaSnapshotScheduler,
+} from "../application/obsidian-snapshot-scheduler.js"
 import type { Server } from "http"
 
 type TelegramModule = typeof import("../interface/telegram/bot.js")
@@ -9,6 +22,8 @@ type TelegramModule = typeof import("../interface/telegram/bot.js")
 export interface PersonaRuntimeOptions {
   api?: ApiServerOptions
   telegram?: boolean
+  dailySummary?: boolean
+  obsidianSnapshot?: boolean
 }
 
 export interface PersonaRuntime {
@@ -19,33 +34,73 @@ export interface PersonaRuntime {
 export function startPersonaRuntime(options: PersonaRuntimeOptions = {}): PersonaRuntime {
   console.log("persona-os starting...")
   const shouldStartTelegram = options.telegram ?? Boolean(config.telegramToken)
-  assertRuntimeConfig(config, {
+  const shouldStartSnapshot = options.obsidianSnapshot ?? config.obsidianSnapshotEnabled ?? false
+  assertRuntimeConfig({ ...config, obsidianSnapshotEnabled: shouldStartSnapshot }, {
     requireLlm: config.llmProvider !== "mock",
     requireTelegram: shouldStartTelegram,
   })
 
   initializeDb()
+  const projectBackfill = backfillProjectProjections()
+  if (projectBackfill.created > 0) {
+    console.log(`[project migration] restored ${projectBackfill.created} projection(s)`)
+  }
+  if (projectBackfill.reused > 0) {
+    console.log(`[project migration] reused ${projectBackfill.reused} existing projection(s)`)
+  }
+  if (projectBackfill.skipped > 0) {
+    console.warn(`[project migration] skipped ${projectBackfill.skipped} invalid historical Event(s)`)
+  }
+  const todoBackfill = backfillTodoProjections()
+  if (todoBackfill.created > 0) {
+    console.log(`[todo migration] restored ${todoBackfill.created} projection(s)`)
+  }
+  if (todoBackfill.skipped > 0) {
+    console.warn(`[todo migration] skipped ${todoBackfill.skipped} invalid historical Event(s)`)
+  }
+  const recoveredConversationJobs = recoverConversationJobsAtStartup()
+  if (recoveredConversationJobs > 0) {
+    console.warn(`[conversation recovery] marked ${recoveredConversationJobs} interrupted job(s) as failed`)
+  }
+  const recoveredAnalysisJobs = recoverAnalysisJobsAtStartup()
+  if (recoveredAnalysisJobs > 0) {
+    console.warn(`[analysis recovery] marked ${recoveredAnalysisJobs} interrupted job(s) as failed`)
+  }
   let stopRuntime: (() => Promise<void>) | undefined
   const apiServer = startApiServer({
     ...options.api,
     onShutdownRequest: () => { void stopRuntime?.() },
   })
+  const dailySummaryScheduler = startDailySummaryScheduler({
+    enabled: options.dailySummary ?? config.dailySummaryEnabled ?? false,
+  })
+  const personaSnapshotScheduler = startPersonaSnapshotScheduler({
+    enabled: shouldStartSnapshot,
+  })
   let telegramModulePromise: Promise<TelegramModule> | null = null
 
   if (shouldStartTelegram && config.telegramToken) {
+    setTelegramRuntimeStatus("starting")
     telegramModulePromise = import("../interface/telegram/bot.js")
     void telegramModulePromise.then(({ startBot }) => {
       return startBot()
     }).catch((err) => {
+      setTelegramRuntimeStatus("failed")
       console.error("[telegram startup error]", err instanceof Error ? err.message : err)
     })
   } else {
+    setTelegramRuntimeStatus("disabled")
     console.log("TELEGRAM_TOKEN not set, skipping telegram bot")
   }
 
   let stopPromise: Promise<void> | null = null
   const stop = (): Promise<void> => {
-    stopPromise ??= stopPersonaRuntime(apiServer, telegramModulePromise)
+    stopPromise ??= stopPersonaRuntime(
+      apiServer,
+      telegramModulePromise,
+      dailySummaryScheduler,
+      personaSnapshotScheduler,
+    )
     return stopPromise
   }
   stopRuntime = stop
@@ -79,7 +134,11 @@ if (process.env.PERSONA_MAIN_AUTOSTART !== "0") {
 async function stopPersonaRuntime(
   apiServer: Server,
   telegramModulePromise: Promise<TelegramModule> | null,
+  dailySummaryScheduler: DailySummaryScheduler,
+  personaSnapshotScheduler: PersonaSnapshotScheduler,
 ): Promise<void> {
+  dailySummaryScheduler.stop()
+  personaSnapshotScheduler.stop()
   const stopResults = await Promise.allSettled([
     stopApiServer(apiServer),
     telegramModulePromise

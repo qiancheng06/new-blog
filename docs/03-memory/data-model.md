@@ -18,6 +18,12 @@
 | metadata | JSONB | 来源元数据 |
 | created_at | TIMESTAMPTZ | 入库时间 |
 
+`note`、`idea`、`journal` Capture 直接使用不可变 Event，不创建可编辑的
+Capture 投影表。Web 与 Telegram Capture 会原子创建一个
+`analysis_jobs` 记录，后台 Analysis 成功后才通过来源 Event id 写入
+Topic/Profile/Timeline。面向 Workspace 的读取模型会解析文本并隐藏原始
+Telegram 标识和 Event payload。
+
 ### topics
 
 | 列名 | 类型 | 说明 |
@@ -35,11 +41,58 @@
 | 列名 | 类型 | 说明 |
 |------|------|------|
 | id | UUID PK | |
-| name | VARCHAR(255) | |
-| status | VARCHAR(32) | active / paused / done |
-| topics | UUID[] | |
+| source_event_id | UUID UNIQUE | immutable creation provenance |
+| name | VARCHAR(200) UNIQUE | user-managed Project name |
+| status | VARCHAR(32) | active / paused / done / archived |
+| topics | JSON array | user-managed Topic labels |
 | summary | TEXT | |
+| state_event_id | UUID | latest lifecycle audit Event |
+| state_reason | TEXT | required lifecycle reason |
+| created_at | TIMESTAMPTZ | |
 | updated_at | TIMESTAMPTZ | |
+| completed_at | TIMESTAMPTZ | done-state timestamp |
+| archived_at | TIMESTAMPTZ | archived-state timestamp |
+
+Project is a user-managed working projection, not an inferred long-term Memory
+record. Active Projects can be used as private Prompt context without entering
+`memory_search`.
+
+### working_state
+
+| Column | Type | Notes |
+|------|------|------|
+| id | TEXT PK | singleton key, always `primary` |
+| current_project_id | UUID FK nullable | active or paused Project selected through Application |
+| active_topics | JSON array | bounded user-managed focus labels |
+| current_questions | JSON array | bounded unresolved questions |
+| mode | TEXT | persisted as `S1`; other modes are not enabled |
+| state_event_id | UUID FK nullable | latest Working State audit Event |
+| state_reason | TEXT | latest required human reason |
+| updated_at | TIMESTAMPTZ | |
+
+Working State is operational context, not long-term Memory. It does not enter
+`memory_search` or Profile. Updates append an immutable audit Event and update
+the singleton in one transaction. Completing or archiving its current Project
+clears that relationship in the same transaction as the Project state change.
+
+### todos
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | |
+| source_event_id | UUID UNIQUE | immutable creation provenance |
+| project_id | UUID FK nullable | optional Project relationship |
+| project_event_id | UUID FK nullable | latest assignment audit Event |
+| project_reason | TEXT | latest assignment reason |
+| title | VARCHAR(500) | user-managed task title |
+| due_date | DATE nullable | optional local due date |
+| status | TEXT | open / done / cancelled |
+| state_event_id | UUID FK nullable | latest lifecycle audit Event |
+| state_reason | TEXT | latest lifecycle reason |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+| completed_at | TIMESTAMPTZ | done-state timestamp |
+| cancelled_at | TIMESTAMPTZ | cancelled-state timestamp |
 
 ### profile
 
@@ -51,7 +104,26 @@
 | source_event_id | UUID | 来源事件 |
 | updated_at | TIMESTAMPTZ | |
 
-Profile 更新只能渐进写入。带 `cooling_required` 的 patch 当前不会直接落库，避免把单次会话情绪写入长期画像。
+Profile 更新只能渐进写入。带 `cooling_required` 的 patch 不会直接进入
+Profile，而是进入 `memory_proposals` 等待显式接受或拒绝，避免把单次会话
+情绪直接写入长期画像。
+
+### memory_proposals
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | proposal identity |
+| source_event_id | UUID FK | immutable Analysis source Event |
+| proposal_type | TEXT | currently `profile` |
+| proposal_key | TEXT | candidate Profile key |
+| proposed_value | JSON text | candidate Profile value |
+| confidence | REAL | bounded 0-1 model confidence |
+| status | TEXT | pending / accepted / rejected |
+| review_event_id | UUID FK | immutable accept/reject audit Event |
+| review_reason | TEXT | required human reason after review |
+| created_at | TIMESTAMPTZ | |
+| reviewed_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
 
 ### timeline_events
 
@@ -73,25 +145,82 @@ Profile 更新只能渐进写入。带 `cooling_required` 的 patch 当前不会
 | summary | TEXT | 日总结 |
 | highlights | TEXT[] | |
 | topic_distribution | JSONB | |
+| source_event_id | UUID | latest `summary_ready` provenance |
+| archive_path | TEXT | relative Obsidian path |
+| archive_event_id | UUID | latest `daily_note_exported` provenance |
+| archived_at | TIMESTAMPTZ | latest archive completion |
+| finalized_at | TIMESTAMPTZ | automatic previous-day closure marker |
 | created_at | TIMESTAMPTZ | |
+
+### memory_search (derived FTS5 projection)
+
+| Column | Type | Notes |
+|------|------|------|
+| entity_type | UNINDEXED TEXT | profile / topic / timeline / daily_note |
+| entity_id | UNINDEXED UUID | source projection identity |
+| title | FTS TEXT | key, topic name, type, or note date |
+| body | FTS TEXT | JSON value, summary, or note content |
+| state | UNINDEXED TEXT | active / archived / suppressed |
+| source_event_id | UNINDEXED UUID | source provenance where available |
+| memory_date | UNINDEXED TEXT | recency tie-breaker |
+
+`memory_search` is never a source of truth. Triggers synchronize source writes
+and startup rebuilds the entire index. Search and Prompt retrieval always filter
+`state = active`; proposals are not indexed.
+| updated_at | TIMESTAMPTZ | |
+
+### conversation_jobs
+
+| Column | Type | Notes |
+|------|------|------|
+| id | UUID PK | execution identity |
+| source_event_id | UUID UNIQUE | immutable input Event |
+| status | TEXT | pending / running / succeeded / failed |
+| attempt_count | INTEGER | monotonic attempt number |
+| error_code | TEXT | bounded recovery code only |
+| reply_event_id | UUID UNIQUE | successful `companion_reply` Event |
+| retry_event_id | UUID | latest retry audit Event |
+| started_at | TIMESTAMPTZ | latest attempt start |
+| finished_at | TIMESTAMPTZ | latest terminal transition |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
+
+### daily_summary_runs
+
+| Column | Type | Notes |
+|------|------|------|
+| date | DATE PK | local Daily Note date |
+| status | TEXT | pending / running / succeeded / failed |
+| attempt_count | INTEGER | monotonic attempt number |
+| error_code | TEXT | bounded recovery code only |
+| archive_requested | BOOLEAN | current optional archive policy |
+| started_at | TIMESTAMPTZ | latest attempt start |
+| finished_at | TIMESTAMPTZ | latest terminal transition |
+| created_at | TIMESTAMPTZ | |
+| updated_at | TIMESTAMPTZ | |
 
 ## Memory patch persistence
 
-`AnalysisResult.memory_patch` is persisted by the Memory domain without changing
-the current SQLite schema:
+`AnalysisResult.memory_patch` is persisted by the Memory domain through the
+current SQLite projections:
 
 - `topic_updates` maps to `topics`. `name` is unique, so writes are upserts:
   new topics are inserted, existing topics refresh `last_active_at`, increment
   `message_count`, and replace `summary` only when a new summary is provided.
 - `profile_updates` maps to `profile`. `key` is unique, so writes are
   progressive upserts of the JSON-encoded `value` with the latest
-  `source_event_id`.
+  `source_event_id`. A `cooling_required` update maps to `memory_proposals`
+  instead and remains outside AI context until accepted.
 - `timeline_events` maps to `timeline_events`. Writes are append-only and never
   update existing rows.
 - One `memory_patch` is applied inside a single SQLite transaction. If any
-  Topic, Profile, or Timeline write fails, all writes from that patch roll back.
+  Topic, Profile, Timeline, or proposal write fails, all writes from that patch
+  roll back.
 - Governed Profile correction/state and Topic state changes also commit their
   audit Event and projection update in one transaction.
+- Proposal acceptance commits its review Event, Profile upsert, and terminal
+  proposal state in one transaction; rejection commits only the review Event
+  and terminal proposal state.
 
 The source Event remains immutable. Memory writes only reference it through
 `source_event_id`.
