@@ -28,14 +28,17 @@ export function queryOne<T = any>(sql: string, params?: unknown[]): T | null {
   return (row as T) ?? null
 }
 
-export function run(sql: string, params?: unknown[]): void {
+export function run(sql: string, params?: unknown[]): DatabaseConstructor.RunResult {
   const stmt = _db.prepare(sql)
-  if (params) stmt.run(...params)
-  else stmt.run()
+  return params ? stmt.run(...params) : stmt.run()
 }
 
 export function withTransaction<T>(work: () => T): T {
   return _db.transaction(work)()
+}
+
+export function withImmediateTransaction<T>(work: () => T): T {
+  return _db.transaction(work).immediate()
 }
 
 export function initializeDb(): void {

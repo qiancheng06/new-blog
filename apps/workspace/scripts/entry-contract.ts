@@ -24,6 +24,8 @@ assert(!launcher.includes("%DASHBOARD%"), "launcher must not use the old dashboa
 const packageJson = readFileSync(join(process.cwd(), "package.json"), "utf-8")
 assert(packageJson.includes('"dev": "next dev apps/workspace -H 127.0.0.1 -p 5173"'), "npm run dev must start Next.js Workspace")
 assert(packageJson.includes('"dev:blog": "next dev apps/blog -H 127.0.0.1 -p 5175"'), "npm run dev:blog must start the separate Blog app")
+assert(packageJson.includes('"dev:lan": "next dev apps/workspace -H 0.0.0.0 -p 5173"'), "Workspace must provide a LAN-safe explicit bind command")
+assert(packageJson.includes('"dev:blog:lan": "next dev apps/blog -H 0.0.0.0 -p 5175"'), "Blog must provide a LAN bind command")
 assert(packageJson.includes('"build:blog":'), "Blog app must keep a dedicated build script")
 assert(packageJson.includes('"dev:content"'), "VitePress content site must keep a dedicated dev script")
 assert(packageJson.includes('"build:content"'), "VitePress content site must keep a dedicated build script")
@@ -152,8 +154,9 @@ for (const file of moduleRoutes) assert(existsSync(file), `Workspace module rout
 
 const calendarWorkspace = readFileSync(join(workspaceRoot, "src", "features", "calendar", "CalendarWorkspace.tsx"), "utf-8")
 assert(calendarWorkspace.includes('type CalendarView = "month" | "week" | "day"'), "Calendar must expose month, week, and day views")
-assert(calendarWorkspace.includes("persona-calendar-events-v1"), "Calendar events must persist locally")
-assert(calendarWorkspace.includes("persona-calendar-tags-v1"), "Calendar tags must be user-configurable and persist locally")
+assert(calendarWorkspace.includes("getCalendarRange"), "Calendar must read its server-side range API")
+assert(calendarWorkspace.includes("updateServerCalendarEvent"), "Calendar must persist event updates through Persona API")
+assert(!calendarWorkspace.includes("localStorage"), "Calendar must not use browser storage as its authority")
 assert(calendarWorkspace.includes("selectDateFromCalendar"), "Calendar date selection must update the inspector without changing views")
 assert(calendarWorkspace.includes("deleteEvent"), "Calendar must support event deletion")
 assert(homeQuickActions.includes('href: "/calendar"'), "Home calendar shortcut must open the dedicated calendar page")
@@ -165,7 +168,13 @@ assert(syncScript.includes("/knowledge/${config.sub}/${name}.html"), "Knowledge 
 
 const toolsPage = readFileSync(join(workspaceRoot, "src", "features", "tools", "ToolsPage.tsx"), "utf-8")
 assert(toolsPage.includes('getPersonaJson<StatusResponse>("/api/status")'), "Tools page must expose live runtime diagnostics")
+assert(toolsPage.includes("/api/background-jobs?status=failed"), "Tools page must expose failed durable jobs")
+assert(toolsPage.includes("/retry"), "Tools page must expose durable job retry")
 assert(toolsPage.includes("DailySummaryPanel"), "Tools page must expose the working Daily Summary tool")
+
+const calendarApi = readFileSync(join(workspaceRoot, "src", "features", "calendar", "calendarApi.ts"), "utf-8")
+assert(calendarApi.includes("/api/calendar/events"), "Calendar adapter must expose event APIs")
+assert(calendarApi.includes("/api/calendar/tags"), "Calendar adapter must expose tag APIs")
 
 const blogAdapter = readFileSync(join(blogRoot, "src", "blogData.server.ts"), "utf-8")
 assert(blogAdapter.includes("public", "Blog data must read generated public data") && blogAdapter.includes("blog-posts.json"), "Blog data must use the generated manifest")

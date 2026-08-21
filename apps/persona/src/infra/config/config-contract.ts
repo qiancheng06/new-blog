@@ -17,6 +17,7 @@ assert(mockConfig.apiHost === "127.0.0.1", "API_HOST should default to loopback"
 assert(mockConfig.allowedOrigins.includes("http://127.0.0.1:5173"), "Workspace origin should be allowed by default")
 assert(mockConfig.timeZone === "Asia/Shanghai", "PERSONA_TIME_ZONE should default to Asia/Shanghai")
 assert(mockConfig.dailyNoteDirectory === "persona/daily-notes", "Daily Note directory default mismatch")
+assert(mockConfig.analysisModel === "deepseek-chat", "analysis model should fall back to the server model")
 assert(validateRuntimeConfig(mockConfig).length === 0, "mock config should pass without real keys")
 assertRuntimeConfig(mockConfig, { requireLlm: false, requireTelegram: false })
 
@@ -108,6 +109,38 @@ const invalidOrigin = loadRuntimeConfig({
 assert(
   validateRuntimeConfig(invalidOrigin).some((error) => error.includes("PERSONA_ALLOWED_ORIGINS")),
   "allowed origins should reject paths",
+)
+
+const genericAnalysis = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  PERSONA_ANALYSIS_ENDPOINT: "https://provider.example/v1/chat/completions",
+  PERSONA_ANALYSIS_MODEL: "portable-model",
+  PERSONA_ANALYSIS_API_KEY: "server-analysis-key",
+})
+assert(genericAnalysis.analysisModel === "portable-model", "dedicated analysis model should be configurable")
+assert(validateRuntimeConfig(genericAnalysis).length === 0, "generic HTTPS analysis provider should be accepted")
+
+const insecureAnalysis = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  PERSONA_ANALYSIS_ENDPOINT: "http://provider.example/v1/chat/completions",
+  PERSONA_ANALYSIS_API_KEY: "server-analysis-key",
+})
+assert(
+  validateRuntimeConfig(insecureAnalysis).some((error) => error.includes("PERSONA_ANALYSIS_ENDPOINT")),
+  "remote analysis endpoint must require HTTPS",
+)
+
+const missingAnalysisKey = loadRuntimeConfig({
+  LLM_PROVIDER: "mock",
+  API_PORT: "3001",
+  OPENAI_API_KEY: "",
+  PERSONA_ANALYSIS_ENDPOINT: "https://provider.example/v1/chat/completions",
+})
+assert(
+  validateRuntimeConfig(missingAnalysisKey).some((error) => error.includes("PERSONA_ANALYSIS_API_KEY")),
+  "remote analysis endpoint must require a server-side key",
 )
 
 const invalidTimeZone = loadRuntimeConfig({

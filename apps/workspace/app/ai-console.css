@@ -518,6 +518,7 @@
 .ai-setting-switch button.on { background: color-mix(in oklab, var(--green) 24%, var(--surface)); }
 .ai-setting-switch button.on span { transform: translateX(16px); background: var(--green); }
 .ai-settings-reset { width: 100%; margin-top: 16px; }
+.ai-analysis-note { margin: 8px 0 0; color: var(--muted-2); font-size: .62rem; line-height: 1.5; }
 
 .ai-settings-instructions { margin-top: 14px; }
 .ai-settings-instructions textarea { width: 100%; min-height: 120px; margin-top: 14px; resize: vertical; padding: 10px 11px; border: 1px solid var(--line); border-radius: 6px; outline: 0; color: var(--text); background: var(--surface); font-size: .75rem; line-height: 1.6; }

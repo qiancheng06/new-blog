@@ -29,6 +29,21 @@ export function getRecentEvents(limit = 50, offset = 0): EventRow[] {
   )
 }
 
+export function getEventById(id: string): EventRow | null {
+  return queryOne<EventRow>("SELECT * FROM events WHERE id = ?", [id])
+}
+
+export function getEventsByIds(ids: string[]): EventRow[] {
+  const uniqueIds = [...new Set(ids)].slice(0, 100)
+  if (uniqueIds.length === 0) return []
+  const rows = query<EventRow>(
+    `SELECT * FROM events WHERE id IN (${uniqueIds.map(() => "?").join(", ")})`,
+    uniqueIds,
+  )
+  const byId = new Map(rows.map((row) => [row.id, row]))
+  return uniqueIds.flatMap((id) => byId.get(id) ?? [])
+}
+
 export function getEventsBySource(source: string, limit = 50): EventRow[] {
   return query<EventRow>(
     `SELECT * FROM events WHERE source = ? ORDER BY "timestamp" DESC LIMIT ?`,

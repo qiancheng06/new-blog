@@ -213,6 +213,7 @@ export function AiSettingsDrawer({ open, value, onChange, onClose }: AiSettingsD
             checked={value.backgroundAnalysis}
             onChange={(backgroundAnalysis) => onChange({ ...value, backgroundAnalysis })}
           />
+          <p className="ai-analysis-note">后台记忆分析使用 Persona 服务端模型，不保存当前浏览器的 API Key。</p>
         </section>
 
         <label className="ai-settings-group ai-instructions">

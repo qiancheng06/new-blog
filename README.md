@@ -15,7 +15,7 @@ The project is currently a light monorepo:
 
 ```bash
 npm install
-npm.cmd run dev
+npm run dev
 ```
 
 Open the primary Workspace app:
@@ -27,23 +27,28 @@ http://127.0.0.1:5173/
 For the local mock Persona API:
 
 ```bash
-npm.cmd run dev:backend:mock
+npm run dev:backend:mock
 ```
 
 For the real Persona backend:
 
 ```bash
-npm.cmd run dev:backend
+npm run dev:backend
 ```
 
 For the public blog:
 
 ```bash
-npm.cmd run dev:blog
+npm run dev:blog
 ```
 
 The real backend reads local environment variables such as `OPENAI_API_KEY`,
-`LLM_PROVIDER`, and `TELEGRAM_TOKEN`.
+`LLM_PROVIDER`, `PERSONA_ANALYSIS_*`, and `TELEGRAM_TOKEN`.
+
+For phones or another computer on the same LAN/VPN, configure
+`NEXT_PUBLIC_PERSONA_API_BASE`, `API_HOST`, and `PERSONA_ALLOWED_ORIGINS`, then
+use `npm run dev:lan` and `npm run dev:blog:lan`. Do not expose port `3001` to
+the public internet without an authentication layer.
 
 ## Entrypoints
 
@@ -61,7 +66,8 @@ browser workflow is served by the Node.js dev server on port `5173`.
 ## Verification
 
 ```bash
-npm.cmd run verify:local
+npm run verify:local
+npm run verify:ci
 ```
 
 Useful focused checks:
@@ -81,14 +87,14 @@ domains, not microservices.
 Workspace and Blog have multiple long-term sources:
 
 - Obsidian vault: knowledge, blog, project Markdown, and todo Markdown.
-- Persona SQLite database: Events, Profile, Topics, Timeline, and memory state.
+- Persona SQLite database: Events, Profile, Topics, Timeline, Calendar, Daily Notes, and durable background jobs.
 
 The frontend must not read those sources directly. It should go through the
 middle layer:
 
 - Obsidian knowledge/project/todo content enters the Workspace through VitePress or generated JSON.
 - Blog Markdown enters the standalone Next.js Blog `:5175` through generated `public/data/blog*` files.
-- Persona memory enters the Workspace through Application APIs.
+- Persona memory and Calendar enter every client through Application APIs; clients never open SQLite directly.
 - Shared frontend adapters live under `apps/workspace/src/shared/`.
 
 ## Project Structure

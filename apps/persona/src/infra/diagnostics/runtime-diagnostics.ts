@@ -47,7 +47,7 @@ function configChecks(): Check[] {
       : isLoopbackHost(config.apiHost) ? "ok" : "warn",
     detail: isLoopbackHost(config.apiHost)
       ? `${config.apiHost} (loopback only)`
-      : `${config.apiHost} (non-loopback; add upstream authentication before exposure)`,
+      : `${config.apiHost} (LAN/VPN only; block this port from the public internet)`,
   })
 
   result.push({
@@ -60,6 +60,22 @@ function configChecks(): Check[] {
     name: "OPENAI_API_KEY",
     status: validationErrors.some((error) => error.includes("OPENAI_API_KEY")) ? "fail" : "ok",
     detail: describeSecret(config.openaiApiKey, "DeepSeek bearer token"),
+  })
+
+  result.push({
+    name: "PERSONA_ANALYSIS_MODEL",
+    status: validationErrors.some((error) => error.includes("PERSONA_ANALYSIS_")) ? "fail" : "ok",
+    detail: config.analysisEndpoint
+      ? `${config.analysisModel} through dedicated endpoint`
+      : `${config.analysisModel} through server fallback`,
+  })
+
+  result.push({
+    name: "PERSONA_ANALYSIS_API_KEY",
+    status: validationErrors.some((error) => error.includes("PERSONA_ANALYSIS_API_KEY")) ? "fail" : "ok",
+    detail: config.analysisApiKey
+      ? describeSecret(config.analysisApiKey, "analysis bearer token")
+      : "empty; uses the server fallback key",
   })
 
   result.push({

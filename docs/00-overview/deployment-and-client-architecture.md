@@ -29,7 +29,7 @@
 - AI Key、Telegram Token、数据库连接和 Obsidian 文件权限只存在服务端或受控同步代理。
 - `5173` 是工作台，`5175` 是独立博客，`5174` 是私人内容站；这些是开发端口，不应直接作为公网安全边界。
 - 生产环境通过域名和反向代理区分服务，外部用户不需要知道内部端口。
-- 当前 SQLite 适合单机 MVP；多终端正式使用时，记忆和事件需要迁移到 PostgreSQL 或同等级共享数据库。
+- 当前 SQLite 由单一 Persona 服务集中持有，桌面和手机客户端都只访问 API；只有进入多用户、高并发或高可用阶段才评估 PostgreSQL。
 
 ## 2. 总体部署图
 
@@ -196,7 +196,7 @@ flowchart LR
 
 - 日历、AI 对话、记忆查看和每日总结在窄屏下保留完整闭环，不依赖 hover、拖拽或大屏侧栏。
 - 只缓存页面壳和非敏感读数据；API Key、Telegram Token、数据库信息不进入移动端。
-- 离线时允许查看最近缓存、编辑草稿和创建待同步日历操作；联网后由 API 处理幂等同步。
+- 离线时只允许查看本次已加载的日历和非敏感读数据；当前不建立离线写队列，避免多设备冲突。
 - PWA 的安装、推送和后台同步属于后续实现，不应在当前 MVP 中假装已经完成。
 
 如果将来需要原生移动 App，可以用 React Native/Expo 或 Flutter 复用同一套 API 合同，但不新增一套 Persona 业务逻辑。
@@ -286,11 +286,11 @@ sequenceDiagram
 └─ persona/daily-notes/      Persona 每日总结的 Markdown 归档
 
 浏览器单独存储：
-├─ localStorage              主题、AI 参数、快捷入口、日历事件和标签
+├─ localStorage              主题、AI 非敏感参数、快捷入口和侧栏偏好
 └─ sessionStorage             当前标签页临时保存的自定义模型 API Key
 ```
 
-`apps/workspace/public/data/` 和两个 `.next/` 目录都可以删除后重新生成。真正不能当作缓存删除的是 SQLite、Obsidian Vault 和用户希望保留的浏览器日历数据。
+`apps/workspace/public/data/` 和两个 `.next/` 目录都可以删除后重新生成。真正不能当作缓存删除的是 SQLite 与 Obsidian Vault。历史日历键仍保留在原浏览器，但新版本不会读取、覆盖或迁移它们。
 
 ### 6.2 SQLite 当前表和写入规则
 
@@ -301,6 +301,9 @@ flowchart LR
   events --> profile[("profile<br/>画像投影")]
   events --> timeline[("timeline_events<br/>时间线投影")]
   events --> daily[("daily_notes<br/>每日总结")]
+  events --> jobs[("background_jobs<br/>可恢复任务")]
+  jobs --> topics
+  calendar[("calendar_events / calendar_tags<br/>跨客户端日历")]
   daily --> archive["Obsidian Daily Note"]
 ```
 
@@ -313,6 +316,9 @@ Persona 使用 `better-sqlite3` 打开仓库根目录的 `data/persona-os.db`，
 | `profile` | 一个画像键值事实 | `key`、`value`、`source_event_id`、`state` | Memory Patch 或用户纠正 | 不直接删除，使用状态和纠正事件 |
 | `timeline_events` | 一个洞察、变化或里程碑 | `date`、`type`、`summary`、`source_event_id` | Memory Patch | 通过来源 Event 追溯 |
 | `daily_notes` | 某个自然日的总结记录 | `date`、`summary`、`highlights`、`topic_distribution`、`archive_path` | Daily Summary 用例 | 总结可刷新，归档状态和归档 Event 单独记录 |
+| `calendar_events` | 一条服务端日程 | 全天日期或 RFC3339 时间、IANA 时区、标签、`version` | Calendar API | 软删除；版本冲突返回 `409` |
+| `calendar_tags` | 一个自定义日历标签 | 名称、颜色、排序、`version` | Calendar API | 删除时事务重归类关联事件 |
+| `background_jobs` | 一次可恢复的后台工作 | 类型、来源 Event、状态、租约、重试、幂等键 | Conversation / Worker | 不存 API Key；失败记录可诊断和重试 |
 | `projects` | Persona 侧的结构化项目记录 | `name`、`status`、`topics`、`summary` | 后端项目投影能力 | 当前 Workspace 项目主库仍是 Markdown，不以此表替代 |
 
 `payload`、`metadata`、`related_topics`、`highlights` 和 `topic_distribution` 当前以 JSON 文本存储；数据库中不存 Markdown 正文、模型 API Key 或 Obsidian 文件内容全文。前端不能直接打开 SQLite，只能调用 Persona API。
@@ -323,8 +329,8 @@ Persona 使用 `better-sqlite3` 打开仓库根目录的 `data/persona-os.db`，
 | --- | --- | --- | --- |
 | `persona-ai-settings` | 连接模式、endpoint、model、temperature、memory 开关等 | 否 | 非敏感默认配置可保留客户端，用户级模型配置应服务端加密保存 |
 | `persona-ai-api-key` | 自定义厂商 API Key | 否，仅当前标签页 | 不同步、不上报日志；生产优先由服务端保存连接凭据 |
-| `persona-calendar-events-v1` | 日历自建事件 | 否 | 迁移为 `calendar_events` 表，通过 API 同步 |
-| `persona-calendar-tags-v1` | 日历自定义标签和颜色 | 否 | 迁移为 `calendar_tags` 表，通过 API 同步 |
+| `persona-calendar-events-v1` | 历史浏览器日历事件 | 否 | 原样保留但不再读取、写入或自动迁移 |
+| `persona-calendar-tags-v1` | 历史浏览器日历标签 | 否 | 原样保留但不再读取、写入或自动迁移 |
 | `persona-workspace-appearance` | 主题、色相、动效 | 否 | 继续保留本地，必要时同步到用户偏好 |
 | `persona-home-quick-actions` | 主页快捷入口排序 | 否 | 继续保留本地，或作为用户 UI 偏好同步 |
 | `persona-sidebar-favorites` | 侧栏固定入口 | 否 | 继续保留本地，或作为用户 UI 偏好同步 |
@@ -335,8 +341,8 @@ Persona 使用 `better-sqlite3` 打开仓库根目录的 `data/persona-os.db`，
 flowchart TB
   vault["Obsidian Vault<br/>knowledge / todo / blog"]
   projects["apps/workspace/projects/*.md"]
-  events[("SQLite / 目标 PostgreSQL<br/>Persona Events")]
-  local["Browser localStorage<br/>当前日历与 UI 偏好"]
+  events[("SQLite<br/>Events / Memory / Calendar / Jobs")]
+  local["Browser localStorage<br/>仅 UI 偏好"]
   sync["sync-projects.js<br/>或目标 Vault Sync Agent"]
   api["Persona API"]
   cache["public/data<br/>JSON + Blog Markdown"]
@@ -355,7 +361,7 @@ flowchart TB
 - `events` 是 Persona 的事实主库；Topic、Profile、Timeline 和 Daily Notes 是数据库内的结构化投影，但都保留 Event 来源。
 - `public/data` 是可重建缓存，丢失后运行 `npm run sync` 恢复。
 - `.next` 是构建产物，丢失后运行对应 build 恢复。
-- 浏览器 `localStorage` 目前是日历自建数据的唯一位置，清空会丢失当前浏览器的自建日历事件，因此迁移到服务端前不能把它当普通缓存清理。
+- 日历事实源是 Persona SQLite；浏览器只持有当前会话读缓存，API 离线时禁止写入。
 
 ### 6.5 生产存储和备份
 
@@ -363,7 +369,7 @@ flowchart TB
 
 | 存储层 | 保存内容 | 备份策略 | 恢复方式 |
 | --- | --- | --- | --- |
-| PostgreSQL | Events、Memory、Daily Notes、服务端 Calendar、用户配置 | PITR/WAL + 每日逻辑备份 | 先恢复数据库，再启动 API/Worker |
+| 当前 SQLite / 未来 PostgreSQL | Events、Memory、Daily Notes、Calendar、Background Jobs | SQLite 一致性快照；未来可用 PITR/WAL | 先恢复数据库，再启动 API/Worker |
 | Vault | Knowledge、Todo、Blog、每日笔记 Markdown | OneDrive/Git/版本化备份 | 先恢复 Vault，再运行 Sync Agent |
 | Object Storage/备份盘 | 附件、导出文件、构建归档 | 版本控制和生命周期策略 | 按对象版本恢复 |
 | CDN/构建目录 | Blog 和 Workspace 只读产物 | 不作为主备份 | 从 Markdown/读模型重新构建 |
@@ -373,11 +379,11 @@ flowchart TB
 
 | 数据 | 当前 MVP | 多设备生产目标 | 备注 |
 | --- | --- | --- | --- |
-| Persona Events / Memory | 本机 `data/persona-os.db` | PostgreSQL | 所有客户端通过 API 访问 |
-| Daily Summary | SQLite `daily_notes` + 本地 Markdown 归档 | PostgreSQL + Vault Sync Agent | 保留可读 Markdown 审计副本 |
+| Persona Events / Memory | 中心服务的 `data/persona-os.db` | 规模需要时迁移 PostgreSQL | 所有客户端通过 API 访问 |
+| Daily Summary | SQLite `daily_notes` + 本地 Markdown 归档 | SQLite + Vault；规模需要时迁移 | 保留可读 Markdown 审计副本 |
 | Knowledge / Todo / Blog | 外部 Obsidian Vault | Vault 主库 + 受控同步 | 不把数据库当内容主库 |
 | Workspace/Blog JSON | `apps/workspace/public/data/` | 构建产物、对象存储或 CDN | 可随时重建 |
-| Calendar 自建事件/标签 | 浏览器 `localStorage` | PostgreSQL `calendar_events`、`calendar_tags` | 这是跨设备必须迁移的一项 |
+| Calendar 自建事件/标签 | SQLite `calendar_events`、`calendar_tags` | 保持 API 合同，数据库可替换 | 已可被桌面和手机共用 |
 | AI 连接配置 | 浏览器设置，Key 临时 `sessionStorage` | 用户级加密配置或服务端 Secret Manager | 不进入公开构建物 |
 | Windows 本地状态 | 暂无独立 App | Credential Manager + 本地缓存 | 缓存可清理，不是事实源 |
 | 附件与备份 | 本机文件 | 对象存储、备份盘或版本化 Vault | 不放进前端静态目录 |
@@ -405,10 +411,10 @@ flowchart LR
   single["单机可部署<br/>反向代理 + HTTPS<br/>持久化备份 + 鉴权"]
   pwa["移动访问<br/>响应式优化 + PWA<br/>离线读缓存"]
   desktop["Windows App<br/>Tauri 壳 + Credential Manager"]
-  shared["多设备生产<br/>PostgreSQL + Auth<br/>Calendar 服务端化"]
+  shared["多设备扩展<br/>按需 PostgreSQL + Auth<br/>保持现有 API"]
   sync["内容同步完善<br/>Vault Sync Agent<br/>Blog Build / CDN"]
 
   mvp --> single --> pwa --> desktop --> shared --> sync
 ```
 
-优先级不是同时重写所有端：先完成“可安全部署的单机服务”，再将日历和记忆从单浏览器/SQLite 迁移到共享 API，最后包装 Windows App 和 PWA 离线能力。
+当前优先级是维护中心 SQLite 服务和稳定 API，再包装 Windows App 或 PWA；只有多用户、并发和高可用需求出现时才替换数据库与增加账号体系。

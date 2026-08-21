@@ -5,14 +5,24 @@ import Link from "next/link"
 import { useEffect, useState } from "react"
 import { DailySummaryPanel } from "@/features/daily-summary/DailySummaryPanel"
 import { useSidebarFavorites, type SidebarFavorite } from "@/features/workspace/sidebarFavorites"
-import { getPersonaJson } from "@/shared/api/personaApi"
+import { getPersonaJson, postPersonaJson } from "@/shared/api/personaApi"
 
 interface StatusResponse {
   status: string
   uptime: number
   events_today: number
-  background_tasks?: { pending?: number }
+  background_tasks?: { pending?: number; queued?: number; running?: number; failed?: number }
   memory?: { topics?: number; profile?: number; timelineEvents?: number }
+}
+
+interface BackgroundJobSummary {
+  id: string
+  type: "memory_analysis"
+  status: "failed"
+  attempts: number
+  maxAttempts: number
+  lastError: string | null
+  updatedAt: string
 }
 
 const runtimeFavorite: SidebarFavorite = { id: "tool-runtime", label: "运行诊断", href: "/tools#runtime", kind: "tool" }
@@ -28,15 +38,23 @@ export function ToolsPage() {
   const [status, setStatus] = useState<StatusResponse | null>(null)
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState("")
+  const [failedJobs, setFailedJobs] = useState<BackgroundJobSummary[]>([])
+  const [retryingJobId, setRetryingJobId] = useState("")
   const { toggleFavorite, isFavorite, isFull } = useSidebarFavorites()
 
   async function loadStatus() {
     setLoading(true)
     setError("")
     try {
-      setStatus(await getPersonaJson<StatusResponse>("/api/status"))
+      const [nextStatus, jobs] = await Promise.all([
+        getPersonaJson<StatusResponse>("/api/status"),
+        getPersonaJson<{ items: BackgroundJobSummary[] }>("/api/background-jobs?status=failed&limit=10"),
+      ])
+      setStatus(nextStatus)
+      setFailedJobs(jobs.items)
     } catch {
       setStatus(null)
+      setFailedJobs([])
       setError("无法连接 Persona API。")
     } finally {
       setLoading(false)
@@ -44,6 +62,19 @@ export function ToolsPage() {
   }
 
   useEffect(() => { void loadStatus() }, [])
+
+  async function retryJob(id: string) {
+    setRetryingJobId(id)
+    setError("")
+    try {
+      await postPersonaJson(`/api/background-jobs/${encodeURIComponent(id)}/retry`, {})
+      await loadStatus()
+    } catch {
+      setError("后台任务重试失败。")
+    } finally {
+      setRetryingJobId("")
+    }
+  }
 
   return (
     <main className="module-page tools-page">
@@ -69,6 +100,16 @@ export function ToolsPage() {
           <Metric label="记忆条目" value={String((status?.memory?.topics ?? 0) + (status?.memory?.profile ?? 0) + (status?.memory?.timelineEvents ?? 0))} />
           <Metric label="后台任务" value={String(status?.background_tasks?.pending ?? 0)} />
         </div>
+        {failedJobs.length > 0 ? (
+          <div className="tool-job-list" aria-label="失败的后台任务">
+            {failedJobs.map((job) => (
+              <div key={job.id}>
+                <span><strong>记忆分析失败</strong><small>{job.lastError || "未知错误"} · 已尝试 {job.attempts}/{job.maxAttempts}</small></span>
+                <button className="module-icon-button" type="button" title="重试任务" aria-label="重试记忆分析任务" disabled={retryingJobId === job.id} onClick={() => void retryJob(job.id)}><RefreshCw size={14} /></button>
+              </div>
+            ))}
+          </div>
+        ) : null}
         {error ? <p className="tool-runtime-error" role="alert">{error}</p> : null}
       </section>
 

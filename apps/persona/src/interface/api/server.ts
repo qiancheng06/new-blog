@@ -21,7 +21,31 @@ import {
   MemoryNotFoundError,
   parseMemoryListState,
 } from "../../application/memory.js"
-import { getPendingBackgroundTaskCount } from "../../application/background-tasks.js"
+import {
+  BackgroundJobConflictError,
+  BackgroundJobNotFoundError,
+  getBackgroundTaskStats,
+  listBackgroundJobs,
+  retryBackgroundJob,
+  startBackgroundTaskWorker,
+  stopBackgroundTaskWorker,
+  type BackgroundJobStatus,
+} from "../../application/background-tasks.js"
+import {
+  CalendarConflictError,
+  CalendarNotFoundError,
+  CalendarValidationError,
+  createCalendarEvent,
+  createCalendarTag,
+  deleteCalendarEvent,
+  deleteCalendarTag,
+  getCalendar,
+  updateCalendarEvent,
+  updateCalendarTag,
+  type CalendarEventInput,
+  type CalendarEventPatch,
+  type CalendarTone,
+} from "../../application/calendar.js"
 import {
   DailySummaryNotFoundError,
   DailySummaryArchiveConflictError,
@@ -36,7 +60,7 @@ import type { ProcessMessageOptions } from "../../ai-runtime/operators/process-m
 import { testModelConnection } from "../../application/model-connection.js"
 
 const CORS_HEADERS = {
-  "Access-Control-Allow-Methods": "GET, POST, OPTIONS",
+  "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
   "Access-Control-Allow-Headers": "Content-Type",
 }
 
@@ -218,11 +242,12 @@ function parseOptionalBoolean(input: unknown, name: string): boolean | undefined
 }
 
 function handleHealth(_req: IncomingMessage, res: ServerResponse) {
+  const backgroundTasks = getBackgroundTaskStats()
   json(res, 200, {
     status: "ok",
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
-    background_tasks: { pending: getPendingBackgroundTaskCount() },
+    background_tasks: backgroundTasks,
   })
 }
 
@@ -233,11 +258,12 @@ function handleEvents(_req: IncomingMessage, res: ServerResponse) {
 
 function handleStatus(_req: IncomingMessage, res: ServerResponse) {
   const recentEvents = getRecentConversationEvents(5)
+  const backgroundTasks = getBackgroundTaskStats()
   json(res, 200, {
     status: "ok",
     uptime: process.uptime(),
     events_today: countConversationEventsToday(),
-    background_tasks: { pending: getPendingBackgroundTaskCount() },
+    background_tasks: backgroundTasks,
     memory: getMemoryStatusStats(),
     recent_events: recentEvents.map((event) => ({
       id: event.id,
@@ -247,6 +273,119 @@ function handleStatus(_req: IncomingMessage, res: ServerResponse) {
       preview: getEventPreview(event.payload),
     })),
   })
+}
+
+function handleCalendar(url: URL, res: ServerResponse): void {
+  try {
+    json(res, 200, getCalendar({
+      from: url.searchParams.get("from") ?? "",
+      to: url.searchParams.get("to") ?? "",
+    }))
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarEventCreate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<Record<string, unknown>>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 201, { event: createCalendarEvent(parsed as unknown as CalendarEventInput) })
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarEventUpdate(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<Record<string, unknown>>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 200, { event: updateCalendarEvent(id, parsed as unknown as CalendarEventPatch) })
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarEventDelete(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<{ version?: number }>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 200, deleteCalendarEvent(id, parsed.version as number))
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarTagCreate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<{ label?: string; tone?: CalendarTone; sortOrder?: number }>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 201, {
+      tag: createCalendarTag({
+        label: parsed.label as string,
+        tone: parsed.tone as CalendarTone,
+        sortOrder: parsed.sortOrder,
+      }),
+    })
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarTagUpdate(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<{
+    version?: number
+    label?: string
+    tone?: CalendarTone
+    sortOrder?: number
+  }>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 200, {
+      tag: updateCalendarTag(id, {
+        version: parsed.version as number,
+        label: parsed.label,
+        tone: parsed.tone,
+        sortOrder: parsed.sortOrder,
+      }),
+    })
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+async function handleCalendarTagDelete(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<{ version?: number; fallbackTagId?: string }>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 200, deleteCalendarTag({
+      id,
+      version: parsed.version as number,
+      fallbackTagId: parsed.fallbackTagId as string,
+    }))
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
+function handleBackgroundJobs(url: URL, res: ServerResponse): void {
+  const status = readText(url, "status")
+  const normalizedStatus = isBackgroundJobStatus(status) ? status : undefined
+  if (status && !normalizedStatus) {
+    json(res, 400, { error: "status must be queued, running, succeeded, or failed" })
+    return
+  }
+  json(res, 200, {
+    items: listBackgroundJobs({ status: normalizedStatus, limit: readNumber(url, "limit") }),
+  })
+}
+
+function handleBackgroundJobRetry(id: string, res: ServerResponse): void {
+  try {
+    json(res, 200, { job: retryBackgroundJob(id) })
+  } catch (err) {
+    handleBackgroundJobError(err, res)
+  }
 }
 
 function handleMemoryOverview(url: URL, res: ServerResponse) {
@@ -379,6 +518,36 @@ async function handler(req: IncomingMessage, res: ServerResponse, onShutdownRequ
     if (url === "/api/status" && req.method === "GET") {
       return handleStatus(req, res)
     }
+    if (url === "/api/calendar" && req.method === "GET") {
+      return handleCalendar(requestUrl, res)
+    }
+    if (url === "/api/calendar/events" && req.method === "POST") {
+      return await handleCalendarEventCreate(req, res)
+    }
+    const calendarEventMatch = /^\/api\/calendar\/events\/([^/]+)$/.exec(url)
+    if (calendarEventMatch && req.method === "PATCH") {
+      return await handleCalendarEventUpdate(req, decodeURIComponent(calendarEventMatch[1]), res)
+    }
+    if (calendarEventMatch && req.method === "DELETE") {
+      return await handleCalendarEventDelete(req, decodeURIComponent(calendarEventMatch[1]), res)
+    }
+    if (url === "/api/calendar/tags" && req.method === "POST") {
+      return await handleCalendarTagCreate(req, res)
+    }
+    const calendarTagMatch = /^\/api\/calendar\/tags\/([^/]+)$/.exec(url)
+    if (calendarTagMatch && req.method === "PATCH") {
+      return await handleCalendarTagUpdate(req, decodeURIComponent(calendarTagMatch[1]), res)
+    }
+    if (calendarTagMatch && req.method === "DELETE") {
+      return await handleCalendarTagDelete(req, decodeURIComponent(calendarTagMatch[1]), res)
+    }
+    if (url === "/api/background-jobs" && req.method === "GET") {
+      return handleBackgroundJobs(requestUrl, res)
+    }
+    const retryJobMatch = /^\/api\/background-jobs\/([^/]+)\/retry$/.exec(url)
+    if (retryJobMatch && req.method === "POST") {
+      return handleBackgroundJobRetry(decodeURIComponent(retryJobMatch[1]), res)
+    }
     if (url === "/api/memory" && req.method === "GET") {
       return handleMemoryOverview(requestUrl, res)
     }
@@ -507,6 +676,34 @@ function handleDailySummaryError(err: unknown, res: ServerResponse): void {
   throw err
 }
 
+function handleCalendarError(err: unknown, res: ServerResponse): void {
+  if (err instanceof CalendarValidationError) {
+    json(res, 400, { error: err.message })
+    return
+  }
+  if (err instanceof CalendarNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof CalendarConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
+function handleBackgroundJobError(err: unknown, res: ServerResponse): void {
+  if (err instanceof BackgroundJobNotFoundError) {
+    json(res, 404, { error: err.message })
+    return
+  }
+  if (err instanceof BackgroundJobConflictError) {
+    json(res, 409, { error: err.message })
+    return
+  }
+  throw err
+}
+
 function readNumber(url: URL, key: string): number | undefined {
   const value = url.searchParams.get(key)
   if (value === null || value.trim() === "") return undefined
@@ -521,6 +718,10 @@ function readText(url: URL, key: string): string | undefined {
 
 function isTimelineType(value: string | undefined): value is "insight" | "shift" | "milestone" {
   return value === "insight" || value === "shift" || value === "milestone"
+}
+
+function isBackgroundJobStatus(value: string | undefined): value is BackgroundJobStatus {
+  return value === "queued" || value === "running" || value === "succeeded" || value === "failed"
 }
 
 function getEventPreview(payloadText: string): string {
@@ -599,6 +800,7 @@ export function startApiServer(options: ApiServerOptions = {}): Server {
   const port = options.port ?? config.apiPort
   const hostname = options.hostname ?? config.apiHost
 
+  startBackgroundTaskWorker()
   server.listen(port, hostname, () => {
     console.log(`api server listening on http://${hostname}:${port}`)
   })
@@ -607,6 +809,7 @@ export function startApiServer(options: ApiServerOptions = {}): Server {
 }
 
 export function stopApiServer(server: Server): Promise<void> {
+  stopBackgroundTaskWorker()
   return new Promise((resolve, reject) => {
     server.close((err) => {
       if (err) reject(err)

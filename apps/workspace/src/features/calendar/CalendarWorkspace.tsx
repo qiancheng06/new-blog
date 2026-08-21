@@ -16,15 +16,29 @@ import {
   X,
 } from "lucide-react"
 import { useEffect, useMemo, useState, type FormEvent } from "react"
+import { PersonaApiError } from "@/shared/api/personaApi"
 import { getWorkspaceTodos, type WorkspaceTodo } from "@/shared/data/workspaceData"
+import {
+  createServerCalendarEvent,
+  createServerCalendarTag,
+  deleteServerCalendarEvent,
+  deleteServerCalendarTag,
+  getCalendarRange,
+  updateServerCalendarEvent,
+  updateServerCalendarTag,
+  type CalendarApiEvent,
+  type CalendarApiSchedule,
+  type CalendarTone,
+} from "./calendarApi"
 
 type CalendarView = "month" | "week" | "day"
-type CalendarTone = "green" | "blue" | "amber" | "red" | "gray"
 
 interface CalendarTag {
   id: string
   label: string
   tone: CalendarTone
+  sortOrder: number
+  version: number
 }
 
 interface CalendarEvent {
@@ -37,6 +51,7 @@ interface CalendarEvent {
   notes: string
   source: "local" | "todo"
   completed?: boolean
+  version: number
 }
 
 interface EventDraft {
@@ -49,8 +64,6 @@ interface EventDraft {
   notes: string
 }
 
-const STORAGE_KEY = "persona-calendar-events-v1"
-const TAG_STORAGE_KEY = "persona-calendar-tags-v1"
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
 const HOURS = Array.from({ length: 15 }, (_, index) => index + 7)
 const VIEW_OPTIONS: Array<{ value: CalendarView; label: string }> = [
@@ -59,12 +72,12 @@ const VIEW_OPTIONS: Array<{ value: CalendarView; label: string }> = [
   { value: "day", label: "日" },
 ]
 const DEFAULT_TAGS: CalendarTag[] = [
-  { id: "focus", label: "专注", tone: "green" },
-  { id: "meeting", label: "会议", tone: "blue" },
-  { id: "personal", label: "个人", tone: "amber" },
-  { id: "reminder", label: "提醒", tone: "red" },
+  { id: "focus", label: "专注", tone: "green", sortOrder: 10, version: 1 },
+  { id: "meeting", label: "会议", tone: "blue", sortOrder: 20, version: 1 },
+  { id: "personal", label: "个人", tone: "amber", sortOrder: 30, version: 1 },
+  { id: "reminder", label: "提醒", tone: "red", sortOrder: 40, version: 1 },
 ]
-const TODO_TAG: CalendarTag = { id: "todo", label: "同步待办", tone: "gray" }
+const TODO_TAG: CalendarTag = { id: "todo", label: "同步待办", tone: "gray", sortOrder: 1_000_000, version: 0 }
 const TAG_TONES: CalendarTone[] = ["green", "blue", "amber", "red", "gray"]
 
 export function CalendarWorkspace() {
@@ -77,6 +90,9 @@ export function CalendarWorkspace() {
   const [todos, setTodos] = useState<WorkspaceTodo[]>([])
   const [dataReady, setDataReady] = useState(false)
   const [todoError, setTodoError] = useState("")
+  const [calendarError, setCalendarError] = useState("")
+  const [apiOnline, setApiOnline] = useState(false)
+  const [saving, setSaving] = useState(false)
   const [query, setQuery] = useState("")
   const [hiddenTagIds, setHiddenTagIds] = useState<Set<string>>(() => new Set())
   const [dialogOpen, setDialogOpen] = useState(false)
@@ -84,15 +100,30 @@ export function CalendarWorkspace() {
   const [draft, setDraft] = useState<EventDraft>(() => createDraft(today))
   const [formError, setFormError] = useState("")
 
+  const range = useMemo(() => calendarRange(cursor, view), [cursor, view])
+
   useEffect(() => {
-    const storedTags = readStoredTags(window.localStorage.getItem(TAG_STORAGE_KEY))
-    const storedEvents = readStoredEvents(window.localStorage.getItem(STORAGE_KEY), storedTags)
-    setTags(storedTags)
-    setLocalEvents(storedEvents)
-    window.localStorage.setItem(TAG_STORAGE_KEY, JSON.stringify(storedTags))
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(storedEvents))
-    setDataReady(true)
-    void getWorkspaceTodos().then(setTodos).catch(() => setTodoError("同步待办暂不可用，本地日程仍可正常使用。"))
+    let active = true
+    setDataReady(false)
+    void getCalendarRange(range.from, range.to)
+      .then((result) => {
+        if (!active) return
+        setLocalEvents(result.events.map(calendarEventFromApi))
+        setTags(result.tags)
+        setApiOnline(true)
+        setCalendarError("")
+      })
+      .catch(() => {
+        if (!active) return
+        setApiOnline(false)
+        setCalendarError("Persona API 暂不可用，当前缓存仍可查看，写入已暂停。")
+      })
+      .finally(() => { if (active) setDataReady(true) })
+    return () => { active = false }
+  }, [range.from, range.to])
+
+  useEffect(() => {
+    void getWorkspaceTodos().then(setTodos).catch(() => setTodoError("同步待办暂不可用，服务端日程仍可正常使用。"))
   }, [])
 
   useEffect(() => {
@@ -118,14 +149,12 @@ export function CalendarWorkspace() {
   )
   const monthCount = useMemo(() => allEvents.filter((event) => event.start.startsWith(monthKey(cursor))).length, [allEvents, cursor])
 
-  function persistEvents(next: CalendarEvent[]) {
-    setLocalEvents(next)
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(next))
-  }
-
-  function persistTags(next: CalendarTag[]) {
-    setTags(next)
-    window.localStorage.setItem(TAG_STORAGE_KEY, JSON.stringify(next))
+  async function refreshCalendar(): Promise<void> {
+    const result = await getCalendarRange(range.from, range.to)
+    setLocalEvents(result.events.map(calendarEventFromApi))
+    setTags(result.tags)
+    setApiOnline(true)
+    setCalendarError("")
   }
 
   function moveCursor(offset: number) {
@@ -155,6 +184,10 @@ export function CalendarWorkspace() {
   }
 
   function openCreate(date = selectedDate, hour = 9) {
+    if (!apiOnline) {
+      setCalendarError("连接 Persona API 后才能新建日程。")
+      return
+    }
     const nextDate = startOfDay(date)
     setSelectedDate(nextDate)
     setEditingEvent(null)
@@ -177,36 +210,65 @@ export function CalendarWorkspace() {
     setFormError("")
   }
 
-  function saveEvent(event: FormEvent<HTMLFormElement>) {
+  async function saveEvent(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     const title = draft.title.trim()
     if (!title) return setFormError("请填写日程标题。")
     if (!draft.allDay && draft.endTime <= draft.startTime) return setFormError("结束时间需要晚于开始时间。")
 
-    const nextEvent: CalendarEvent = {
-      id: editingEvent?.source === "local" ? editingEvent.id : createEventId(),
+    const value = {
       title,
-      start: `${draft.date}T${draft.allDay ? "00:00" : draft.startTime}`,
-      end: `${draft.date}T${draft.allDay ? "23:59" : draft.endTime}`,
-      allDay: draft.allDay,
       tagId: tags.some((tag) => tag.id === draft.tagId) ? draft.tagId : tags[0]?.id ?? DEFAULT_TAGS[0].id,
       notes: draft.notes.trim(),
-      source: "local",
+      completed: editingEvent?.completed ?? false,
+      schedule: scheduleFromDraft(draft),
     }
-    const next = editingEvent?.source === "local"
-      ? localEvents.map((item) => item.id === editingEvent.id ? nextEvent : item)
-      : [...localEvents, nextEvent]
-    persistEvents(next.sort(compareEvents))
-    const savedDate = parseLocalDate(nextEvent.start)
-    setSelectedDate(savedDate)
-    setCursor(savedDate)
-    closeDialog()
+    setSaving(true)
+    try {
+      const saved = editingEvent?.source === "local"
+        ? await updateServerCalendarEvent(editingEvent.id, editingEvent.version, value)
+        : await createServerCalendarEvent(value)
+      const nextEvent = calendarEventFromApi(saved)
+      setLocalEvents((current) => {
+        const without = current.filter((item) => item.id !== nextEvent.id)
+        return [...without, nextEvent].sort(compareEvents)
+      })
+      const savedDate = parseLocalDate(nextEvent.start)
+      setSelectedDate(savedDate)
+      setCursor(savedDate)
+      setCalendarError("")
+      closeDialog()
+    } catch (error) {
+      if (error instanceof PersonaApiError && error.status === 409) {
+        await refreshCalendar().catch(() => undefined)
+        setFormError("该日程已在另一设备更新，已刷新最新数据，请重新修改。")
+      } else {
+        setApiOnline(false)
+        setFormError("保存失败，请确认 Persona API 正在运行。")
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
-  function deleteEvent() {
+  async function deleteEvent() {
     if (!editingEvent || editingEvent.source !== "local") return
-    persistEvents(localEvents.filter((item) => item.id !== editingEvent.id))
-    closeDialog()
+    setSaving(true)
+    try {
+      await deleteServerCalendarEvent(editingEvent.id, editingEvent.version)
+      setLocalEvents((current) => current.filter((item) => item.id !== editingEvent.id))
+      closeDialog()
+    } catch (error) {
+      if (error instanceof PersonaApiError && error.status === 409) {
+        await refreshCalendar().catch(() => undefined)
+        setFormError("该日程已在另一设备更新，已刷新最新数据。")
+      } else {
+        setApiOnline(false)
+        setFormError("删除失败，请确认 Persona API 正在运行。")
+      }
+    } finally {
+      setSaving(false)
+    }
   }
 
   function toggleTag(tagId: string) {
@@ -218,34 +280,61 @@ export function CalendarWorkspace() {
     })
   }
 
-  function addTag(label: string, tone: CalendarTone) {
+  async function addTag(label: string, tone: CalendarTone) {
     const normalized = label.trim()
     if (!normalized || tags.some((tag) => tag.label === normalized)) return false
-    persistTags([...tags, { id: createTagId(), label: normalized.slice(0, 16), tone }])
-    return true
+    try {
+      const tag = await createServerCalendarTag(normalized.slice(0, 16), tone)
+      setTags((current) => [...current, tag].sort((left, right) => left.sortOrder - right.sortOrder))
+      return true
+    } catch {
+      setApiOnline(false)
+      setCalendarError("标签保存失败，请确认 Persona API 正在运行。")
+      return false
+    }
   }
 
-  function updateTag(id: string, label: string, tone: CalendarTone) {
+  async function updateTag(id: string, label: string, tone: CalendarTone) {
     const normalized = label.trim()
     if (!normalized || tags.some((tag) => tag.id !== id && tag.label === normalized)) return false
-    persistTags(tags.map((tag) => tag.id === id ? { ...tag, label: normalized.slice(0, 16), tone } : tag))
-    return true
+    const currentTag = tags.find((tag) => tag.id === id)
+    if (!currentTag) return false
+    try {
+      const updated = await updateServerCalendarTag(id, currentTag.version, normalized.slice(0, 16), tone)
+      setTags((current) => current.map((tag) => tag.id === id ? updated : tag))
+      return true
+    } catch (error) {
+      if (error instanceof PersonaApiError && error.status === 409) await refreshCalendar().catch(() => undefined)
+      else setApiOnline(false)
+      setCalendarError("标签已变化或保存失败，请重试。")
+      return false
+    }
   }
 
-  function deleteTag(id: string) {
+  async function deleteTag(id: string) {
     if (tags.length <= 1) return false
     const fallback = tags.find((tag) => tag.id !== id)
     if (!fallback) return false
     const affected = localEvents.filter((event) => event.tagId === id).length
     if (affected > 0 && !window.confirm(`删除后，${affected} 个日程将移动到“${fallback.label}”。是否继续？`)) return false
-    persistEvents(localEvents.map((event) => event.tagId === id ? { ...event, tagId: fallback.id } : event))
-    persistTags(tags.filter((tag) => tag.id !== id))
-    setHiddenTagIds((current) => {
-      const next = new Set(current)
-      next.delete(id)
-      return next
-    })
-    return true
+    const currentTag = tags.find((tag) => tag.id === id)
+    if (!currentTag) return false
+    try {
+      await deleteServerCalendarTag(id, currentTag.version, fallback.id)
+      setLocalEvents((current) => current.map((event) => event.tagId === id ? { ...event, tagId: fallback.id, version: event.version + 1 } : event))
+      setTags((current) => current.filter((tag) => tag.id !== id))
+      setHiddenTagIds((current) => {
+        const next = new Set(current)
+        next.delete(id)
+        return next
+      })
+      return true
+    } catch (error) {
+      if (error instanceof PersonaApiError && error.status === 409) await refreshCalendar().catch(() => undefined)
+      else setApiOnline(false)
+      setCalendarError("标签删除失败，已保留现有数据。")
+      return false
+    }
   }
 
   return (
@@ -255,7 +344,7 @@ export function CalendarWorkspace() {
           <span className="module-kicker"><CalendarDays size={14} />日历</span>
           <h1>日程安排</h1>
         </div>
-        <button className="calendar-primary-action" type="button" onClick={() => openCreate()}>
+        <button className="calendar-primary-action" type="button" disabled={!apiOnline} onClick={() => openCreate()}>
           <Plus size={16} />新建日程
         </button>
       </header>
@@ -305,7 +394,7 @@ export function CalendarWorkspace() {
           <section className="calendar-inspector-section calendar-agenda">
             <header>
               <div><span>{selectedDate.toLocaleDateString("zh-CN", { weekday: "long" })}</span><strong>{selectedDate.toLocaleDateString("zh-CN", { month: "long", day: "numeric" })}</strong></div>
-              <button type="button" title="在选中日期新建" aria-label="在选中日期新建" onClick={() => openCreate(selectedDate)}><Plus size={15} /></button>
+              <button type="button" title="在选中日期新建" aria-label="在选中日期新建" disabled={!apiOnline} onClick={() => openCreate(selectedDate)}><Plus size={15} /></button>
             </header>
             <div className="calendar-agenda-list">
               {selectedEvents.length === 0 ? <p>这一天还没有日程</p> : selectedEvents.map((event) => <AgendaItem key={event.id} event={event} tags={tags} onOpen={openEvent} />)}
@@ -316,6 +405,7 @@ export function CalendarWorkspace() {
             tags={tags}
             events={allEvents}
             hiddenTagIds={hiddenTagIds}
+            writable={apiOnline}
             onToggle={toggleTag}
             onAdd={addTag}
             onUpdate={updateTag}
@@ -324,8 +414,9 @@ export function CalendarWorkspace() {
 
           <section className="calendar-inspector-section calendar-summary">
             <div><span>本月日程</span><strong>{monthCount}</strong></div>
-            <div><span>本地日程</span><strong>{localEvents.length}</strong></div>
+            <div><span>服务端日程</span><strong>{localEvents.length}</strong></div>
           </section>
+          {calendarError ? <p className="calendar-sync-error" role="status"><CircleAlert size={14} />{calendarError}</p> : null}
           {todoError ? <p className="calendar-sync-error"><CircleAlert size={14} />{todoError}</p> : null}
         </aside>
       </div>
@@ -335,6 +426,7 @@ export function CalendarWorkspace() {
           event={editingEvent}
           draft={draft}
           error={formError}
+          saving={saving}
           tags={tags}
           onDraftChange={setDraft}
           onClose={closeDialog}
@@ -457,22 +549,23 @@ function AgendaItem({ event, tags, onOpen }: { event: CalendarEvent; tags: Calen
   )
 }
 
-function TagManager({ tags, events, hiddenTagIds, onToggle, onAdd, onUpdate, onDelete }: {
+function TagManager({ tags, events, hiddenTagIds, writable, onToggle, onAdd, onUpdate, onDelete }: {
   tags: CalendarTag[]
   events: CalendarEvent[]
   hiddenTagIds: Set<string>
+  writable: boolean
   onToggle: (tagId: string) => void
-  onAdd: (label: string, tone: CalendarTone) => boolean
-  onUpdate: (id: string, label: string, tone: CalendarTone) => boolean
-  onDelete: (id: string) => boolean
+  onAdd: (label: string, tone: CalendarTone) => Promise<boolean>
+  onUpdate: (id: string, label: string, tone: CalendarTone) => Promise<boolean>
+  onDelete: (id: string) => Promise<boolean>
 }) {
   const [editor, setEditor] = useState<{ id: string; label: string; tone: CalendarTone } | null>(null)
   const [editorError, setEditorError] = useState("")
 
-  function saveTag(event: FormEvent<HTMLFormElement>) {
+  async function saveTag(event: FormEvent<HTMLFormElement>) {
     event.preventDefault()
     if (!editor) return
-    const saved = editor.id ? onUpdate(editor.id, editor.label, editor.tone) : onAdd(editor.label, editor.tone)
+    const saved = await (editor.id ? onUpdate(editor.id, editor.label, editor.tone) : onAdd(editor.label, editor.tone))
     if (!saved) {
       setEditorError("标签名称不能为空或重复。")
       return
@@ -490,7 +583,7 @@ function TagManager({ tags, events, hiddenTagIds, onToggle, onAdd, onUpdate, onD
     <section className="calendar-inspector-section calendar-filters">
       <header>
         <div><Tags size={15} /><strong>日历标签</strong></div>
-        <button type="button" title="新建标签" aria-label="新建标签" disabled={Boolean(editor)} onClick={() => setEditor({ id: "", label: "", tone: "green" })}><Plus size={14} /></button>
+        <button type="button" title="新建标签" aria-label="新建标签" disabled={Boolean(editor) || !writable} onClick={() => setEditor({ id: "", label: "", tone: "green" })}><Plus size={14} /></button>
       </header>
       <div className="calendar-tag-list">
         {tags.map((tag) => {
@@ -501,7 +594,7 @@ function TagManager({ tags, events, hiddenTagIds, onToggle, onAdd, onUpdate, onD
               <button type="button" className={active ? "active" : ""} aria-pressed={active} onClick={() => onToggle(tag.id)}>
                 <span className={`calendar-color-dot ${tag.tone}`} /><span>{tag.label}</span><small>{count}</small><span className="calendar-filter-check">{active ? <Check size={12} /> : null}</span>
               </button>
-              <button className="calendar-tag-edit" type="button" title={`编辑${tag.label}`} aria-label={`编辑${tag.label}`} disabled={Boolean(editor)} onClick={() => editTag(tag)}><Pencil size={13} /></button>
+              <button className="calendar-tag-edit" type="button" title={`编辑${tag.label}`} aria-label={`编辑${tag.label}`} disabled={Boolean(editor) || !writable} onClick={() => editTag(tag)}><Pencil size={13} /></button>
             </div>
           )
         })}
@@ -521,7 +614,7 @@ function TagManager({ tags, events, hiddenTagIds, onToggle, onAdd, onUpdate, onD
           </div>
           {editorError ? <p role="alert">{editorError}</p> : null}
           <footer>
-            {editor.id && tags.length > 1 ? <button className="delete" type="button" onClick={() => { if (onDelete(editor.id)) setEditor(null) }}><Trash2 size={13} />删除</button> : <span />}
+            {editor.id && tags.length > 1 ? <button className="delete" type="button" onClick={() => { void onDelete(editor.id).then((deleted) => { if (deleted) setEditor(null) }) }}><Trash2 size={13} />删除</button> : <span />}
             <div><button type="button" title="取消" aria-label="取消标签编辑" onClick={() => { setEditor(null); setEditorError("") }}><X size={14} /></button><button type="submit">保存</button></div>
           </footer>
         </form>
@@ -530,15 +623,16 @@ function TagManager({ tags, events, hiddenTagIds, onToggle, onAdd, onUpdate, onD
   )
 }
 
-function EventDialog({ event, draft, error, tags, onDraftChange, onClose, onDelete, onSubmit }: {
+function EventDialog({ event, draft, error, saving, tags, onDraftChange, onClose, onDelete, onSubmit }: {
   event: CalendarEvent | null
   draft: EventDraft
   error: string
+  saving: boolean
   tags: CalendarTag[]
   onDraftChange: (draft: EventDraft) => void
   onClose: () => void
-  onDelete: () => void
-  onSubmit: (event: FormEvent<HTMLFormElement>) => void
+  onDelete: () => void | Promise<void>
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
 }) {
   const readOnly = event?.source === "todo"
   return (
@@ -573,8 +667,8 @@ function EventDialog({ event, draft, error, tags, onDraftChange, onClose, onDele
             <label className="calendar-form-field"><span>备注</span><textarea rows={4} maxLength={500} value={draft.notes} placeholder="地点、准备事项或补充说明" onChange={(inputEvent) => onDraftChange({ ...draft, notes: inputEvent.target.value })} /></label>
             {error ? <p className="calendar-form-error" role="alert"><CircleAlert size={14} />{error}</p> : null}
             <footer>
-              {event?.source === "local" ? <button className="calendar-delete-action" type="button" title="删除日程" onClick={onDelete}><Trash2 size={15} /><span>删除</span></button> : <span />}
-              <div><button className="calendar-secondary-action" type="button" onClick={onClose}>取消</button><button className="calendar-primary-action" type="submit">保存日程</button></div>
+              {event?.source === "local" ? <button className="calendar-delete-action" type="button" title="删除日程" disabled={saving} onClick={onDelete}><Trash2 size={15} /><span>删除</span></button> : <span />}
+              <div><button className="calendar-secondary-action" type="button" disabled={saving} onClick={onClose}>取消</button><button className="calendar-primary-action" type="submit" disabled={saving}>{saving ? "保存中" : "保存日程"}</button></div>
             </footer>
           </form>
         )}
@@ -599,51 +693,6 @@ function draftFromEvent(event: CalendarEvent, fallbackTagId: string): EventDraft
   }
 }
 
-function readStoredEvents(value: string | null, tags: CalendarTag[]): CalendarEvent[] {
-  if (!value) return []
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return []
-    return parsed.map((item) => parseStoredEvent(item, tags)).filter((item): item is CalendarEvent => Boolean(item))
-  } catch {
-    return []
-  }
-}
-
-function parseStoredEvent(value: unknown, tags: CalendarTag[]): CalendarEvent | null {
-  if (!value || typeof value !== "object" || Array.isArray(value)) return null
-  const event = value as Record<string, unknown>
-  if (typeof event.id !== "string" || typeof event.title !== "string" || typeof event.start !== "string" || typeof event.end !== "string"
-    || typeof event.allDay !== "boolean" || typeof event.notes !== "string" || event.source !== "local") return null
-  const storedTagId = typeof event.tagId === "string" ? event.tagId : typeof event.category === "string" ? event.category : ""
-  const tagId = tags.some((tag) => tag.id === storedTagId) ? storedTagId : tags[0]?.id ?? DEFAULT_TAGS[0].id
-  return { id: event.id, title: event.title, start: event.start, end: event.end, allDay: event.allDay, tagId, notes: event.notes, source: "local" }
-}
-
-function readStoredTags(value: string | null): CalendarTag[] {
-  if (!value) return DEFAULT_TAGS.map((tag) => ({ ...tag }))
-  try {
-    const parsed = JSON.parse(value) as unknown
-    if (!Array.isArray(parsed)) return DEFAULT_TAGS.map((tag) => ({ ...tag }))
-    const seenIds = new Set<string>()
-    const seenLabels = new Set<string>()
-    const result = parsed.flatMap((item): CalendarTag[] => {
-      if (!item || typeof item !== "object" || Array.isArray(item)) return []
-      const tag = item as Record<string, unknown>
-      const id = typeof tag.id === "string" ? tag.id.trim() : ""
-      const label = typeof tag.label === "string" ? tag.label.trim().slice(0, 16) : ""
-      const tone = TAG_TONES.includes(tag.tone as CalendarTone) ? tag.tone as CalendarTone : null
-      if (!id || id === TODO_TAG.id || !label || !tone || seenIds.has(id) || seenLabels.has(label)) return []
-      seenIds.add(id)
-      seenLabels.add(label)
-      return [{ id, label, tone }]
-    })
-    return result.length ? result : DEFAULT_TAGS.map((tag) => ({ ...tag }))
-  } catch {
-    return DEFAULT_TAGS.map((tag) => ({ ...tag }))
-  }
-}
-
 function todosToEvents(todos: WorkspaceTodo[]): CalendarEvent[] {
   return todos.filter((todo) => /^\d{4}-\d{2}-\d{2}$/.test(todo.date)).map((todo, index) => ({
     id: `todo:${todo.source}:${todo.date}:${index}`,
@@ -655,15 +704,74 @@ function todosToEvents(todos: WorkspaceTodo[]): CalendarEvent[] {
     notes: `来源：${todo.source}`,
     source: "todo",
     completed: todo.done,
+    version: 0,
   }))
 }
 
-function createEventId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto ? crypto.randomUUID() : `event-${Date.now()}`
+function calendarEventFromApi(event: CalendarApiEvent): CalendarEvent {
+  if (event.schedule.kind === "allDay") {
+    const finalDate = addDays(parseLocalDate(event.schedule.endDate), -1)
+    return {
+      id: event.id,
+      title: event.title,
+      start: `${event.schedule.startDate}T00:00`,
+      end: `${dateKey(finalDate)}T23:59`,
+      allDay: true,
+      tagId: event.tagId,
+      notes: event.notes,
+      source: "local",
+      completed: event.completed,
+      version: event.version,
+    }
+  }
+  return {
+    id: event.id,
+    title: event.title,
+    start: localDateTime(event.schedule.startsAt),
+    end: localDateTime(event.schedule.endsAt),
+    allDay: false,
+    tagId: event.tagId,
+    notes: event.notes,
+    source: "local",
+    completed: event.completed,
+    version: event.version,
+  }
 }
 
-function createTagId(): string {
-  return typeof crypto !== "undefined" && "randomUUID" in crypto ? `tag-${crypto.randomUUID()}` : `tag-${Date.now()}`
+function scheduleFromDraft(draft: EventDraft): CalendarApiSchedule {
+  if (draft.allDay) {
+    return {
+      kind: "allDay",
+      startDate: draft.date,
+      endDate: dateKey(addDays(parseLocalDate(draft.date), 1)),
+    }
+  }
+  const [year, month, day] = draft.date.split("-").map(Number)
+  const [startHour, startMinute] = draft.startTime.split(":").map(Number)
+  const [endHour, endMinute] = draft.endTime.split(":").map(Number)
+  return {
+    kind: "timed",
+    startsAt: new Date(year, month - 1, day, startHour, startMinute).toISOString(),
+    endsAt: new Date(year, month - 1, day, endHour, endMinute).toISOString(),
+    timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
+  }
+}
+
+function localDateTime(value: string): string {
+  const date = new Date(value)
+  return `${dateKey(date)}T${String(date.getHours()).padStart(2, "0")}:${String(date.getMinutes()).padStart(2, "0")}`
+}
+
+function calendarRange(cursor: Date, view: CalendarView): { from: string; to: string } {
+  if (view === "month") {
+    const cells = monthCells(cursor)
+    return { from: dateKey(cells[0]), to: dateKey(cells[cells.length - 1]) }
+  }
+  if (view === "week") {
+    const dates = weekDates(cursor)
+    return { from: dateKey(dates[0]), to: dateKey(dates[dates.length - 1]) }
+  }
+  return { from: dateKey(cursor), to: dateKey(cursor) }
 }
 
 function getEventTag(event: CalendarEvent, tags: CalendarTag[]): CalendarTag {

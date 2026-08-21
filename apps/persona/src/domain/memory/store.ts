@@ -94,11 +94,18 @@ export interface MemorySourceInspection {
 }
 
 export function applyMemoryPatch(patch: MemoryPatch, options: MemoryPatchWriteOptions = {}): MemoryPatchWriteResult {
-  return withTransaction(() => ({
+  return withTransaction(() => applyMemoryPatchWithinTransaction(patch, options))
+}
+
+export function applyMemoryPatchWithinTransaction(
+  patch: MemoryPatch,
+  options: MemoryPatchWriteOptions = {},
+): MemoryPatchWriteResult {
+  return {
     topics: upsertTopicUpdates(patch.topic_updates),
     profile: upsertProfileUpdates(patch.profile_updates, options),
     timelineEvents: appendTimelineEvents(patch.timeline_events, options),
-  }))
+  }
 }
 
 export function getMemoryContext(options: { topicLimit?: number; profileLimit?: number; timelineLimit?: number } = {}): MemoryContext {

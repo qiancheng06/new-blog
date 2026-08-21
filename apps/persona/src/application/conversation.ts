@@ -2,6 +2,8 @@ import { countEventsToday, getRecentEvents, insertEvent } from "../domain/event/
 import { createCompanionReplyEvent, type Event } from "../domain/event/types.js"
 import type { EventRow } from "../domain/event/store.js"
 import { processMessage, type ProcessMessageOptions } from "../ai-runtime/operators/process-message.js"
+import { enqueueMemoryAnalysis } from "./background-tasks.js"
+import { withTransaction } from "../infra/db/pool.js"
 
 export const CONVERSATION_FALLBACK_REPLY = "嗯，我在的。"
 
@@ -27,10 +29,20 @@ export async function handleConversationEvent(
   }
 
   const result = await processMessage(saved, options.ai)
-  const replyEvent = insertEvent(createCompanionReplyEvent({
-    text: result.companionReply,
-    in_reply_to: saved.id,
-  }, parseMetadata(saved.metadata)))
+  const replyEvent = withTransaction(() => {
+    const inserted = insertEvent(createCompanionReplyEvent({
+      text: result.companionReply,
+      in_reply_to: saved.id,
+    }, parseMetadata(saved.metadata)))
+    if (options.ai?.backgroundAnalysis !== false) {
+      enqueueMemoryAnalysis({
+        sourceEventId: saved.id,
+        historyEventIds: result.historyEventIds,
+        memoryEnabled: options.ai?.memoryEnabled !== false,
+      })
+    }
+    return inserted
+  })
   return {
     event: saved,
     companionReply: result.companionReply,

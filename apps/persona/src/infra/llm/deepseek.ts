@@ -228,7 +228,7 @@ export async function callAnalysis(
   try {
     parsed = JSON.parse(content) as unknown
   } catch {
-    throw new Error("DeepSeek analysis response was not valid JSON")
+    throw new Error("LLM analysis response was not valid JSON")
   }
   return parseAnalysisResult(parsed)
 }
@@ -264,7 +264,7 @@ export async function callDailySummary(
   try {
     parsed = JSON.parse(content) as unknown
   } catch {
-    throw new Error("DeepSeek daily summary response was not valid JSON")
+    throw new Error("LLM daily summary response was not valid JSON")
   }
   return parseDailySummaryResult(parsed)
 }
@@ -274,7 +274,7 @@ export function parseAnalysisResult(input: unknown): AnalysisResult {
   if (result.success) return result.data as AnalysisResult
 
   const paths = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "root"))]
-  throw new Error(`DeepSeek analysis response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
+  throw new Error(`LLM analysis response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
 }
 
 export function parseDailySummaryResult(input: unknown): DailySummaryResult {
@@ -282,12 +282,12 @@ export function parseDailySummaryResult(input: unknown): DailySummaryResult {
   if (result.success) return result.data
 
   const paths = [...new Set(result.error.issues.map((issue) => issue.path.join(".") || "root"))]
-  throw new Error(`DeepSeek daily summary response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
+  throw new Error(`LLM daily summary response failed schema validation at: ${paths.slice(0, 8).join(", ")}`)
 }
 
 function sanitizeProviderError(data: string, requestApiKey?: string): string {
   let sanitized = data
-  for (const secret of [requestApiKey, config.openaiApiKey]) {
+  for (const secret of [requestApiKey, config.openaiApiKey, config.analysisApiKey]) {
     if (secret) sanitized = sanitized.replaceAll(secret, "[redacted]")
   }
   return sanitized.slice(0, 200)

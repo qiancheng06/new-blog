@@ -8,6 +8,9 @@ export interface RuntimeConfig {
   openaiApiKey: string
   llmProvider: string
   llmModel: string
+  analysisEndpoint: string
+  analysisApiKey: string
+  analysisModel: string
   apiPort: number
   apiHost: string
   allowedOrigins: string[]
@@ -32,6 +35,9 @@ export function loadRuntimeConfig(env: NodeJS.ProcessEnv = process.env): Runtime
     openaiApiKey: env.OPENAI_API_KEY?.trim() || "",
     llmProvider: env.LLM_PROVIDER?.trim() || "deepseek",
     llmModel: env.LLM_MODEL?.trim() || "deepseek-chat",
+    analysisEndpoint: env.PERSONA_ANALYSIS_ENDPOINT?.trim() || "",
+    analysisApiKey: env.PERSONA_ANALYSIS_API_KEY?.trim() || "",
+    analysisModel: env.PERSONA_ANALYSIS_MODEL?.trim() || env.LLM_MODEL?.trim() || "deepseek-chat",
     apiPort: Number(env.API_PORT || 3001),
     apiHost: env.API_HOST?.trim() || "127.0.0.1",
     allowedOrigins: parseTextList(env.PERSONA_ALLOWED_ORIGINS, [
@@ -65,6 +71,16 @@ export function validateRuntimeConfig(
   const invalidOrigin = runtimeConfig.allowedOrigins.find((origin) => !isHttpOrigin(origin))
   if (invalidOrigin) {
     errors.push(`PERSONA_ALLOWED_ORIGINS contains an invalid HTTP(S) origin: ${invalidOrigin}`)
+  }
+
+  if (runtimeConfig.analysisEndpoint) {
+    const endpointError = validateProviderEndpoint(runtimeConfig.analysisEndpoint)
+    if (endpointError) errors.push(`PERSONA_ANALYSIS_ENDPOINT ${endpointError}`)
+    if (!isLocalHttpEndpoint(runtimeConfig.analysisEndpoint)
+      && isPlaceholderOrEmpty(runtimeConfig.analysisApiKey)
+      && isPlaceholderOrEmpty(runtimeConfig.openaiApiKey)) {
+      errors.push("PERSONA_ANALYSIS_API_KEY or OPENAI_API_KEY is required for a remote analysis endpoint.")
+    }
   }
 
   if (!isValidTimeZone(runtimeConfig.timeZone)) {
@@ -132,6 +148,27 @@ function isHttpOrigin(value: string): boolean {
   try {
     const parsed = new URL(value)
     return (parsed.protocol === "http:" || parsed.protocol === "https:") && parsed.origin === value
+  } catch {
+    return false
+  }
+}
+
+function validateProviderEndpoint(value: string): string | undefined {
+  try {
+    const parsed = new URL(value)
+    if (parsed.username || parsed.password) return "must not include credentials."
+    if (parsed.protocol === "https:" || isLocalHttpEndpoint(value)) return undefined
+    return "must use HTTPS, except for localhost."
+  } catch {
+    return "must be a valid URL."
+  }
+}
+
+function isLocalHttpEndpoint(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === "http:"
+      && (parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1" || parsed.hostname === "[::1]")
   } catch {
     return false
   }

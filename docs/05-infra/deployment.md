@@ -1,6 +1,6 @@
 # 部署策略
 
-> 隐私优先；Workspace 静态发布，Persona 后台先本地运行；公网访问通过 Cloudflare Tunnel + Access 鉴权。
+> 隐私优先；当前支持本机或局域网/VPN 访问。没有认证层时禁止把 Persona API 直接暴露到公网；Cloudflare Tunnel + Access 仅作为后续公网方案。
 
 ## 部署边界
 
@@ -43,6 +43,35 @@
         └─ Persona backend: http://127.0.0.1:3001
             └─ apps/persona/ + data/
 ```
+
+## 当前局域网跨端运行
+
+桌面浏览器、手机浏览器和未来 Windows App 使用同一 Persona API。SQLite 只由后端进程打开，客户端不能读取或复制数据库文件。
+
+在 `.env` 中使用主机的实际局域网地址，例如：
+
+```dotenv
+API_HOST=0.0.0.0
+PERSONA_ALLOWED_ORIGINS=http://192.168.1.20:5173
+NEXT_PUBLIC_PERSONA_API_BASE=http://192.168.1.20:3001
+NEXT_PUBLIC_BLOG_BASE_URL=http://192.168.1.20:5175
+```
+
+然后分别启动：
+
+```bash
+npm run dev:backend
+npm run dev:lan
+npm run dev:blog:lan
+```
+
+- Windows 防火墙只允许“专用网络”访问 `3001`、`5173` 和 `5175`。
+- `PERSONA_ALLOWED_ORIGINS` 必须填写精确来源，不使用 `*`。
+- 手机访问 `http://192.168.1.20:5173`；日历、记忆和对话都通过 `:3001` API 使用中心 SQLite。
+- API 离线时日历保留当前已加载数据，但禁用创建、修改和删除，不生成离线写队列。
+- VPN 使用方式相同，只需将环境变量换成稳定的 VPN 地址。
+
+本轮没有账号系统。公网访问必须先增加 Cloudflare Access、OIDC 或其他服务端认证，不能只依赖 CORS。
 
 ## Workspace 静态站部署
 
@@ -137,6 +166,7 @@ npm run dev:backend
 - `data/persona-os.db` 及其 WAL/SHM 文件。
 - `apps/persona/src/infra/db/schema.sql` 初始化 schema。
 - `apps/persona/src/infra/config/index.ts` 中的运行时配置读取逻辑。
+- `PERSONA_ANALYSIS_*` 服务端模型配置；后台任务不会保存或复用浏览器临时 API Key。
 
 未来如果需要部署到 VPS 或其他主机，应单独处理：
 
@@ -166,6 +196,8 @@ data/persona-os.db-shm
 ```
 
 部署 Persona 后台前，必须先明确该目录的备份、恢复和权限策略。
+
+SQLite 当前同时保存 Event、Memory、Daily Note、Calendar 和 `background_jobs`。备份应使用 SQLite 一致性备份方式或停服务后同时复制主库、WAL 和 SHM，不能只复制前端生成 JSON。
 
 ### Obsidian vault 外部路径
 

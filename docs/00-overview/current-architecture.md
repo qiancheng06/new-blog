@@ -1,6 +1,6 @@
 # Persona Workspace 当前架构
 
-> 更新时间：2026-08-18
+> 更新时间：2026-08-19
 >
 > 当前形态：本地优先的模块化单体，Next.js 工作台与 Persona API 分进程运行，Obsidian 作为内容库和人工审阅层。
 
@@ -20,8 +20,8 @@ flowchart LR
   end
 
   subgraph persona["Persona OS :3001"]
-    api["HTTP API<br/>Chat / Memory / Daily Summary / Status"]
-    app["Application<br/>Conversation / Memory / Daily Summary"]
+    api["HTTP API<br/>Chat / Memory / Calendar / Daily Summary / Status"]
+    app["Application<br/>Conversation / Memory / Calendar / Durable Jobs"]
     ai["AI Runtime<br/>Companion / Research / Critic / Memory Patch"]
     domain["Domain<br/>Event / Topic / Profile / Timeline / Daily Note"]
   end
@@ -31,7 +31,7 @@ flowchart LR
     vault[("Obsidian Vault<br/>todo / knowledge / blog / persona daily notes")]
     projects[("Repo Markdown<br/>apps/workspace/projects")]
     generated[("生成读模型<br/>apps/workspace/public/data")]
-    browser[("Browser Storage<br/>UI 偏好 / 日历 / 临时 Key")]
+    browser[("Browser Storage<br/>UI 偏好 / 临时 Key")]
   end
 
   sync["sync-projects.js / watch.js"]
@@ -94,26 +94,26 @@ sequenceDiagram
   API->>RT: 构建 Persona Prompt 与记忆上下文
   RT->>LLM: Companion 同步回复
   LLM-->>RT: 回复文本
-  API->>DB: 写入 reply Event
+  API->>DB: 事务写入 reply Event 与 memory_analysis Job
   API-->>UI: 返回回复
 
-  par 后台分析
-    RT->>LLM: Research + Critic + Memory Patch
-    LLM-->>RT: 结构化分析结果
-    RT->>DB: 更新 Topic / Profile / Timeline
-    RT->>DB: 所有更新关联 source Event
-  end
+  DB->>RT: Worker 领取持久化 Job
+  RT->>LLM: 使用服务端连接执行 Research + Critic + Memory Patch
+  LLM-->>RT: 结构化分析结果
+  RT->>DB: 同一事务更新记忆并完成 Job
 ```
 
 ### 核心约束
 
 - 每条用户输入先写成 `events` 事实，再调用模型。
 - 原始 Event 不修改；Topic、Profile、Timeline 是可更新的记忆投影。
-- 对话回复同步返回，Research/Critic/Memory Patch 在后台执行，减少前台等待。
+- 对话回复同步返回，Research/Critic/Memory Patch 由 SQLite 持久化任务执行，进程重启后继续。
+- 任务使用租约、幂等键和最多三次退避重试；记忆写入和任务完成状态在同一事务提交。
 - 记忆可以在前端查看、纠正、停用或恢复，修改操作仍保留来源 Event 审计关系。
 - `POST /api/ai/test` 只测试连接，不产生对话 Event，也不写记忆。
 - 服务端默认支持 DeepSeek 和 mock；网页自定义连接通过 OpenAI-compatible endpoint、model、API key 接入其他厂商。
 - 自定义 API key 只放当前标签会话的 `sessionStorage`，不写 `localStorage`、SQLite 或生成文件。
+- 后台记忆任务只使用 `PERSONA_ANALYSIS_*` 或服务端默认连接，不继承浏览器临时 Key。
 
 ## 4. 每日总结与 Obsidian
 
@@ -185,6 +185,8 @@ VitePress 直接使用 Obsidian Vault 作为 `srcDir`，用于私人内容浏览
 | 用户画像 | SQLite `profile` | 运行时投影 | Memory Patch、用户纠正 | Prompt、记忆页 |
 | 时间线记忆 | SQLite `timeline_events` | 运行时投影 | Memory Patch | Prompt、记忆页、每日总结 |
 | 每日总结 | SQLite `daily_notes` | 运行时记录 | Daily Summary 用例 | 工具页、归档流程 |
+| 日历事件与标签 | SQLite `calendar_events`、`calendar_tags` | 跨客户端事实源 | Calendar API | 桌面浏览器、手机浏览器、未来 Windows App |
+| 后台任务 | SQLite `background_jobs` | 可恢复运行队列 | Conversation、Worker | 状态页、Worker、失败任务重试 |
 | Persona 每日笔记 | `${OBSIDIAN_VAULT_PATH}/${PERSONA_DAILY_NOTE_DIR}` | 人工可读归档 | Persona Exporter + 用户 | Obsidian、VitePress |
 | 知识库 | `${OBSIDIAN_VAULT_PATH}/knowledge` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress |
 | 待办 | `${OBSIDIAN_VAULT_PATH}/todo` | 内容主库 | 用户/Obsidian | 同步脚本、VitePress、Next 日历只读投影 |
@@ -193,11 +195,10 @@ VitePress 直接使用 Obsidian Vault 作为 `srcDir`，用于私人内容浏览
 | 前端生成数据 | `apps/workspace/public/data/` | 可重建缓存 | 同步脚本 | Next.js Workspace 和 Blog `:5175` |
 | AI 连接与生成参数 | `localStorage: persona-ai-settings` | 单浏览器偏好 | AI 设置页 | AI 页面 |
 | 自定义厂商 API key | `sessionStorage: persona-ai-api-key` | 当前标签临时机密 | AI 设置页 | AI 请求 |
-| 日历事件与标签 | `localStorage: persona-calendar-events-v1`、`persona-calendar-tags-v1` | 当前浏览器本地数据 | 日历页 | 日历页 |
 | 外观、快捷入口、侧栏收藏 | 浏览器 `localStorage` | 单浏览器偏好 | Workspace UI | Workspace UI |
 | 服务端密钥和运行配置 | 根目录 `.env` | 本机配置 | 开发者 | Persona、同步脚本 |
 
-SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_events` 和 `daily_notes` 六类核心表，并启用 WAL 与外键。PostgreSQL、向量库和图数据库都不在当前运行链路中。
+SQLite 当前包含 Event、Memory、Daily Note、Calendar 和 Background Job 共九张业务表，并启用 WAL 与外键。PostgreSQL、向量库和图数据库都不在当前运行链路中。
 
 ## 7. 当前前端模块
 
@@ -227,6 +228,8 @@ SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_eve
 - 记忆：`GET /api/memory` 及 topics/profile/timeline/sources 子接口
 - 记忆治理：Profile correction/state、Topic state 接口
 - 每日总结：创建、列表、按日期读取和归档接口
+- 日历：范围读取以及 Event/Tag 的创建、更新、软删除接口
+- 后台任务：状态统计、失败任务元数据查询和手动重试接口
 - 本机关闭：`POST /api/runtime/shutdown`
 
 浏览器默认直接请求 `http://127.0.0.1:3001`。Next.js 的 `/api/persona/runtime` 只承担本地进程的健康检查、固定命令启动和受控关闭，不代理普通聊天数据。
@@ -249,8 +252,8 @@ SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_eve
 
 ### 日历与内容
 
-- 重做日历为月/周/日完整工作视图，支持本地事件增删改查、全天事件、备注、搜索和过滤。
-- 支持自定义标签的新增、重命名、颜色和删除，并迁移旧 category 数据。
+- 重做日历为月/周/日完整工作视图，支持服务端事件增删改查、全天事件、备注、搜索和过滤。
+- 自定义标签、事件和版本号进入 SQLite，多设备写冲突返回 `409`；旧浏览器日历键保持原样且不迁移。
 - 点击日期只更新右侧日期检查器，不强制切换当前视图；主日历与右侧面板已视觉分离。
 - Obsidian 待办以只读投影进入日历，博客 Markdown 同步到 `:5175` 的独立 Next.js 公开站。
 
@@ -264,7 +267,7 @@ SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_eve
 
 ## 11. 当前边界与后续方向
 
-- 日历的自建事件和标签目前只在当前浏览器，尚未同步 SQLite 或 Obsidian。
+- Calendar 和记忆任务已服务端化；离线时保留本次已加载视图，但不接受离线写入队列。
 - Obsidian 到 Workspace 的知识、待办、博客链路是单向生成；Persona 只反向写 Daily Note。
 - 当前上下文检索基于近期 Event 和结构化记忆，没有向量检索或完整 RAG。
 - 服务端默认 provider 配置仍是 DeepSeek/mock；多厂商能力通过每次请求的 OpenAI-compatible 自定义连接实现。
@@ -275,7 +278,9 @@ SQLite 当前包含 `events`、`topics`、`projects`、`profile`、`timeline_eve
 ```bash
 npm run dev:mock         # 一键启动 Workspace + 真实 Persona API（脚本名为历史遗留）
 npm run dev              # Next.js Workspace :5173
+npm run dev:lan          # Workspace 绑定 0.0.0.0，供局域网手机访问
 npm run dev:blog         # 独立 Next.js Blog :5175
+npm run dev:blog:lan     # Blog 绑定 0.0.0.0
 npm run dev:backend      # Persona API :3001，真实模型
 npm run dev:backend:mock # Persona API :3001，mock 模型
 npm run dev:content      # 同步后启动 VitePress :5174

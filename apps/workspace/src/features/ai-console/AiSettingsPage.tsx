@@ -152,6 +152,7 @@ export function AiSettingsPage() {
           </label>
           <SettingSwitch label="使用长期记忆" checked={settings.memoryEnabled} onChange={(memoryEnabled) => setSettings({ ...settings, memoryEnabled })} />
           <SettingSwitch label="后台分析与记忆更新" checked={settings.backgroundAnalysis} onChange={(backgroundAnalysis) => setSettings({ ...settings, backgroundAnalysis })} />
+          <p className="ai-analysis-note">后台记忆分析使用 Persona 服务端模型，不保存当前浏览器的 API Key。</p>
           <button className="ai-secondary-button ai-settings-reset" type="button" onClick={resetAiBehavior}><RotateCcw size={15} />恢复 AI 默认值</button>
         </section>
       </div>
