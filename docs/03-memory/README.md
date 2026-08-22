@@ -19,7 +19,6 @@ Memory 是系统自动沉淀的记忆域，负责 Event、Topic、Profile、Time
 ## 常读文档
 
 - [event-schema.md](event-schema.md)
-- [memory-schema.md](memory-schema.md)
 - [data-model.md](data-model.md)
 - [forgetting-policy.md](forgetting-policy.md)
 - [../06-governance/architecture-invariants.md](../06-governance/architecture-invariants.md)
@@ -44,6 +43,13 @@ Memory 是系统自动沉淀的记忆域，负责 Event、Topic、Profile、Time
 - Persona 产出的 memory patch 由 Memory 域决定如何落库
 - Workspace 主动内容不自动等同于 Memory
 - Infra 负责数据库适配，Memory 负责业务语义
+
+## 验证口径
+
+- 记忆读取/写入契约：`npm.cmd run inspect:memory`。
+- 记忆检索契约：`npm.cmd run contract:memory-search`。
+- 提案治理与事务契约：`npm.cmd run contract:memory-transaction`。
+- 默认本地门禁：`npm.cmd run verify:local`。
 
 ## Memory patch write API
 

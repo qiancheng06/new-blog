@@ -4,17 +4,22 @@
 
 | 任务类型 | 加载 `docs/` | 加载代码 / 入口 | 禁止加载 |
 |----------|-------------|-------------|----------|
-| 修改 Dashboard / Calendar | `01-workspace/` | `apps/workspace/.vitepress/`, `apps/workspace/legacy/`, `apps/workspace/scripts/` | 02-persona, 03-memory |
+| 修改工作台 Dashboard / 日历 | `01-workspace/` | `apps/workspace/app/`, `apps/workspace/src/features/`, `apps/workspace/src/shared/` | 02-persona, 03-memory |
+| 修改公开博客 | `01-workspace/` | `apps/blog/` | 02-persona, 03-memory |
 | 修改同步管道 | `01-workspace/`, `05-infra/` | `apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js` | 02-persona, 03-memory |
 | 修改 Companion / Prompt | `02-persona/` | `apps/persona/src/ai-runtime/`, `apps/persona/src/domain/persona/` | 01-workspace |
 | 修改记忆模型 | `03-memory/`, `05-infra/` | `apps/persona/src/domain/event/`, `apps/persona/src/domain/memory/`, `apps/persona/src/infra/db/` | 01-workspace |
 | 修改 Telegram Bot | `04-application/`, `05-infra/` | `apps/persona/src/interface/telegram/`, `apps/persona/src/domain/event/` | 01-workspace |
 | 修改 Conversation Flow | `04-application/`, `02-persona/`, `03-memory/` | `apps/persona/src/interface/api/`, `apps/persona/src/interface/telegram/`, `apps/persona/src/ai-runtime/operators/`, `apps/persona/src/application/` | - |
 | 修改数据库 / 配置 / LLM Provider | `05-infra/`, `03-memory/` | `apps/persona/src/infra/db/`, `apps/persona/src/infra/config/`, `apps/persona/src/infra/llm/` | 01-workspace |
+| 修改日历 / 项目 / 待办 / 工作状态 | `04-application/`, `03-memory/` | `apps/persona/src/application/calendar.ts`, `projects.ts`, `todos.ts`, `working-state.ts` 及对应 domain | 01-workspace |
 | 架构决策 | `00-overview/`, `06-governance/` | 全局 | - |
 | 查阅术语 | `00-overview/glossary.md` | - | - |
 
-> 当前代码根只有两类：Workspace 前台在 `apps/workspace/`，Persona OS 后台在 `apps/persona/src/`。根目录旧入口 `index.html` / `detail.html` / `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 只属于迁移历史或删除记录，不作为当前事实加载。
+> 当前代码根有三类：Workspace 前台在 `apps/workspace/`，公开博客在 `apps/blog/`，
+> Persona OS 后台在 `apps/persona/src/`。根目录旧入口 `index.html` / `detail.html` /
+> `calendar.html`、根目录 `scripts/`、根目录 `.vitepress/` 只属于迁移历史或删除记录，
+> 不作为当前事实加载。
 
 ## 入门必读
 

@@ -1,85 +1,88 @@
-# Workspace Design
+# Workspace 设计（Design）
 
-This document describes the current Workspace frontend architecture. Older
-VitePress-only and standalone HTML notes are historical context and should not
-override this document.
+本文描述当前 Workspace 前端架构。旧的 VitePress-only 与独立 HTML 笔记是
+历史背景，不应覆盖本文。
 
-## Current Shape
+## 当前形态
 
-Workspace is now a modern Node.js-managed frontend with a Next.js primary app
-and a VitePress content site.
+Workspace 是 Node.js 托管的现代前端：Next.js 主应用 + VitePress 私人内容站
++ 独立 Next.js 公开博客。
 
 ```text
-User
+用户
   |
   v
-Next.js Workspace app (:5173)
+Next.js Workspace 应用 (:5173)
   |
-  +-- generated JSON adapters
+  +-- 生成 JSON 适配器
   |     |
-  |     +-- Obsidian/project/todo Markdown via sync-projects.js
+  |     +-- Obsidian/项目/待办 Markdown，经 sync-projects.js
   |
-  +-- Persona Application API client
+  +-- Persona Application API 客户端
         |
-        +-- Persona backend (:3001)
+        +-- Persona 后端 (:3001)
               |
-        +-- SQLite memory database
-        +-- LLM provider adapters
+        +-- SQLite 记忆数据库
+        +-- LLM 厂商适配器
 
-Standalone Next.js Blog (:5175)
+独立 Next.js 博客 (:5175)
   |
-  +-- generated blog manifest and Markdown copy
+  +-- 生成的博客清单与 Markdown 副本
         |
-        +-- Obsidian blog/*.md via sync-projects.js
+        +-- Obsidian blog/*.md，经 sync-projects.js
 ```
 
-The key rule is separation of sources:
+关键规则是来源分离：
 
-- Obsidian remains the long-term content source.
-- SQLite remains the long-term memory source.
-- Workspace UI reads both through middle-layer adapters, not directly.
+- Obsidian 是长期内容来源。
+- SQLite 是长期记忆来源。
+- Workspace UI 只通过中间层适配器读取两者，不直接访问。
 
-## Directory Map
+## 目录地图
 
 ```text
 apps/workspace/
-  app/                         Next.js app router shell
+  app/                         Next.js app router 外壳
   src/features/
-    calendar/                  calendar module
-    chat/                      companion chat dock
-    knowledge/                 knowledge/content overview
-    memory/                    memory profile and state controls
-    projects/                  project board
-    status/                    backend/status strip
-    todos/                     todo stream
+    ai-console/                AI 控制台（对话、模型、记忆、设置）
+    calendar/                  日历模块
+    chat/                      Companion 对话
+    daily-summary/             每日总结工具
+    knowledge/                 知识库
+    memory/                    记忆画像与状态治理
+    projects/                  项目看板
+    status/                    后端状态条
+    todos/                     待办流
+    tools/                     工具页
+    workspace/                 工作台外壳（导航、外观、侧栏）
   src/shared/
-    api/personaApi.ts          Persona Application API client
-    data/workspaceData.ts      generated JSON loader/fallbacks
-    data/workspaceSources.ts   source URLs and source availability
-  public/data/                 generated JSON, ignored by git
+    api/personaApi.ts          Persona Application API 客户端
+    data/workspaceData.ts      生成 JSON 加载器/回退
+    data/workspaceSources.ts   来源 URL 与可用性
+  public/data/                 生成 JSON，git 忽略
   scripts/
-    sync-projects.js           Markdown/content sync pipeline
-    watch.js                   local watch helper
-  .vitepress/                  VitePress content site config/theme
-  legacy/                      old standalone HTML assets
+    sync-projects.js           Markdown/内容同步管道
+    watch.js                   本地监听助手
+  .vitepress/                  VitePress 私人内容站配置/主题
+  legacy/                      旧独立 HTML 资产
 apps/blog/
-  app/                         standalone public blog routes
-  src/                         blog data adapter and site chrome
+  app/                         独立公开博客路由
+  src/                         博客数据适配器与站点外壳
 ```
 
-## Runtime Entrypoints
+## 运行时入口
 
-| Entrypoint | Command | Role |
+| 入口 | 命令 | 角色 |
 | --- | --- | --- |
-| `http://127.0.0.1:5173/` | `npm.cmd run dev` | Primary Workspace app |
-| `http://127.0.0.1:5175/` | `npm.cmd run dev:blog` | Standalone public Blog app |
-| `http://127.0.0.1:5174/` | `npm.cmd run dev:content` | VitePress content site |
-| `http://127.0.0.1:3001/` | `npm.cmd run dev:backend` or `npm.cmd run dev:backend:mock` | Persona API |
-| `apps/workspace/legacy/*.html` | none | Historical fallback/reference only |
+| `http://127.0.0.1:5173/` | `npm.cmd run dev` | 主 Workspace 应用 |
+| `http://127.0.0.1:5175/` | `npm.cmd run dev:blog` | 独立公开博客 |
+| `http://127.0.0.1:5174/` | `npm.cmd run dev:content` | VitePress 私人内容站 |
+| `http://127.0.0.1:3001/` | `npm.cmd run dev:backend` 或 `dev:backend:mock` | Persona API |
+| `apps/workspace/legacy/*.html` | 无 | 历史回退/仅参考 |
 
-## Data Flow
+## 数据流
 
-### Projects, Todos, Knowledge
+### 项目、待办、知识
 
 ```text
 apps/workspace/projects/*.md
@@ -94,13 +97,28 @@ apps/workspace/scripts/sync-projects.js
   +-- apps/workspace/public/data/knowledge.json
   |
   v
-Next.js modules through workspaceData.ts
+Next.js 模块经 workspaceData.ts
 ```
 
-Generated JSON is local runtime data and is ignored by git. The UI must keep
-useful fallback states when the source folders or generated files are absent.
+### 博客
 
-### Memory And Chat
+```text
+Obsidian vault blog/*.md
+  |
+  v
+sync-projects.js（loadBlogPosts）
+  |
+  +-- apps/workspace/public/data/blog-posts.json（元数据）
+  +-- apps/workspace/public/data/blog/<slug>.md（正文副本）
+  |
+  v
+apps/blog（:5175）经 blogData.server.ts
+```
+
+生成的 JSON 是本地运行时数据，git 忽略。当来源目录或生成文件缺失时，
+UI 必须保留有用的回退状态。
+
+### 记忆与对话
 
 ```text
 Next.js MemoryPanel / ChatDock
@@ -112,52 +130,48 @@ apps/workspace/src/shared/api/personaApi.ts
 Persona Application API (:3001)
   |
   v
-Application / Memory / Persona domains
+Application / Memory / Persona 域
 ```
 
-Workspace can display memory state, request user-facing corrections, and send
-chat messages. It does not own the memory schema, retrieval, ranking, forgetting,
-or persona expression logic.
+Workspace 可以展示记忆状态、发起用户纠正并发送对话消息。它不拥有记忆
+schema、检索、排序、遗忘或人格表达逻辑。
 
-## Feature Boundaries
+## 功能边界
 
-| Module | Owns | Does Not Own |
+| 模块 | 拥有 | 不拥有 |
 | --- | --- | --- |
-| Projects | board, progress summaries, source links | project persistence rules beyond Markdown sync |
-| Todos | todo stream, date grouping, source links | task semantics outside Markdown/source adapters |
-| Calendar | month view over synced todo data | calendar service or notifications |
-| Knowledge | content index and VitePress handoff | Obsidian vault structure changes |
-| Memory | state display and user controls | memory storage, ranking, merge, forget policy |
-| Chat | user input and chat dock UX | LLM calls, persona reasoning, conversation orchestration |
+| 项目 | 看板、进度摘要、来源链接 | Markdown 同步之外的项目持久化规则 |
+| 待办 | 待办流、日期分组、来源链接 | Markdown/来源适配器之外的任务语义 |
+| 日历 | 月/周/日视图、事件 CRUD、标签、搜索过滤 | 日历服务或通知 |
+| 知识 | 内容索引与 VitePress 交接 | Obsidian vault 结构变更 |
+| 记忆 | 状态展示与用户治理 | 记忆存储、排序、合并、遗忘策略 |
+| 对话 | 用户输入与对话 UI | LLM 调用、人格推理、对话编排 |
 
-## Design Principles
+## 设计原则
 
-1. Keep the first screen useful: show actual workspace modules, not a marketing
-   landing page.
-2. Prefer feature modules under `src/features/` and shared source/API adapters
-   under `src/shared/`.
-3. Keep Obsidian content and Persona memory independent. They meet in the UI
-   through Application/API boundaries.
-4. Keep legacy HTML available until equivalent Next.js coverage is verified.
-5. Treat VitePress as the content site, not the primary Workspace shell.
-6. Make missing local sources visible and recoverable instead of failing blank.
+1. 首屏有用：展示真实工作台模块，而不是营销落地页。
+2. 功能模块放在 `src/features/`，共享来源/API 适配器放在 `src/shared/`。
+3. Obsidian 内容与 Persona 记忆相互独立，在 UI 中经 Application/API 边界汇合。
+4. 在等价的 Next.js 覆盖被验证前，保留 legacy HTML。
+5. VitePress 是内容站，不是主工作台外壳。
+6. 本地来源缺失时可见、可恢复，而不是空白失败。
 
-## Verification
+## 验证
 
-Use these checks after Workspace changes:
+Workspace 变更后使用：
 
 ```bash
 npm.cmd run build
 npm.cmd run check:workspace
 ```
 
-When the change touches sync scripts or generated JSON:
+改动涉及同步脚本或生成 JSON 时：
 
 ```bash
 npm.cmd run sync
 ```
 
-For full local acceptance:
+完整本地验收：
 
 ```bash
 npm.cmd run verify:local

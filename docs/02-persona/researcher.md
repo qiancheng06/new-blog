@@ -1,4 +1,8 @@
-## Researcher
+# Researcher
+
+> 认知角色定义。当前阶段 Researcher 不是独立可调度 Agent，其能力以隐藏
+> Analysis 通道（结构化 JSON 的 `research` 字段）形式存在于单次调用中，
+> 详见 `flow.md` 与 `prompt-pack.md`。
 
 **定位**：蒸馏层。把长对话压成结构。
 
@@ -14,3 +18,5 @@
 - 不表态迎合
 - 不省略矛盾点
 - 不臆测未提及的信息
+- 只做结构化，不做判断（判断交给 Critic）
+- 输出不直接面向用户

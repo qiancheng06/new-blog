@@ -1,6 +1,17 @@
-# 同步规范
+# 同步规范（Sync Spec）
 
-> // TODO: V1 — 运行时数据库与 Obsidian 同步逻辑定义。当前代码使用 SQLite；长期目标可迁移 PostgreSQL。MVP 阶段优先完成系统记忆到 Obsidian 的单向归档。
+> 当前运行时主库是 SQLite；长期目标可迁移 PostgreSQL。本文件描述 Obsidian
+> 与运行时数据之间的单向同步边界。
+
+## 总体方向
+
+- 内容主库：Obsidian Vault（knowledge / todo / blog）与 `apps/workspace/projects/*.md`。
+- 前端读模型：`apps/workspace/public/data/`（projects.json / todos.json /
+  knowledge.json / blog-posts.json + blog/*.md），由 `sync-projects.js` 生成，忽略 git。
+- Persona 运行时事实源：SQLite（events / projects / todos / working_state /
+  calendar / memory / daily_notes 等投影）。
+- 反向写入：Persona 只向 Obsidian 写 Daily Note 与 Persona Snapshot 托管块，
+  不反向覆盖知识 / 待办 / 博客。
 
 ## Persona Daily Note archive contract
 
@@ -17,3 +28,17 @@
 - Regeneration clears the projection's archive marker until the refreshed note
   is exported again.
 - Reverse sync and general-purpose vault synchronization are outside the MVP.
+
+## 博客同步
+
+- 源：`<vault>/blog/*.md`（frontmatter: title / date / tags）。
+- 读模型：`public/data/blog-posts.json`（文章元数据）+ `public/data/blog/<slug>.md`
+  （正文副本），供独立博客 `:5175` 渲染。
+- `watch.js` 监听 blog 目录，变更后自动重新生成。
+
+## 验证
+
+```bash
+npm.cmd run sync
+npm.cmd run watch
+```

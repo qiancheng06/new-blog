@@ -117,17 +117,24 @@ git push origin main          # 推送到远程
 
 | 想改什么 | 方式 |
 |----------|------|
-| **项目进度**（legacy 浏览器内） | `apps/workspace/legacy/detail.html#ID` → 点"编辑" → 勾选/添加/删除 → 自动保存到浏览器 |
-| **项目进度**（源文件） | 改 `apps/workspace/projects/*.md` → 自动监听触发同步 |
-| **待办事项** | 改 `vault/todo/*.md` → 自动监听触发同步 |
+| **项目进度**（运行时投影） | 工作台 `:5173` 或 Persona API（`apps/persona/src/application/projects.ts`）创建/变更，SQLite `projects` 为运行时投影 |
+| **项目进度**（源文件） | 改 `apps/workspace/projects/*.md` → 自动监听触发同步（Obsidian/项目源 Markdown 仍是内容主库） |
+| **待办事项** | 改 `vault/todo/*.md` → 自动监听触发同步；运行时投影在 SQLite `todos`，Persona API 负责生命周期 |
 | **知识库内容** | 改 `vault/knowledge/*.md`（Obsidian 编辑） |
 | **博客文章** | 在 `vault/blog/` 下新建 `.md`，写 frontmatter（title/date/tags）→ 保存自动同步到独立 Blog `:5175` 与标签索引 |
-| **Legacy 仪表盘布局** | 改 `apps/workspace/legacy/index.html` |
-| **同步到源代码** | 编辑完成后点"导出为 .md" → 覆盖 `apps/workspace/projects/*.md` |
+| **日历事件与标签** | 工作台 `:5173` 日历页 → 服务端 SQLite `calendar_events` / `calendar_tags`，多设备写冲突返回 `409` |
+| **记忆治理** | 工作台 `:5173` 的 AI → 记忆页 → 接受/拒绝提案、纠正画像、抑制/归档 |
+| **Legacy 仪表盘** | 迁移兼容，不作为主入口；如需保留参考改 `apps/workspace/legacy/index.html` |
+
+### 数据源边界
+
+- Obsidian Vault 与 `apps/workspace/projects/*.md` 是内容主库；Persona SQLite 是运行时事实源与投影。
+- `sync-projects.js` 将 Vault/项目 Markdown 单向生成前端读模型（JSON + 博客 Markdown 副本）。
+- Persona 只反向写 Obsidian 的 Daily Note 与 Persona Snapshot 托管块，不反向覆盖知识/待办/博客。
 
 ### 重置
 
-详情页点"重置"清除 localStorage，恢复到内嵌数据。
+Legacy 详情页点"重置"清除 localStorage，恢复到内嵌数据（仅迁移兼容场景）。
 
 ---
 

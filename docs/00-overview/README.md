@@ -17,7 +17,8 @@
 
 ## 常读文档
 
-- [current-architecture.md](current-architecture.md)
+- [current-architecture.md](current-architecture.md) — 当前真实架构（权威）
+- [stage-summary.md](stage-summary.md) — 阶段总结与下一步方向
 - [deployment-and-client-architecture.md](deployment-and-client-architecture.md)
 - [domain-map.md](domain-map.md)
 - [glossary.md](glossary.md)
@@ -35,10 +36,11 @@
 - `apps/persona/src/domain/`
 - `apps/persona/src/ai-runtime/`
 - `apps/persona/src/infra/`
-- `apps/workspace/scripts/`
-- `apps/workspace/.vitepress/`
-- `apps/workspace/legacy/` (legacy standalone HTML assets, not the primary browser entrypoint)
-- `apps/workspace/scripts/`
+- `apps/workspace/app/`、`apps/workspace/src/`（Next.js 工作台）
+- `apps/blog/`（独立公开博客）
+- `apps/workspace/scripts/`（同步脚本）
+- `apps/workspace/.vitepress/`（私人内容站）
+- `apps/workspace/legacy/`（仅迁移参考，不是当前入口）
 
 ## AI 修改前检查项
 
@@ -53,3 +55,9 @@
 - Persona 变更影响记忆写入时，通知 Memory 域
 - Memory schema 或 DB 变更必须通知 Infra 与 Governance 域
 - 任何绕过 Event 的输入路径都必须先做架构评审
+
+## 验证口径
+
+- 默认验收入口是 `npm.cmd run verify:local`，详见
+  [../06-governance/instructions.md](../06-governance/instructions.md)。
+- 本域文档修改后运行 `npm.cmd run verify:local` 确认无旧引用残留。

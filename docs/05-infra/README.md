@@ -1,255 +1,229 @@
 # Infra
 
-Infra covers external dependencies, runtime environment, and adapters.
+Infra 负责外部依赖、运行时环境与适配器。
 
-## Responsibilities
+## 本域职责
 
-- Database connection and schema initialization.
-- LLM provider adapters.
-- Telegram API adapters.
-- Obsidian filesystem paths and sync runtime.
-- Configuration, deployment, logging, and health checks.
-- Runtime signals that back Application health/status APIs.
+- 数据库连接与 schema 初始化。
+- LLM 厂商适配器。
+- Telegram API 适配器。
+- Obsidian 文件系统路径与同步运行时。
+- 配置、部署、日志与健康检查。
+- 支撑 Application 健康/状态 API 的运行时信号。
 
-## Out of Scope
+## 本域不负责
 
-- Business rules.
-- Memory semantics.
-- Companion expression strategy.
-- Workspace content model changes.
-- Prompt or business context assembly inside LLM providers.
-- Workspace observability panel UI or metric interpretation.
+- 业务规则。
+- 记忆语义。
+- Companion 表达策略。
+- Workspace 内容模型变更。
+- LLM 厂商内部的 Prompt 或业务上下文组装。
+- Workspace 可观测面板 UI 或指标解读。
 
-## Event Read Boundary
+## Event 读取边界
 
-SQLite stores complete immutable Events for internal processing and audit, but
-Infra rows are not an HTTP contract. Application exposes an allowlisted Event
-Feed projection that omits raw payload, metadata, and Telegram chat/user/message
-identifiers. Feed search only considers bounded user-readable text, summary, or
-reason fields; private identifiers are neither returned nor searchable. Events
-with explicit non-user visibility have no public preview or searchable content.
-Conversation History follows the same rule while joining input/reply Events to
-durable Conversation jobs; it exposes only bounded visible text, timestamps,
-job status, and bounded error codes.
+SQLite 保存完整的不可变 Event 供内部处理与审计，但 Infra 行不是 HTTP
+契约。Application 暴露白名单化的 Event Feed 投影，省略 raw payload、
+metadata 与 Telegram chat/user/message 标识。Feed 搜索只考虑受限的用户可读
+文本、摘要或原因字段；私有标识既不返回也不可搜索。显式标记为非用户可见的
+Event 没有公开预览或可搜索内容。Conversation History 遵循同一条规则，同时
+把输入/回复 Event 关联到持久化 Conversation job；它只暴露受限可见文本、
+时间戳、job 状态与受限错误码。
 
-## LLM Boundary
+## LLM 边界
 
-`apps/persona/src/infra/llm/deepseek.ts` is a provider adapter. It should only translate already-built messages into DeepSeek API requests, send them, and parse provider responses.
+`apps/persona/src/infra/llm/deepseek.ts` 是厂商适配器。它只负责把已组装好的
+消息翻译成 DeepSeek API 请求、发送并解析厂商响应。
 
-Prompt and context assembly belongs to the AI runtime prompt layer, currently `apps/persona/src/ai-runtime/prompts/prompt-builder.ts`. The provider must not add domain labels such as recent conversation, memory context, user intent, or analysis instructions.
+Prompt 与上下文组装属于 AI runtime 的 prompt 层，当前位于
+`apps/persona/src/ai-runtime/prompts/prompt-builder.ts`。厂商不得添加
+"近期对话"、"记忆上下文"、"用户意图"或"分析指令"等域标签。
 
-The DeepSeek adapter parses Analysis responses as JSON and validates the full
-runtime shape before returning it to AI Runtime. Validation failures report only
-schema paths; provider output and user content are not included in errors.
+DeepSeek 适配器把 Analysis 响应解析为 JSON，并在返回 AI Runtime 之前校验
+完整运行时形状。校验失败只报告 schema 路径；错误中不包含厂商输出与用户内容。
 
-Set `LLM_PROVIDER=mock` for no-network smoke tests. The mock provider returns a deterministic Companion reply and Memory patch while preserving the same `callCompanion` / `callAnalysis` interface used by the real DeepSeek provider.
+设置 `LLM_PROVIDER=mock` 用于无网络 smoke 测试。mock 厂商返回确定性的
+Companion 回复与 Memory patch，同时保持与真实 DeepSeek 厂商相同的
+`callCompanion` / `callAnalysis` 接口。
 
-Daily Summary date boundaries use `PERSONA_TIME_ZONE`, an IANA time zone that
-defaults to `Asia/Shanghai`. The provider receives only the bounded context for
-the selected local date. Mock mode returns a deterministic Daily Note without a
-network call.
+Daily Summary 的日期边界使用 `PERSONA_TIME_ZONE`（IANA 时区，默认
+`Asia/Shanghai`）。厂商只接收所选本地日期的受限上下文。mock 模式在无网络
+调用的情况下返回确定性 Daily Note。
 
-`PERSONA_DAILY_SUMMARY_ENABLED` defaults to `true` and
-`PERSONA_DAILY_SUMMARY_TIME` defaults to `00:05`. The full Persona runtime uses
-that local time to finalize the previous date. Set the enabled flag to `false`
-when a process should expose only manual Daily Summary APIs.
+`PERSONA_DAILY_SUMMARY_ENABLED` 默认 `true`，`PERSONA_DAILY_SUMMARY_TIME`
+默认 `00:05`。完整 Persona 运行时在该本地时间结束前一天的总结。需要只暴露
+手动 Daily Summary API 时，把 enabled 标志设为 `false`。
 
-## Local Backend Entrypoints
+## 本地后端入口
 
-- `npm run dev:backend` starts the real local Persona runtime on port 3001, including API and Telegram bot wiring.
-- `npm run dev:backend:mock` starts the same API surface on `http://127.0.0.1:3001` with `LLM_PROVIDER=mock` and Telegram disabled. Use this for local Workspace demos when the chat panel and status panel should work without calling a real model.
-- `npm run dev:mock` starts or reuses both local demo services: Workspace at `http://127.0.0.1:5173/` and Persona mock API at `http://127.0.0.1:3001`.
-- `apps/workspace/start-blog.bat` is a Windows convenience launcher for the same mock demo flow. It waits for both the Workspace dev server and Persona mock API before opening the dashboard.
-- If port 3001 is already occupied by an old backend process, stop that process or window before restarting `dev:backend` / `dev:backend:mock`. A stale backend can also show up as `http://127.0.0.1:3001/api/status` returning 404.
+- `npm run dev:backend`：在 3001 启动真实本地 Persona 运行时，包括 API 与 Telegram bot。
+- `npm run dev:backend:mock`：以 `LLM_PROVIDER=mock`、禁用 Telegram 的方式在 `http://127.0.0.1:3001` 启动相同 API 表面。用于无需真实模型的本地 Workspace demo。
+- `npm run dev:mock`：启动或复用两个本地 demo 服务：Workspace（`http://127.0.0.1:5173/`）与 Persona mock API（`http://127.0.0.1:3001`）。
+- `apps/workspace/start-blog.bat`：同一 mock demo 流程的 Windows 启动器，等待 Workspace dev server 与 Persona mock API 后打开仪表盘。
+- 如果 3001 已被旧后端进程占用，先停止该进程/窗口再重启 `dev:backend` / `dev:backend:mock`。旧后端可能表现为 `http://127.0.0.1:3001/api/status` 返回 404。
 
-## Real-Mode Readiness
+## 真实模式就绪
 
-Run the no-network infra contract before changing real-mode startup behavior:
+修改真实模式启动行为前，先运行无网络 infra 契约：
 
 ```bash
 npm.cmd run check:infra
 ```
 
-Run the human-facing runtime diagnostic before starting real mode:
+启动真实模式前，运行面向人的运行时诊断：
 
 ```bash
 npm.cmd run diagnose:runtime
 ```
 
-It prints redacted readiness status for provider config, Telegram config, local
-SQLite presence, schema presence, and Obsidian vault path shape. It does not
-call DeepSeek, call Telegram, start long-running services, import the DB pool,
-or initialize the database.
+它打印厂商配置、Telegram 配置、本地 SQLite 存在性、schema 存在性与 Obsidian
+vault 路径形状的脱敏就绪状态。它不会调用 DeepSeek、调用 Telegram、启动长驻
+服务、导入 DB pool 或初始化数据库。
 
-Real DeepSeek mode uses `LLM_PROVIDER=deepseek` and requires `OPENAI_API_KEY`.
-The variable name is kept for compatibility, but the current adapter sends it as
-the bearer token to `https://api.deepseek.com/v1/chat/completions`.
+真实 DeepSeek 模式使用 `LLM_PROVIDER=deepseek` 并要求 `OPENAI_API_KEY`。
+变量名保留兼容性，但当前适配器将其作为 bearer token 发送到
+`https://api.deepseek.com/v1/chat/completions`。
 
-`TELEGRAM_TOKEN` is optional. When it is empty, Persona starts the API and skips
-Telegram. When Telegram startup is enabled, empty or placeholder tokens fail
-preflight before the bot starts. Runtime Telegram polling errors are logged with
-`[telegram startup error]` or `[telegram bot error]` and should not be treated as
-Workspace API contract changes.
+`TELEGRAM_TOKEN` 可选。为空时 Persona 启动 API 并跳过 Telegram。启用 Telegram
+启动时，空或占位 token 会在 bot 启动前通过 preflight 失败。运行时 Telegram
+轮询错误以 `[telegram startup error]` 或 `[telegram bot error]` 记录，不应视为
+Workspace API 契约变更。
 
-When Telegram is enabled, `TELEGRAM_ALLOWED_CHAT_IDS` must contain one or more
-trusted numeric chat IDs separated by commas. Updates from every other chat are
-discarded before an Event is created. The allowlist is fail-closed: an empty
-list never means public access.
+启用 Telegram 时，`TELEGRAM_ALLOWED_CHAT_IDS` 必须包含一个或多个以逗号分隔的
+可信数字 chat ID。其他 chat 的更新在创建 Event 前被丢弃。白名单默认
+fail-closed：空列表绝不意味着公开访问。
 
-Authorized Telegram messages use a deterministic Event id derived from
-`chat_id + message_id`. Polling redelivery therefore remains idempotent across
-process restarts. Duplicate deliveries are acknowledged without another model
-call or Telegram reply; conflicting content for an existing identity is logged
-through the normal handler error path.
+被授权的 Telegram 消息使用由 `chat_id + message_id` 派生的确定性 Event id。
+因此跨进程重启的轮询重投递保持幂等。重复投递被确认但不会再次调用模型或
+Telegram 回复；针对已存在标识的冲突内容通过常规 handler 错误路径记录日志。
 
-The Persona API binds to `API_HOST=127.0.0.1` by default. Browser access is
-limited to `PERSONA_ALLOWED_ORIGINS`; the default list contains the local
-Workspace development origins on ports 5173 and 5174. A non-loopback host must
-be an explicit deployment choice behind upstream authentication.
+Persona API 默认绑定 `API_HOST=127.0.0.1`。浏览器访问受限于
+`PERSONA_ALLOWED_ORIGINS`；默认列表包含 5173 与 5174 的本地 Workspace 开发
+来源。非 loopback host 必须是带上游鉴权的显式部署选择。
 
-`SIGINT`, `SIGTERM`, and programmatic `runtime.stop()` use the same graceful
-shutdown path. Persona stops accepting API and Telegram input, then waits up to
-25 seconds for tracked Analysis/Memory background work to settle. `/health` is
-the stable process liveness probe; `/ready` checks the SQLite schema and LLM
-configuration; `/api/status` adds optional component degradation and operational
-counters. These endpoints expose only bounded states and counts. Task inputs,
-configured paths, private content, provider output, secrets, and raw errors are
-never included.
+`SIGINT`、`SIGTERM` 与编程式 `runtime.stop()` 走同一条优雅关闭路径。Persona
+停止接收 API 与 Telegram 输入后，等待最多 25 秒让受追踪的
+Analysis/Memory 后台工作收敛。`/health` 是稳定的进程存活探针；`/ready` 检查
+SQLite schema 与 LLM 配置；`/api/status` 增加可选组件降级与运行计数器。
+这些端点只暴露受限状态与计数，绝不包含任务输入、配置路径、私有内容、厂商
+输出、密钥或原始错误。
 
-Telegram and Obsidian are optional. A failed Telegram polling lifecycle, an
-unavailable configured vault, failed automatic Daily Summary run, or failed
-Persona Snapshot run, or failed Conversation/Analysis jobs marks `/api/status`
-as `degraded` while `/ready` remains successful. Database or LLM configuration
-failure makes `/ready` return `503`.
+Telegram 与 Obsidian 可选。Telegram 轮询生命周期失败、配置的 vault 不可用、
+自动 Daily Summary 运行失败、Persona Snapshot 运行失败或
+Conversation/Analysis job 失败会使 `/api/status` 标记为 `degraded`，而
+`/ready` 仍成功。数据库或 LLM 配置失败使 `/ready` 返回 `503`。
 
-Automatic Daily Summary generation is tracked as graceful-shutdown background
-work. It is single-flight per date and marks a Daily Note finalized only after a
-successful full-day generation. If Obsidian archiving then fails, retries resume
-from the archive stage without another model call. The `daily_summary_runs`
-state machine survives restarts, recovers interrupted attempts, and processes
-the oldest incomplete date first. Retry delays grow from 15 minutes to a maximum
-of 6 hours. Runtime status exposes only dates, counts, and bounded states; it
-never includes raw errors or note content. Unfinished runs adopt the current
-archive setting at startup, so disabling Obsidian releases an archive-only
-failure.
+自动 Daily Summary 生成被追踪为优雅关闭的后台工作。它按日期单飞，只在成功
+完成全天生成后才把 Daily Note 标记为 finalized。如果 Obsidian 归档随后失败，
+重试从归档阶段继续而不再次调用模型。`daily_summary_runs` 状态机在重启后
+存活、恢复被中断的尝试，并优先处理最旧的未完成日期。重试延迟从 15 分钟增长
+到最多 6 小时。运行时状态只暴露日期、计数与受限状态，绝不包含原始错误或
+笔记内容。未完成的运行在启动时采用当前归档设置，因此禁用 Obsidian 会释放
+归档-only 失败。
 
-Automatic Persona Snapshot export uses `PERSONA_OBSIDIAN_SNAPSHOT_ENABLED` and
-`PERSONA_OBSIDIAN_SNAPSHOT_TIME` (default `00:15` in `PERSONA_TIME_ZONE`). When
-the enabled flag is omitted, a configured Vault enables the scheduler and an
-empty Vault keeps it disabled. An explicit `true` requires
-`OBSIDIAN_VAULT_PATH`. `persona_snapshot_runs` persists one idempotent state
-machine per local schedule date, recovers interrupted attempts, retries the
-oldest incomplete date with the same 15-minute-to-6-hour bounded backoff, and
-stores only status, dates, attempt count, bounded error code, and successful
-audit Event id. The scheduler is tracked during graceful shutdown. Manual
-Snapshot exports remain independent and do not satisfy or mutate schedule rows.
+自动 Persona Snapshot 导出使用 `PERSONA_OBSIDIAN_SNAPSHOT_ENABLED` 与
+`PERSONA_OBSIDIAN_SNAPSHOT_TIME`（在 `PERSONA_TIME_ZONE` 中默认 `00:15`）。
+未设置 enabled 标志时，已配置 Vault 则启用调度器、空 Vault 保持禁用。显式
+`true` 要求 `OBSIDIAN_VAULT_PATH`。`persona_snapshot_runs` 为每个本地计划日
+持久化一个幂等状态机，恢复被中断的尝试，以同样的 15 分钟到 6 小时受限退避
+重试最旧未完成日期，且只存状态、日期、尝试计数、受限错误码与成功审计 Event
+id。调度器在优雅关闭期间受追踪。手动 Snapshot 导出相互独立，不满足或修改
+计划行。
 
-Conversation execution state also survives restarts. Input Event creation and
-job creation commit together. Companion reply Event creation and the job's
-`succeeded` transition also commit together. Startup converts pending/running
-jobs to failed `interrupted` state; Web idempotency replay or the audited retry
-API can start a new attempt. Job rows expose only bounded status, counts, error
-codes, and Event ids. They never persist prompts, replies, provider output, raw
-errors, or browser idempotency keys.
+对话执行状态在重启后存活。输入 Event 创建与 job 创建同事务提交。Companion
+回复 Event 创建与 job 的 `succeeded` 转换也同事务提交。启动时把 pending/
+running job 标记为 `interrupted` 失败；Web 幂等重放或受审计的重试 API 可
+开启新尝试。Job 行只暴露受限状态、计数、错误码与 Event id。它们绝不持久化
+Prompt、回复、厂商输出、原始错误或浏览器幂等键。
 
-Todo capture uses the same durable Event boundary. A Web or Telegram `todo`
-Event and its `todos` projection commit together, while completion, cancellation,
-and reopening append audit Events and update the projection atomically. Telegram
-redelivery reuses the source Event and projection. Runtime startup idempotently
-restores missing projections for valid historical `todo` Events and reports only
-aggregate restored/skipped counts. `/api/status` exposes only
-aggregate Todo counts; prompt context exposes only bounded open titles and due
-dates, never Todo ids or terminal items.
+Todo capture 使用同样的持久化 Event 边界。Web 或 Telegram `todo` Event 与其
+`todos` 投影同事务提交；完成、取消与重新打开追加审计 Event 并原子更新投影。
+Telegram 重投递复用源 Event 与投影。运行时启动幂等地为合法历史 `todo`
+Event 恢复缺失投影，只报告聚合的恢复/跳过计数。`/api/status` 只暴露聚合
+Todo 计数；Prompt 上下文只暴露受限的未完成标题与截止日期，绝不暴露 Todo id
+或已终态条目。
 
-Note, Idea, and Journal captures use immutable Events without a separate mutable
-table. Web idempotency keys use a namespace distinct from chat requests. Event
-insertion and pending Analysis job creation are atomic; the no-reply Analysis
-attempt then uses the existing ordered Memory commit and recovery machinery.
-Capture list/detail APIs expose text and bounded job state, never raw payload,
-Telegram chat/user/message identifiers, provider output, or errors.
+Note、Idea、Journal capture 使用不可变 Event，不创建独立可变表。Web 幂等键
+使用与聊天请求不同的命名空间。Event 插入与 pending Analysis job 创建是原子
+的；无回复的 Analysis 尝试随后使用现有有序 Memory 提交与恢复机制。Capture
+列表/详情 API 暴露文本与受限 job 状态，绝不暴露 raw payload、Telegram
+chat/user/message 标识、厂商输出或错误。
 
-Project capture follows the same Event/projection pattern. Runtime startup
-backfills valid historical Project Events before Todo backfill so relationships
-can be restored safely. Project lifecycle and detail changes are atomic with
-their audit Events. `/api/status` exposes aggregate lifecycle counts; private
-Prompt context includes only bounded active names, summaries, and topic labels.
-Project and Todo remain outside the FTS Memory index.
+Project capture 遵循同样的 Event/投影模式。运行时启动在 Todo 回填前回填合法
+历史 Project Event，以便安全恢复关联。Project 生命周期与详情变更与其审计
+Event 原子。`/api/status` 暴露聚合生命周期计数；私有 Prompt 上下文只包含
+受限的活动名称、摘要与主题标签。Project 与 Todo 不在 FTS Memory 索引中。
 
-Working State is a single SQLite projection for current Project, active topic
-labels, unresolved questions, and the stable S1 mode. Reason-required API
-updates append an audit Event and update the singleton atomically. Project
-completion/archive clears a matching current Project in the same Project
-transaction. `/api/status` exposes only mode, relationship presence, and
-aggregate topic/question counts; Prompt context contains no internal ids.
-Working State remains outside Profile and the FTS Memory index.
+Working State 是当前 Project、活跃主题标签、未决问题与稳定 S1 模式的单一
+SQLite 投影。需要原因的 API 更新追加审计 Event 并原子更新单例。Project
+完成/归档在同一 Project 事务中清除匹配的当前 Project。`/api/status` 只暴露
+模式、关联存在性与聚合主题/问题计数；Prompt 上下文不包含内部 id。Working
+State 在 Profile 与 FTS Memory 索引之外。
 
-Analysis job state survives process restarts. On startup, jobs left pending or
-running are marked failed with the bounded `interrupted` code and can be retried
-through the audited Application API. Health/status expose aggregate job counts;
-neither diagnostics nor job APIs include prompts, messages, provider responses,
-or raw errors. Analysis completion logs expose counts only, not model content.
+Analysis job 状态在进程重启后存活。启动时 pending 或 running 的 job 被标记
+为带受限 `interrupted` 码的失败，并可通过受审计的 Application API 重试。
+健康/状态暴露聚合 job 计数；诊断与 job API 都不包含 Prompt、消息、厂商响应
+或原始错误。Analysis 完成日志只暴露计数，不含模型内容。
 
-Analysis Profile updates marked `cooling_required` are stored in
-`memory_proposals`, not discarded or copied into active Profile. Runtime status
-exposes only the pending proposal count. Proposal review is a synchronous local
-transaction: acceptance writes an audit Event, Profile value, and terminal
-proposal state together; rejection writes the audit Event and terminal state
-without changing Profile.
+标记 `cooling_required` 的 Analysis Profile 更新被存入 `memory_proposals`，
+而不是丢弃或复制进活动 Profile。运行时状态只暴露 pending 提案计数。提案
+审阅是同步本地事务：接受时写入审计 Event、Profile 值与终态提案状态；拒绝时
+写入审计 Event 与终态状态而不改 Profile。
 
-Memory retrieval uses SQLite FTS5 with the trigram tokenizer. `memory_search` is
-a rebuildable projection over Profile, Topics, Timeline, and Daily Notes. Schema
-triggers synchronize writes and `initializeDb()` reconstructs the index on each
-runtime start, including upgrades from databases created before search existed.
-Database readiness requires the virtual table. Prompt retrieval falls back to
-recent Memory when an index query fails, while `/api/memory/search` remains an
-explicit diagnostic surface.
+记忆检索使用带 trigram tokenizer 的 SQLite FTS5。`memory_search` 是基于
+Profile、Topics、Timeline 与 Daily Notes 的可重建投影。Schema 触发器同步写入，
+`initializeDb()` 在每次运行时启动时重建索引，包括从 search 出现前创建的
+数据库升级。数据库就绪要求虚拟表存在。Prompt 检索在索引查询失败时回退到
+近期 Memory，而 `/api/memory/search` 仍是显式诊断表面。
 
-Default AI gates must not call real DeepSeek or Telegram services. Use
-`LLM_PROVIDER=mock` for local demos and tests that should be deterministic and
-offline.
+默认 AI 门禁不得调用真实 DeepSeek 或 Telegram 服务。本地 demo 与需要确定性
+离线行为的测试使用 `LLM_PROVIDER=mock`。
 
-For human-run real network verification, use
-[`../07-product/real-mode-evaluation.md`](../07-product/real-mode-evaluation.md).
-It covers DeepSeek quality, Telegram end-to-end behavior, Workspace real-backend
-checks, rollback, and evidence capture.
+需要人工运行的真实网络验证时，使用
+[`../07-product/real-mode-evaluation.md`](../07-product/real-mode-evaluation.md)。
+它覆盖 DeepSeek 质量、Telegram 端到端行为、Workspace 真实后端检查、回滚与
+证据捕获。
 
-After human real-mode tests, use `npm.cmd run cleanup:real-mode -- --tag <id>`
-to preview tagged evaluation data. Add `--apply` only after review; automatic
-cleanup deletes source-linked timeline rows only and reports Events/Profile/Topics
-for manual governance review.
+人工真实模式测试后，使用 `npm.cmd run cleanup:real-mode -- --tag <id>` 预览
+带标签的评估数据。审查后加 `--apply`；自动清理只删除来源关联的 timeline 行，
+并把 Events/Profile/Topics 报告给人工治理审查。
 
-## Obsidian Vault Path
+## Obsidian Vault 路径
 
-Workspace sync and VitePress read the external Obsidian vault from `OBSIDIAN_VAULT_PATH`.
+Workspace 同步与 VitePress 从 `OBSIDIAN_VAULT_PATH` 读取外部 Obsidian vault。
 
-Set it in the repository root `.env`:
+在仓库根 `.env` 中设置：
 
 ```text
 OBSIDIAN_VAULT_PATH=C:\Users\33831\OneDrive\obsidian\obsidian
 ```
 
-The current fallback keeps the original local path for this machine, but new machines and AI workers should treat `.env` / `.env.example` as the source of truth. The vault remains outside the repo and must not be committed.
+当前回退保留本机原始路径，但新机器与 AI worker 应把 `.env` / `.env.example`
+视为事实来源。vault 在仓库外，不得提交。
 
-Persona archives generated Daily Notes below `PERSONA_DAILY_NOTE_DIR`, which
-defaults to `persona/daily-notes`. The value must be a relative directory and
-may not contain `.` or `..` segments. Both the vault and the final canonical
-directory must remain outside the repository and inside the configured vault;
-symbolic-link or junction escapes are rejected.
+Persona 把生成的 Daily Notes 归档到 `PERSONA_DAILY_NOTE_DIR` 下，默认
+`persona/daily-notes`。该值必须是相对目录，且不得包含 `.` 或 `..` 段。vault
+与最终规范目录都必须位于仓库外、配置的 vault 内；符号链接或 junction 逃逸
+被拒绝。
 
-Persona Snapshot uses `PERSONA_OBSIDIAN_SNAPSHOT_DIR`, defaulting to
-`persona/snapshots`, and writes the deterministic `Persona OS.md`. It shares the
-same canonical path checks and atomic writer as Daily Note export.
+Persona Snapshot 使用 `PERSONA_OBSIDIAN_SNAPSHOT_DIR`（默认
+`persona/snapshots`），写入确定性的 `Persona OS.md`。它与 Daily Note 导出
+共享同样的规范路径检查与原子写入器。
 
-Each archive uses the deterministic filename `YYYY-MM-DD.md` and an atomic
-temporary-file rename. Persona owns only the block between
-`<!-- PERSONA:DAILY_NOTE -->` and `<!-- /PERSONA:DAILY_NOTE -->`. Persona
-Snapshot similarly owns only `<!-- PERSONA:SNAPSHOT -->` through
-`<!-- /PERSONA:SNAPSHOT -->`. Later exports replace the matching unique block
-and preserve user-authored Markdown around it. An
-existing same-name file without exactly one valid managed block is treated as a
-conflict and is not changed.
+每个归档使用确定性文件名 `YYYY-MM-DD.md` 与原子临时文件重命名。Persona 只
+拥有 `<!-- PERSONA:DAILY_NOTE -->` 与 `<!-- /PERSONA:DAILY_NOTE -->` 之间的
+块。Persona Snapshot 类似地只拥有 `<!-- PERSONA:SNAPSHOT -->` 到
+`<!-- /PERSONA:SNAPSHOT -->`。后续导出替换匹配的唯一块，保留其周围的用户
+Markdown。存在同名文件但没有恰好一个有效托管块时，视为冲突且不修改。
 
-## Related Code
+## 常读文档
+
+- [deployment.md](deployment.md)
+- [../00-overview/current-architecture.md](../00-overview/current-architecture.md)
+- [../00-overview/deployment-and-client-architecture.md](../00-overview/deployment-and-client-architecture.md)
+- [../06-governance/debug-playbook.md](../06-governance/debug-playbook.md)
+
+## 相关代码位置
 
 - `apps/persona/src/infra/db/pool.ts`
 - `apps/persona/src/infra/db/schema.sql`
@@ -261,14 +235,21 @@ conflict and is not changed.
 - `apps/workspace/.vitepress/config.ts`
 - `docs/05-infra/deployment.md`
 
-## AI Change Checklist
+## AI 修改前检查项
 
-- Current backend storage is SQLite, not PostgreSQL.
-- `OPENAI_API_KEY` is currently used for DeepSeek API calls.
-- `npm.cmd run check:infra` must stay no-network; it validates config shape and real-mode preflight behavior only.
-- `npm.cmd run diagnose:runtime` must stay no-network and must not print raw secrets or private data.
-- Real DeepSeek and Telegram checks belong in `docs/07-product/real-mode-evaluation.md`, not the default AI gate.
-- Local Obsidian paths must be configured through `OBSIDIAN_VAULT_PATH`; do not add new hard-coded user paths to Workspace scripts or VitePress config.
-- Do not add new infrastructure dependencies unless the task explicitly requires them.
-- LLM provider or model parameter changes must be synchronized with Persona runtime behavior.
-- Health, logging, and runtime counters exposed to Workspace must go through Application read APIs; do not let Workspace read `data/`, `.env`, provider logs, or database files directly.
+- 当前后端存储是 SQLite，不是 PostgreSQL。
+- `OPENAI_API_KEY` 当前用于 DeepSeek API 调用。
+- `npm.cmd run check:infra` 必须保持无网络；它只校验配置形状与真实模式 preflight 行为。
+- `npm.cmd run diagnose:runtime` 必须保持无网络，且不得打印原始密钥或私有数据。
+- 真实 DeepSeek 与 Telegram 检查属于 `docs/07-product/real-mode-evaluation.md`，不属于默认 AI 门禁。
+- 本地 Obsidian 路径必须通过 `OBSIDIAN_VAULT_PATH` 配置；不要向 Workspace 脚本或 VitePress 配置新增硬编码用户路径。
+- 除非任务明确要求，不要新增基础设施依赖。
+- LLM 厂商或模型参数变更必须与 Persona 运行时行为同步。
+- 暴露给 Workspace 的健康、日志与运行时计数必须走 Application 读 API；不要让 Workspace 直接读取 `data/`、`.env`、厂商日志或数据库文件。
+
+## 验证口径
+
+- 配置/真实模式 preflight：`npm.cmd run check:infra`（无网络）。
+- 运行时诊断：`npm.cmd run diagnose:runtime`（无网络，脱敏）。
+- 数据库 schema 契约：`npm.cmd run contract:db-schema`。
+- 默认本地门禁：`npm.cmd run verify:local`。

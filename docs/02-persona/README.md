@@ -1,24 +1,31 @@
 # Persona
 
-## Real-Mode Quality Gate
-
-- Do not add real DeepSeek calls to `verify:local`.
-- Use `docs/07-product/real-mode-evaluation.md` when a human is validating real Companion quality.
-- Real-mode replies must keep the same visibility boundary as the prompt fixture: Companion natural language only, with Critic/Researcher/Archivist/Memory patch hidden.
-- If a real response leaks JSON or hidden analysis fields, treat it as a Persona quality failure even when the HTTP request succeeds.
-
-## Prompt Fixture Contract
-
-- Run `npm.cmd run fixture:persona` after changing Persona prompts, prompt builder behavior, or mock LLM assumptions.
-- The fixture must stay no-network and must force mock mode before importing provider adapters.
-- Companion output remains the only user-visible channel. It must not request JSON, expose `memory_patch`, or reveal private Memory context internals.
-- Analysis output stays hidden and structured. Mock analysis must keep deterministic `research`, `critic`, and `memory_patch` shapes.
-- Runtime schema validation rejects malformed Analysis fields before Memory
-  writes and reports field paths without echoing provider or user content.
-- Companion replies are immutable `system/companion_reply` Events linked to their input Event through `in_reply_to`.
-- History context keeps the latest 10 user and Companion Events, filters unrelated Events, and remains private prompt context.
-
 Persona 是认知表达域，负责系统如何理解、分析和回应用户。
+
+## 真实模式质量门禁
+
+- 不向 `verify:local` 添加真实 DeepSeek 调用。
+- 人工验证真实 Companion 质量时使用 `docs/07-product/real-mode-evaluation.md`。
+- 真实模式回复必须保持与 prompt fixture 相同的可见性边界：只输出 Companion
+  自然语言，Critic/Researcher/Archivist/Memory patch 隐藏。
+- 如果真实响应泄漏 JSON 或隐藏分析字段，即使 HTTP 请求成功也视为 Persona
+  质量失败。
+
+## Prompt Fixture 契约
+
+- 修改 Persona prompt、prompt builder 行为或 mock LLM 假设后，运行
+  `npm.cmd run fixture:persona`。
+- fixture 必须保持无网络，并在导入厂商适配器前强制 mock 模式。
+- Companion 输出仍是唯一用户可见通道。它不得请求 JSON、暴露 `memory_patch`
+  或透露私有 Memory 上下文内部信息。
+- Analysis 输出保持隐藏与结构化。mock analysis 必须保持确定性的
+  `research`、`critic`、`memory_patch` 形状。
+- 运行时 schema 校验在 Memory 写入前拒绝畸形 Analysis 字段，并只报告字段
+  路径，不回显厂商或用户内容。
+- Companion 回复是不可变 `system/companion_reply` Event，通过 `in_reply_to`
+  关联其输入 Event。
+- 历史上下文保留最近 10 条用户与 Companion Event，过滤无关 Event，且始终
+  作为私有 prompt 上下文。
 
 ## 本域职责
 
@@ -67,3 +74,9 @@ Persona 是认知表达域，负责系统如何理解、分析和回应用户。
 - 需要写入 Topic/Profile/Timeline 时，交给 Memory 域
 - 需要上下文检索时，交给 Application/Memory 域
 - 需要模型供应商调整时，交给 Infra 域
+
+## 验证口径
+
+- Prompt/算子修改后运行 `npm.cmd run fixture:persona`（无网络契约）。
+- 默认本地门禁：`npm.cmd run verify:local`。
+- 真实 Companion 质量评估使用 `docs/07-product/real-mode-evaluation.md`。

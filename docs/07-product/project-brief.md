@@ -34,25 +34,26 @@ Companion Oriented
 
 ## 当前架构
 
+> 当前真实架构以 `docs/00-overview/current-architecture.md` 为准。以下为概念分层概述。
+
 ```
-Input
- ↓
-Event Core
- ↓
-Context Engine
- ↓
-Memory Fabric
- ↓
-Working State
- ↓
-Cognitive Operators
- ↓
-Retrieval Engine
- ↓
-Output Composer
- ↓
-Telegram / Web / Obsidian
+Input（Telegram / Web / Obsidian 同步）
+  ↓
+Event Core（不可变事实源）
+  ↓
+Application（Conversation / Capture / Project / Todo / Working State / Calendar）
+  ↓
+AI Runtime（Companion 表达 + Research / Critic / Memory Patch 分析）
+  ↓
+Memory（Topic / Profile / Timeline / Memory Proposal / FTS 检索）
+  ↓
+Output Composer（Companion 唯一用户可见出口）
+  ↓
+Telegram / Workspace :5173 / Blog :5175 / Obsidian 归档
 ```
+
+当前实现为模块化单体：Next.js 工作台与独立博客分进程运行，Persona API
+统一承载对话、记忆、日历、项目、待办、调度与持久化。
 
 ---
 
