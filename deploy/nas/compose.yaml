@@ -1,0 +1,130 @@
+name: persona-nas
+
+x-persona-image: &persona-image
+  image: ${PERSONA_IMAGE:-persona-nas:local}
+  build:
+    context: ../..
+    dockerfile: Dockerfile
+    args:
+      NEXT_PUBLIC_PERSONA_API_BASE: /persona-api
+      NEXT_PUBLIC_PERSONA_RUNTIME_MODE: external
+
+services:
+  persona-api:
+    <<: *persona-image
+    command: ["node", "dist/index.js"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    environment:
+      NODE_ENV: production
+      API_HOST: 0.0.0.0
+      API_PORT: 3001
+      PERSONA_DATA_DIR: /app/data
+      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
+      OPENAI_API_KEY: ${OPENAI_API_KEY:-}
+      PERSONA_ANALYSIS_ENDPOINT: ${PERSONA_ANALYSIS_ENDPOINT:-}
+      PERSONA_ANALYSIS_MODEL: ${PERSONA_ANALYSIS_MODEL:-}
+      PERSONA_ANALYSIS_API_KEY: ${PERSONA_ANALYSIS_API_KEY:-}
+      PERSONA_ALLOWED_ORIGINS: ${PERSONA_ALLOWED_ORIGINS}
+      PERSONA_TIME_ZONE: ${PERSONA_TIME_ZONE:-Asia/Shanghai}
+      PERSONA_DAILY_SUMMARY_ENABLED: ${PERSONA_DAILY_SUMMARY_ENABLED:-false}
+      PERSONA_DAILY_SUMMARY_TIME: ${PERSONA_DAILY_SUMMARY_TIME:-00:05}
+      PERSONA_OBSIDIAN_SNAPSHOT_ENABLED: ${PERSONA_OBSIDIAN_SNAPSHOT_ENABLED:-false}
+      PERSONA_OBSIDIAN_SNAPSHOT_TIME: ${PERSONA_OBSIDIAN_SNAPSHOT_TIME:-00:15}
+      TELEGRAM_TOKEN: ${TELEGRAM_TOKEN:-}
+      TELEGRAM_ALLOWED_CHAT_IDS: ${TELEGRAM_ALLOWED_CHAT_IDS:-}
+    volumes:
+      - type: bind
+        source: ${PERSONA_DATA_DIR:-./runtime/data}
+        target: /app/data
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:3001/health').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+      start_period: 20s
+
+  workspace:
+    <<: *persona-image
+    command: ["npm", "run", "preview:lan"]
+    restart: unless-stopped
+    init: true
+    read_only: true
+    environment:
+      NODE_ENV: production
+      PERSONA_RUNTIME_MODE: external
+    depends_on:
+      persona-api:
+        condition: service_healthy
+    tmpfs:
+      - /tmp
+      - /app/apps/workspace/.next/cache
+    healthcheck:
+      test: ["CMD", "node", "-e", "fetch('http://127.0.0.1:5173/calendar').then(r=>{if(!r.ok)process.exit(1)}).catch(()=>process.exit(1))"]
+      interval: 10s
+      timeout: 4s
+      retries: 10
+      start_period: 20s
+
+  gateway:
+    image: caddy:2-alpine
+    restart: unless-stopped
+    read_only: true
+    depends_on:
+      persona-api:
+        condition: service_healthy
+      workspace:
+        condition: service_healthy
+    volumes:
+      - type: bind
+        source: ./Caddyfile
+        target: /etc/caddy/Caddyfile
+        read_only: true
+    tmpfs:
+      - /config
+      - /data
+    healthcheck:
+      test: ["CMD", "wget", "-q", "--spider", "http://127.0.0.1/healthz"]
+      interval: 10s
+      timeout: 3s
+      retries: 10
+
+  cloudflared:
+    image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
+    restart: unless-stopped
+    depends_on:
+      gateway:
+        condition: service_healthy
+    read_only: true
+    tmpfs:
+      - /tmp
+    healthcheck:
+      test: ["CMD", "cloudflared", "--version"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+
+  backup:
+    <<: *persona-image
+    profiles: ["maintenance"]
+    command: ["node", "deploy/nas/backup-sqlite.mjs"]
+    restart: "no"
+    read_only: true
+    environment:
+      PERSONA_BACKUP_RETENTION_DAYS: ${PERSONA_BACKUP_RETENTION_DAYS:-30}
+      PERSONA_BACKUP_LABEL: ${PERSONA_BACKUP_LABEL:-daily}
+    volumes:
+      - type: bind
+        source: ${PERSONA_DATA_DIR:-./runtime/data}
+        target: /app/data
+        read_only: true
+      - type: bind
+        source: ${PERSONA_BACKUP_DIR:-./backups}
+        target: /app/backups
+    tmpfs:
+      - /tmp

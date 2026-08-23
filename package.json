@@ -7,6 +7,7 @@
     "sync": "node apps/workspace/scripts/sync-projects.js",
     "watch": "node apps/workspace/scripts/watch.js",
     "check:workspace": "tsx apps/workspace/scripts/entry-contract.ts",
+    "check:deploy": "tsx apps/persona/scripts/deployment-contract.ts",
     "dev": "next dev apps/workspace -H 127.0.0.1 -p 5173",
     "dev:lan": "next dev apps/workspace -H 0.0.0.0 -p 5173",
     "dev:blog": "next dev apps/blog -H 127.0.0.1 -p 5175",

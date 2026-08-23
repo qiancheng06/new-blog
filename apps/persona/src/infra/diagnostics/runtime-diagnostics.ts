@@ -121,7 +121,8 @@ function configChecks(): Check[] {
 function pathChecks(): Check[] {
   const envPath = join(projectRoot, ".env")
   const schemaPath = join(projectRoot, "apps", "persona", "src", "infra", "db", "schema.sql")
-  const dbPath = join(projectRoot, "data", "persona-os.db")
+  const dataDir = resolve(projectRoot, process.env.PERSONA_DATA_DIR?.trim() || "data")
+  const dbPath = join(dataDir, "persona-os.db")
   const vaultPath = config.obsidianVaultPath ? resolve(config.obsidianVaultPath) : ""
 
   return [

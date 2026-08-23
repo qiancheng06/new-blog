@@ -188,16 +188,16 @@ flowchart LR
   phone["手机 Chrome / Safari"] --> pwa["Workspace PWA<br/>响应式页面 + 安装图标"]
   pwa --> gateway["HTTPS Gateway"]
   gateway --> api["Persona API/BFF"]
-  pwa --> cache["Service Worker Cache<br/>页面壳、最近只读数据、草稿队列"]
+  pwa --> cache["Service Worker Cache<br/>静态资源、图标、离线提示"]
   api --> db[("共享数据库")]
 ```
 
 移动端需要满足：
 
 - 日历、AI 对话、记忆查看和每日总结在窄屏下保留完整闭环，不依赖 hover、拖拽或大屏侧栏。
-- 只缓存页面壳和非敏感读数据；API Key、Telegram Token、数据库信息不进入移动端。
+- 只缓存静态资源、安装图标和离线提示；Persona API 与 Next API 始终走网络。
 - 离线时只允许查看本次已加载的日历和非敏感读数据；当前不建立离线写队列，避免多设备冲突。
-- PWA 的安装、推送和后台同步属于后续实现，不应在当前 MVP 中假装已经完成。
+- PWA Manifest、独立窗口、安装图标和最小 Service Worker 已实现；推送与后台同步仍不在当前范围。
 
 如果将来需要原生移动 App，可以用 React Native/Expo 或 Flutter 复用同一套 API 合同，但不新增一套 Persona 业务逻辑。
 
@@ -401,7 +401,7 @@ flowchart TB
 - 观测：API、Worker、Sync Agent、Blog Build 分别记录健康状态、耗时、失败原因和最后成功时间。
 - 权限：博客可公开，Workspace/Memory/Knowledge/Content/Sync API 默认私有。
 
-当前代码仍是本地优先 MVP，没有完整用户认证、PostgreSQL、PWA、Tauri App 或 Vault Sync Agent。这份文档是部署和多终端的目标架构，不能把目标能力当成已经上线的功能。
+当前代码仍是单用户 MVP，已经具备 NAS Compose、Cloudflare Access/Tunnel 网关和基础 PWA；尚未具备应用内账号系统、PostgreSQL、Tauri App 或 Vault Sync Agent。Cloudflare Access 是当前公网边界，不等同于多租户业务鉴权。
 
 ## 8. 演进顺序
 
@@ -417,4 +417,4 @@ flowchart LR
   mvp --> single --> pwa --> desktop --> shared --> sync
 ```
 
-当前优先级是维护中心 SQLite 服务和稳定 API，再包装 Windows App 或 PWA；只有多用户、并发和高可用需求出现时才替换数据库与增加账号体系。
+当前优先级是完成 NAS 与手机日历真机验收、稳定中心 SQLite 和 API；只有多用户、并发和高可用需求出现时才替换数据库并增加应用内账号体系。

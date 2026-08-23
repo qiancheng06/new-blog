@@ -21,6 +21,7 @@ const themes: Array<{ value: WorkspaceTheme; label: string; icon: typeof Sun }> 
 
 export function AiSettingsPage() {
   const { settings, setSettings, online, refreshHealth } = useAiConsole()
+  const runtimeExternallyManaged = process.env.NEXT_PUBLIC_PERSONA_RUNTIME_MODE === "external"
   const [appearance, setAppearance] = useState<WorkspaceAppearanceConfig>(defaultWorkspaceAppearance)
   const [appearanceReady, setAppearanceReady] = useState(false)
   const [runtimeAction, setRuntimeAction] = useState<"start" | "stop" | null>(null)
@@ -111,13 +112,15 @@ export function AiSettingsPage() {
       </header>
 
       <section className="ai-settings-panel ai-runtime-control">
-        <header><Power size={17} /><div><strong>本地 Persona API</strong><span>启动网页对话、记忆和每日总结所需的本地服务</span></div></header>
+        <header><Power size={17} /><div><strong>{runtimeExternallyManaged ? "Persona API" : "本地 Persona API"}</strong><span>{runtimeExternallyManaged ? "由 NAS 容器与 Cloudflare 网关管理" : "启动网页对话、记忆和每日总结所需的本地服务"}</span></div></header>
         <div className="ai-runtime-control-row">
           <span className={`ai-runtime-state ${online ? "online" : "offline"}`}><i />{online ? "运行中" : "未运行"}</span>
-          <button className={online ? "ai-danger-button" : "ai-primary-button"} type="button" disabled={runtimeAction !== null} onClick={() => void (online ? stopPersonaApi() : startPersonaApi())}>
-            {runtimeAction ? <LoaderCircle className="spinning" size={16} /> : online ? <PowerOff size={16} /> : <Power size={16} />}
-            {runtimeAction === "start" ? "启动中" : runtimeAction === "stop" ? "停止中" : online ? "停止 Persona API" : "启动 Persona API"}
-          </button>
+          {runtimeExternallyManaged
+            ? <span className="ai-runtime-managed">NAS 托管</span>
+            : <button className={online ? "ai-danger-button" : "ai-primary-button"} type="button" disabled={runtimeAction !== null} onClick={() => void (online ? stopPersonaApi() : startPersonaApi())}>
+                {runtimeAction ? <LoaderCircle className="spinning" size={16} /> : online ? <PowerOff size={16} /> : <Power size={16} />}
+                {runtimeAction === "start" ? "启动中" : runtimeAction === "stop" ? "停止中" : online ? "停止 Persona API" : "启动 Persona API"}
+              </button>}
         </div>
         {runtimeMessage ? <p className={`ai-runtime-message ${runtimeError ? "error" : "success"}`} role="status">{runtimeMessage}</p> : null}
       </section>

@@ -1,0 +1,25 @@
+{
+  auto_https off
+  admin off
+}
+:80 {
+  encode zstd gzip
+
+  @health path /healthz
+  respond @health 200
+
+  handle_path /persona-api/* {
+    reverse_proxy persona-api:3001
+  }
+
+  handle {
+    reverse_proxy workspace:5173
+  }
+
+  header {
+    -Server
+    X-Content-Type-Options "nosniff"
+    X-Frame-Options "DENY"
+    Referrer-Policy "strict-origin-when-cross-origin"
+  }
+}

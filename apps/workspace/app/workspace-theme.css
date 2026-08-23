@@ -47,6 +47,32 @@ body {
   transition: background-color 180ms ease, color 180ms ease;
 }
 
+.offline-page {
+  width: min(520px, calc(100% - 32px));
+  min-height: 100dvh;
+  margin: 0 auto;
+  display: grid;
+  place-content: center;
+  justify-items: start;
+  gap: 12px;
+  padding: calc(32px + env(safe-area-inset-top)) 0 calc(32px + env(safe-area-inset-bottom));
+}
+
+.offline-mark {
+  width: 52px;
+  height: 52px;
+  display: grid;
+  place-items: center;
+  border-radius: 8px;
+  color: #fff;
+  background: #8eb9a9;
+}
+
+.offline-page p { margin: 8px 0 0; color: var(--green); font-size: .66rem; font-weight: 800; }
+.offline-page h1 { margin: 0; font-size: clamp(1.65rem, 8vw, 2.5rem); line-height: 1.15; }
+.offline-page > span:not(.offline-mark) { max-width: 42ch; color: var(--muted); font-size: .76rem; line-height: 1.65; }
+.offline-page a { min-height: 38px; display: inline-flex; align-items: center; gap: 8px; margin-top: 8px; padding: 0 13px; border: 1px solid var(--line); border-radius: 6px; color: var(--text); background: var(--panel); font-size: .7rem; font-weight: 760; }
+
 .workspace-shell {
   width: 100%;
   margin: 0;

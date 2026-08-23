@@ -210,7 +210,7 @@ Vault/
 └── Assets/
 ```
 
-NAS：备份、归档、媒体文件。不参与实时认知。
+NAS：承载单实例 Workspace、Persona API、SQLite、后台任务、备份与归档；客户端仍只通过 HTTP API 接入。
 
 当前代码实现使用 SQLite 作为运行时主库；长期目标可迁移 PostgreSQL。Obsidian 是长期可视化和人工审计层。
 

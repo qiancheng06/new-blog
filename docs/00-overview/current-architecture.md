@@ -276,7 +276,7 @@ SQLite 当前统一承载 Event、Conversation/Analysis Job、Project、Todo、W
 - Persona API 使用显式 CORS allowlist；Telegram 使用允许的 chat ID 列表。
 - 远程 endpoint 必须为 HTTPS；本机开发 endpoint 可使用 loopback HTTP。
 - `.env` 不进入前端构建，自定义 API key 也不持久化到长期浏览器存储。
-- 当前没有面向公网的用户认证、租户隔离或权限系统，不应直接将 Persona API 暴露到公网。
+- 当前没有应用内账号、租户隔离或权限系统；公网入口依赖 Cloudflare Access，Persona API 只经同源 Caddy 路径转发，不能独立暴露。
 
 ## 11. 当前边界与后续方向
 
@@ -284,7 +284,7 @@ SQLite 当前统一承载 Event、Conversation/Analysis Job、Project、Todo、W
 - Obsidian 到 Workspace 的知识、待办、博客链路是单向生成；Persona 只反向写 Daily Note。
 - 当前上下文检索基于近期 Event、结构化记忆与 SQLite FTS5，没有向量检索或完整 RAG。
 - 服务端默认 provider 配置仍是 DeepSeek/mock；多厂商能力通过每次请求的 OpenAI-compatible 自定义连接实现。
-- SQLite 适合当前单机 MVP；只有出现多用户、并发写入或远程部署需求时，才需要评估 PostgreSQL。
+- SQLite 适合当前单实例 NAS MVP；只有出现多用户、并发写入或高可用需求时，才需要评估 PostgreSQL。
 
 ## 12. 常用启动命令
 
@@ -300,6 +300,7 @@ npm run dev:content      # 同步后启动 VitePress :5174
 npm run sync             # 手动生成 Workspace 内容读模型
 npm run build:blog       # 构建独立 Blog
 npm run watch            # 监听 Markdown 并持续同步
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml up -d # NAS + Cloudflare
 ```
 
 当前 MVP 的最短闭环是：用户在网页或 Telegram 输入内容 -> Event 入 SQLite -> Persona 基于历史与记忆回复 -> 后台分析写回结构化记忆 -> 每日总结进入 SQLite -> 用户按需归档到 Obsidian。

@@ -1,5 +1,5 @@
 import DatabaseConstructor from "better-sqlite3"
-import { join, dirname } from "path"
+import { join, dirname, resolve } from "path"
 import { fileURLToPath } from "url"
 import { readFileSync, existsSync, mkdirSync } from "fs"
 import { migrateProjectTodoSchema } from "./project-todo-migration.js"
@@ -8,7 +8,7 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 
 const rootDir = resolveProjectRoot(__dirname)
 const schemaPath = resolveSchemaPath()
-const dbDir = join(rootDir, "data")
+const dbDir = resolve(rootDir, process.env.PERSONA_DATA_DIR?.trim() || "data")
 
 if (!existsSync(dbDir)) mkdirSync(dbDir, { recursive: true })
 

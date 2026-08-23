@@ -15,5 +15,9 @@ Thumbs.db
 # Persona OS backend
 dist/
 .env
+.env.nas
+deploy/nas/.env
+deploy/nas/runtime/
+deploy/nas/backups/
 /data/
 *.log

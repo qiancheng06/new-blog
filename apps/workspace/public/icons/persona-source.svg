@@ -1,0 +1,7 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024" role="img" aria-label="Persona">
+  <rect width="1024" height="1024" fill="#8eb9a9"/>
+  <circle cx="512" cy="512" r="292" fill="#79a999" opacity="0.52"/>
+  <path fill="#ffffff" d="M512 214c17 0 31 12 35 29l32 133c8 34 35 61 69 69l133 32c17 4 29 18 29 35s-12 31-29 35l-133 32c-34 8-61 35-69 69l-32 133c-4 17-18 29-35 29s-31-12-35-29l-32-133c-8-34-35-61-69-69l-133-32c-17-4-29-18-29-35s12-31 29-35l133-32c34-8 61-35 69-69l32-133c4-17 18-29 35-29Z"/>
+  <circle cx="714" cy="298" r="45" fill="#eef8f4"/>
+  <circle cx="297" cy="714" r="34" fill="#eef8f4"/>
+</svg>

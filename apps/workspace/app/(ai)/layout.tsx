@@ -1,16 +1,20 @@
 import type { Metadata } from "next"
 import { AiConsoleShell } from "@/features/ai-console/AiConsoleShell"
+import { PwaRegister } from "@/features/pwa/PwaRegister"
+import { pwaMetadata, pwaViewport } from "@/features/pwa/pwaMetadata"
 import "../globals.css"
 import "../workspace-theme.css"
 import "../ai-console.css"
 
 export const metadata: Metadata = {
+  ...pwaMetadata,
   title: {
     default: "AI 中心 | Persona",
     template: "%s | Persona AI",
   },
   description: "Persona 的 AI 对话、模型连接与记忆管理模块。",
 }
+export const viewport = pwaViewport
 
 export default function AiLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -23,6 +27,7 @@ export default function AiLayout({ children }: { children: React.ReactNode }) {
         />
       </head>
       <body>
+        <PwaRegister />
         <AiConsoleShell>{children}</AiConsoleShell>
       </body>
     </html>

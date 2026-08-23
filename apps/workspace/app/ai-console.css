@@ -495,6 +495,7 @@
 .ai-runtime-state i { width: 8px; height: 8px; border-radius: 50%; background: var(--muted-2); }
 .ai-runtime-state.online i { background: var(--green); }
 .ai-runtime-state.offline i { background: var(--red); }
+.ai-runtime-managed { color: var(--muted); font-size: .66rem; font-weight: 760; }
 .ai-runtime-message { margin: 0; padding-top: 10px; border-top: 1px solid var(--line); font-size: .68rem; }
 .ai-runtime-message.success { color: var(--green); }
 .ai-runtime-message.error { color: var(--red); }

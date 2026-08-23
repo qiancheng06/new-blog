@@ -84,6 +84,8 @@ Obsidian 作为人工可读归档层，Vault 内容经 `sync-projects.js` 单向
   同步生成的读模型。
 - 私人内容站：VitePress 保留知识库 / 待办 / 项目私人内容浏览。
 - 局域网访问：`dev:lan`、`dev:blog:lan` 支持手机访问。
+- NAS 公网入口：Docker Compose + Caddy + Cloudflare Tunnel/Access，同源转发 Persona API。
+- 手机安装：Workspace 提供 Manifest、品牌图标与最小 Service Worker；API 不进入离线缓存。
 
 ## 4. 遗留缺口
 
@@ -101,7 +103,7 @@ Obsidian 作为人工可读归档层，Vault 内容经 `sync-projects.js` 单向
 1. 收尾 P16 real-mode 验收，补齐真实环境证据。
 2. 设计并实现"工作台挑选发布 → 博客"的发布流程与状态机（draft →
    published → archived）。
-3. 评估多设备部署形态（Cloudflare Tunnel / Access 路径鉴权）。
+3. 在 N5 Pro 完成 Cloudflare Access、容器重启、备份恢复和手机日历真机验收。
 4. 在 MVP 稳定运行 30 天之后，再评估向量检索、多模型路由等进阶能力。
 
 ## 6. 验证口径

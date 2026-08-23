@@ -1,5 +1,6 @@
 import { spawn } from "child_process"
-import { existsSync, readdirSync, readFileSync, statSync } from "fs"
+import { existsSync, mkdtempSync, readdirSync, readFileSync, rmSync, statSync } from "fs"
+import { tmpdir } from "os"
 import { extname, join } from "path"
 
 interface Step {
@@ -14,6 +15,7 @@ if (!npmCli) throw new Error("Verification must be started through npm run")
 
 const steps: Step[] = [
   { name: "Backend TypeScript build", script: "build:backend" },
+  { name: "NAS deployment and PWA contract test", script: "check:deploy" },
   { name: "Fresh database schema contract test", script: "contract:db-schema" },
   { name: "No-network API smoke test", script: "smoke:api" },
   { name: "No-network API contract test", script: "contract:api" },
@@ -50,12 +52,18 @@ const steps: Step[] = [
   { name: "Blog production build", script: "build:blog" },
 ]
 
-runRootStructureCheck()
-runCurrentDocCheck()
+const ciDataRoot = isCi ? mkdtempSync(join(tmpdir(), "persona-verify-ci-")) : null
 
-for (const step of steps) {
-  if (step.localOnly && isCi) continue
-  await runStep(step)
+try {
+  runRootStructureCheck()
+  runCurrentDocCheck()
+
+  for (const step of steps) {
+    if (step.localOnly && isCi) continue
+    await runStep(step, ciDataRoot)
+  }
+} finally {
+  if (ciDataRoot) rmSync(ciDataRoot, { recursive: true, force: true })
 }
 
 console.log(`\nverify:${isCi ? "ci" : "local"} ok`)
@@ -96,6 +104,8 @@ function runRootStructureCheck(): void {
     "apps/workspace/src/features/calendar/calendarApi.ts",
     "apps/workspace/src/features/daily-summary/DailySummaryPanel.tsx",
     "apps/workspace/src/shared/api/personaApi.ts",
+    "apps/workspace/src/features/pwa/PwaRegister.tsx",
+    "apps/workspace/src/features/pwa/pwaMetadata.ts",
     "apps/workspace/scripts/entry-contract.ts",
     "apps/workspace/scripts/sync-projects.js",
     "apps/persona/src/index.ts",
@@ -141,6 +151,16 @@ function runRootStructureCheck(): void {
     "apps/persona/src/domain/persona-snapshot-run/store.ts",
     "apps/persona/src/infra/db/schema-contract.ts",
     "apps/persona/src/infra/obsidian/persona-snapshot-exporter.ts",
+    "apps/persona/scripts/deployment-contract.ts",
+    "Dockerfile",
+    ".dockerignore",
+    "deploy/nas/compose.yaml",
+    "deploy/nas/Caddyfile",
+    "deploy/nas/.env.example",
+    "deploy/nas/backup-sqlite.mjs",
+    "deploy/nas/README.md",
+    "apps/workspace/app/manifest.ts",
+    "apps/workspace/public/sw.js",
     "docs/00-overview/current-architecture.md",
     "docs/00-overview/deployment-and-client-architecture.md",
     "docs/06-governance/architecture-invariants.md",
@@ -252,14 +272,21 @@ function listSearchableFiles(entry: string): string[] {
   })
 }
 
-async function runStep(step: Step): Promise<void> {
+async function runStep(step: Step, isolatedDataRoot: string | null): Promise<void> {
   console.log(`\n==> ${step.name}`)
+  const isolatedDataDir = isolatedDataRoot
+    ? join(isolatedDataRoot, step.script.replace(/[^a-z0-9_-]+/gi, "-"))
+    : process.env.PERSONA_DATA_DIR
   const result = await new Promise<number | null>((resolve, reject) => {
     const child = spawn(process.execPath, [npmCli, "run", step.script], {
       cwd: process.cwd(),
       shell: false,
       stdio: "inherit",
-      env: { ...process.env, CI: isCi ? "true" : process.env.CI },
+      env: {
+        ...process.env,
+        CI: isCi ? "true" : process.env.CI,
+        ...(isolatedDataDir ? { PERSONA_DATA_DIR: isolatedDataDir } : {}),
+      },
     })
     child.on("error", reject)
     child.on("close", resolve)

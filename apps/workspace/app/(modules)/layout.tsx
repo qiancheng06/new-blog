@@ -1,13 +1,17 @@
 import type { Metadata } from "next"
 import { ApplicationFrame } from "@/features/workspace/ApplicationFrame"
+import { PwaRegister } from "@/features/pwa/PwaRegister"
+import { pwaMetadata, pwaViewport } from "@/features/pwa/pwaMetadata"
 import "../globals.css"
 import "../workspace-theme.css"
 import "../modules.css"
 
 export const metadata: Metadata = {
+  ...pwaMetadata,
   title: { default: "Persona 模块", template: "%s | Persona" },
   description: "Persona 的知识库与 AI 工具模块。",
 }
+export const viewport = pwaViewport
 
 export default function ModulesLayout({ children }: { children: React.ReactNode }) {
   return (
@@ -19,7 +23,7 @@ export default function ModulesLayout({ children }: { children: React.ReactNode 
           }}
         />
       </head>
-      <body><ApplicationFrame>{children}</ApplicationFrame></body>
+      <body><PwaRegister /><ApplicationFrame>{children}</ApplicationFrame></body>
     </html>
   )
 }
