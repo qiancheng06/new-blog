@@ -2,6 +2,8 @@
 
 > 隐私优先；当前支持本机、局域网/VPN，以及 Cloudflare Tunnel + Access 保护的单用户公网入口。Persona API 不能脱离网关直接暴露到公网。
 
+> PVE、Docker Compose、Cloudflare、PWA、SQLite 备份和 GitHub CI/CD 的完整执行手册见 [PVE/NAS 部署手册](./pve-nas-deployment.md)。本文件保留架构边界和替代部署说明。
+
 ## 部署边界
 
 | 部分 | 当前定位 | 是否部署 | 说明 |

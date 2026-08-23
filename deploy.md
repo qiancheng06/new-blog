@@ -1,6 +1,7 @@
 # 部署入口
 
 当前推荐部署目标是 N5 Pro 上的 Docker Compose。完整操作见
+[docs/05-infra/pve-nas-deployment.md](docs/05-infra/pve-nas-deployment.md)。快速启动参考见
 [deploy/nas/README.md](deploy/nas/README.md)，架构与安全边界见
 [docs/05-infra/deployment.md](docs/05-infra/deployment.md)。
 
