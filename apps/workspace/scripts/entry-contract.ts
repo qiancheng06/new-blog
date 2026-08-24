@@ -49,11 +49,19 @@ assert(!workspaceShell.includes("banner-wallpaper"), "Workspace shell must not d
 assert(workspaceShell.includes("workspace-app"), "Workspace shell must expose the operational app layout")
 assert(workspaceShell.includes("TodayFocus"), "Workspace shell must expose today's focus")
 assert(workspaceShell.includes("WorkspaceSidebar"), "Workspace shell must expose responsive sidebars")
+assert(workspaceShell.includes("MobileWorkspaceNav"), "Workspace home must expose the shared mobile navigation drawer")
+assert(!workspaceShell.includes("mobile-sidebar-stack"), "Workspace home must not render navigation after page content")
 assert(!workspaceShell.includes("AppearanceDrawer"), "Workspace home must not mount a redundant settings drawer")
 assert(workspaceShell.includes("ChatDock"), "Workspace shell must expose Companion chat")
 
+const mobileWorkspaceNav = readFileSync(join(workspaceRoot, "src", "features", "workspace", "MobileWorkspaceNav.tsx"), "utf-8")
+assert(mobileWorkspaceNav.includes("mobile-workspace-drawer"), "Mobile navigation must use a left-side drawer")
+assert(mobileWorkspaceNav.includes('href="/"'), "Mobile navigation must keep Persona as a persistent home control")
+assert(mobileWorkspaceNav.includes("<WorkspaceSidebar />"), "Mobile navigation must reuse the canonical workspace sidebar")
+
 const workspaceSidebar = readFileSync(join(workspaceRoot, "src", "features", "workspace", "WorkspaceSidebar.tsx"), "utf-8")
 assert(workspaceSidebar.includes('href: "/ai"'), "Workspace sidebar must expose the AI module")
+assert(workspaceSidebar.includes('href: "/calendar"'), "Workspace sidebar must expose the calendar module")
 assert(workspaceSidebar.includes('href: "/knowledge"'), "Workspace sidebar must expose the knowledge page")
 assert(workspaceSidebar.includes('href: "/tools"'), "Workspace sidebar must expose the tools page")
 assert(!workspaceSidebar.includes('label: "项目"'), "Workspace sidebar must keep project navigation in the home quick access area")
@@ -63,6 +71,7 @@ assert(workspaceSidebar.includes("sidebar-footer"), "Workspace sidebar must pres
 
 const applicationFrame = readFileSync(join(workspaceRoot, "src", "features", "workspace", "ApplicationFrame.tsx"), "utf-8")
 assert(applicationFrame.includes("<WorkspaceSidebar />"), "Dedicated modules must use the stable workspace sidebar")
+assert(applicationFrame.includes("<MobileWorkspaceNav />"), "Dedicated modules must use the shared mobile navigation drawer")
 
 const homeQuickActions = readFileSync(join(workspaceRoot, "src", "features", "workspace", "HomeQuickActions.tsx"), "utf-8")
 assert(homeQuickActions.includes("draggable"), "Home quick access must support drag ordering")
@@ -81,6 +90,12 @@ assert(workspaceStyles.includes("grid-template-columns: 240px minmax(0, 1fr)"), 
 assert(!workspaceStyles.includes("wallpaper-desktop.webp"), "Workspace must not depend on Firefly desktop wallpaper")
 assert(!workspaceStyles.includes("wallpaper-mobile.webp"), "Workspace must not depend on Firefly mobile wallpaper")
 assert(workspaceStyles.includes("@media (max-width: 768px)"), "Workspace must expose a mobile layout")
+assert(workspaceStyles.includes(".mobile-workspace-drawer.open"), "Workspace must expose the mobile navigation drawer state")
+assert(!workspaceStyles.includes("mobile-sidebar-stack"), "Workspace styles must not restore navigation below mobile content")
+assert(!/\.calendar-grid\s*\{\s*grid-template-columns:\s*1fr/.test(workspaceStyles), "Mobile calendar summary must not stack dates vertically")
+
+const workspaceGlobalStyles = readFileSync(join(workspaceRoot, "app", "globals.css"), "utf-8")
+assert(!/\.calendar-grid\s*\{\s*grid-template-columns:\s*1fr/.test(workspaceGlobalStyles), "Global mobile styles must preserve the seven-column calendar summary")
 
 const vitepressConfig = readFileSync(join(workspaceRoot, ".vitepress", "config.ts"), "utf-8")
 assert(vitepressConfig.includes("blog/**"), "VitePress must exclude public blog content")
@@ -156,10 +171,15 @@ const calendarWorkspace = readFileSync(join(workspaceRoot, "src", "features", "c
 assert(calendarWorkspace.includes('type CalendarView = "month" | "week" | "day"'), "Calendar must expose month, week, and day views")
 assert(calendarWorkspace.includes("getCalendarRange"), "Calendar must read its server-side range API")
 assert(calendarWorkspace.includes("updateServerCalendarEvent"), "Calendar must persist event updates through Persona API")
+assert(calendarWorkspace.includes("createServerCalendarEvents"), "Calendar must atomically create recurring event batches")
+assert(calendarWorkspace.includes("repeatDates"), "Calendar must generate weekly recurrence dates")
 assert(!calendarWorkspace.includes("localStorage"), "Calendar must not use browser storage as its authority")
 assert(calendarWorkspace.includes("selectDateFromCalendar"), "Calendar date selection must update the inspector without changing views")
 assert(calendarWorkspace.includes("deleteEvent"), "Calendar must support event deletion")
 assert(homeQuickActions.includes('href: "/calendar"'), "Home calendar shortcut must open the dedicated calendar page")
+
+const moduleStyles = readFileSync(join(workspaceRoot, "app", "modules.css"), "utf-8")
+assert(moduleStyles.includes(".calendar-month-weekdays, .calendar-month-grid { min-width: 0; width: 100%; }"), "Mobile month view must fit all seven days within the calendar surface")
 
 const knowledgeLibrary = readFileSync(join(workspaceRoot, "src", "features", "knowledge", "KnowledgeLibraryPage.tsx"), "utf-8")
 assert(knowledgeLibrary.includes("getWorkspaceKnowledge"), "Knowledge page must read the generated index")
@@ -174,7 +194,11 @@ assert(toolsPage.includes("DailySummaryPanel"), "Tools page must expose the work
 
 const calendarApi = readFileSync(join(workspaceRoot, "src", "features", "calendar", "calendarApi.ts"), "utf-8")
 assert(calendarApi.includes("/api/calendar/events"), "Calendar adapter must expose event APIs")
+assert(calendarApi.includes("/api/calendar/events/bulk"), "Calendar adapter must expose atomic bulk event creation")
 assert(calendarApi.includes("/api/calendar/tags"), "Calendar adapter must expose tag APIs")
+
+const nextConfig = readFileSync(join(workspaceRoot, "next.config.mjs"), "utf-8")
+assert(nextConfig.includes("devIndicators: false"), "Workspace must hide the mobile-obstructing Next.js development indicator")
 
 const blogAdapter = readFileSync(join(blogRoot, "src", "blogData.server.ts"), "utf-8")
 assert(blogAdapter.includes("public", "Blog data must read generated public data") && blogAdapter.includes("blog-posts.json"), "Blog data must use the generated manifest")

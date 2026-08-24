@@ -25,6 +25,7 @@ export interface CalendarEventDto {
   tagId: string
   completed: boolean
   schedule: CalendarSchedule
+  seriesId: string | null
   version: number
   createdAt: string
   updatedAt: string
@@ -52,6 +53,8 @@ interface CalendarEventRow {
   start_date: string | null
   end_date: string | null
   time_zone: string | null
+  series_id: string | null
+  occurrence_date: string | null
   completed: number
   version: number
   created_at: string
@@ -75,6 +78,9 @@ export interface CalendarEventPatch {
   completed?: boolean
   schedule?: CalendarSchedule
 }
+
+type ValidatedCalendarEventInput = Required<Omit<CalendarEventInput, "schedule">> & { schedule: CalendarSchedule }
+export type CalendarDeleteScope = "single" | "future" | "series"
 
 export function getCalendar(options: { from: string; to: string }): {
   events: CalendarEventDto[]
@@ -104,13 +110,33 @@ export function listCalendarTags(): CalendarTagDto[] {
 
 export function createCalendarEvent(input: CalendarEventInput): CalendarEventDto {
   const value = validateEventInput(input)
-  ensureActiveTag(value.tagId)
+  return withTransaction(() => {
+    ensureActiveTag(value.tagId)
+    return insertCalendarEvent(value, null)
+  })
+}
+
+export function createCalendarEvents(inputs: CalendarEventInput[]): CalendarEventDto[] {
+  if (!Array.isArray(inputs) || inputs.length < 1 || inputs.length > 104) {
+    throw new CalendarValidationError("events must contain 1 to 104 items")
+  }
+  const values = inputs.map(validateEventInput)
+  const seriesId = randomUUID()
+  return withTransaction(() => {
+    for (const value of values) ensureActiveTag(value.tagId)
+    return values.map((value) => insertCalendarEvent(value, seriesId))
+  })
+}
+
+function insertCalendarEvent(value: ValidatedCalendarEventInput, seriesId: string | null): CalendarEventDto {
   const id = randomUUID()
   const schedule = scheduleColumns(value.schedule)
+  const occurrenceDate = occurrenceDateForSchedule(value.schedule)
   run(
     `INSERT INTO calendar_events
-       (id, title, notes, tag_id, all_day, start_at, end_at, start_date, end_date, time_zone, completed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+       (id, title, notes, tag_id, all_day, start_at, end_at, start_date, end_date, time_zone,
+        series_id, occurrence_date, completed)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       value.title,
@@ -122,6 +148,8 @@ export function createCalendarEvent(input: CalendarEventInput): CalendarEventDto
       schedule.startDate,
       schedule.endDate,
       schedule.timeZone,
+      seriesId,
+      occurrenceDate,
       value.completed ? 1 : 0,
     ],
   )
@@ -144,7 +172,7 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
   const result = run(
     `UPDATE calendar_events
      SET title = ?, notes = ?, tag_id = ?, all_day = ?, start_at = ?, end_at = ?,
-         start_date = ?, end_date = ?, time_zone = ?, completed = ?,
+         start_date = ?, end_date = ?, time_zone = ?, occurrence_date = ?, completed = ?,
          version = version + 1, updated_at = datetime('now')
      WHERE id = ? AND version = ? AND deleted_at IS NULL`,
     [
@@ -157,6 +185,7 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
       schedule.startDate,
       schedule.endDate,
       schedule.timeZone,
+      occurrenceDateForSchedule(value.schedule),
       value.completed ? 1 : 0,
       id,
       version,
@@ -166,17 +195,53 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
   return toEventDto(getActiveEventRow(id))
 }
 
-export function deleteCalendarEvent(id: string, versionInput: number): { id: string; version: number; deleted: true } {
-  getActiveEventRow(id)
+export function deleteCalendarEvent(
+  id: string,
+  versionInput: number,
+  scopeInput: CalendarDeleteScope = "single",
+): { id: string; version: number; deleted: true; deletedIds: string[]; deletedCount: number } {
   const version = validateVersion(versionInput)
-  const result = run(
-    `UPDATE calendar_events
-     SET deleted_at = datetime('now'), updated_at = datetime('now'), version = version + 1
-     WHERE id = ? AND version = ? AND deleted_at IS NULL`,
-    [id, version],
-  )
-  if (result.changes !== 1) throw new CalendarVersionConflictError("calendar event was changed on another device")
-  return { id, version: version + 1, deleted: true }
+  const scope = validateDeleteScope(scopeInput)
+  return withTransaction(() => {
+    const existing = getActiveEventRow(id)
+    if (existing.version !== version) throw new CalendarVersionConflictError("calendar event was changed on another device")
+
+    if (scope === "single" || !existing.series_id) {
+      const result = run(
+        `UPDATE calendar_events
+         SET deleted_at = datetime('now'), updated_at = datetime('now'), version = version + 1
+         WHERE id = ? AND version = ? AND deleted_at IS NULL`,
+        [id, version],
+      )
+      if (result.changes !== 1) throw new CalendarVersionConflictError("calendar event was changed on another device")
+      return { id, version: version + 1, deleted: true as const, deletedIds: [id], deletedCount: 1 }
+    }
+
+    const rows = scope === "future"
+      ? query<{ id: string }>(
+          "SELECT id FROM calendar_events WHERE series_id = ? AND occurrence_date >= ? AND deleted_at IS NULL",
+          [existing.series_id, existing.occurrence_date],
+        )
+      : query<{ id: string }>(
+          "SELECT id FROM calendar_events WHERE series_id = ? AND deleted_at IS NULL",
+          [existing.series_id],
+        )
+    const deletedIds = rows.map((row) => row.id)
+    const result = scope === "future"
+      ? run(
+          `UPDATE calendar_events
+           SET deleted_at = datetime('now'), updated_at = datetime('now'), version = version + 1
+           WHERE series_id = ? AND occurrence_date >= ? AND deleted_at IS NULL`,
+          [existing.series_id, existing.occurrence_date],
+        )
+      : run(
+          `UPDATE calendar_events
+           SET deleted_at = datetime('now'), updated_at = datetime('now'), version = version + 1
+           WHERE series_id = ? AND deleted_at IS NULL`,
+          [existing.series_id],
+        )
+    return { id, version: version + 1, deleted: true as const, deletedIds, deletedCount: result.changes }
+  })
 }
 
 export function createCalendarTag(input: {
@@ -266,7 +331,7 @@ export class CalendarNotFoundError extends Error {}
 export class CalendarConflictError extends Error {}
 export class CalendarVersionConflictError extends CalendarConflictError {}
 
-function validateEventInput(input: CalendarEventInput): Required<Omit<CalendarEventInput, "schedule">> & { schedule: CalendarSchedule } {
+function validateEventInput(input: CalendarEventInput): ValidatedCalendarEventInput {
   const title = typeof input.title === "string" ? input.title.trim() : ""
   if (!title || title.length > 80) throw new CalendarValidationError("title must contain 1 to 80 characters")
   const notes = input.notes?.trim() ?? ""
@@ -351,6 +416,13 @@ function validateVersion(value: number): number {
   return value
 }
 
+function validateDeleteScope(value: CalendarDeleteScope): CalendarDeleteScope {
+  if (!(value === "single" || value === "future" || value === "series")) {
+    throw new CalendarValidationError("scope must be single, future, or series")
+  }
+  return value
+}
+
 function ensureActiveTag(id: string): void {
   if (!queryOne("SELECT id FROM calendar_tags WHERE id = ? AND deleted_at IS NULL", [id])) {
     throw new CalendarValidationError("tagId does not reference an active tag")
@@ -389,6 +461,18 @@ function scheduleColumns(schedule: CalendarSchedule): {
     : { allDay: 0, startAt: schedule.startsAt, endAt: schedule.endsAt, startDate: null, endDate: null, timeZone: schedule.timeZone }
 }
 
+function occurrenceDateForSchedule(schedule: CalendarSchedule): string {
+  if (schedule.kind === "allDay") return schedule.startDate
+  const parts = new Intl.DateTimeFormat("en-US", {
+    timeZone: schedule.timeZone,
+    year: "numeric",
+    month: "2-digit",
+    day: "2-digit",
+  }).formatToParts(new Date(schedule.startsAt))
+  const value = Object.fromEntries(parts.map((part) => [part.type, part.value]))
+  return `${value.year}-${value.month}-${value.day}`
+}
+
 function toEventDto(row: CalendarEventRow): CalendarEventDto {
   const schedule: CalendarSchedule = row.all_day === 1
     ? { kind: "allDay", startDate: row.start_date!, endDate: row.end_date! }
@@ -400,6 +484,7 @@ function toEventDto(row: CalendarEventRow): CalendarEventDto {
     tagId: row.tag_id,
     completed: row.completed === 1,
     schedule,
+    seriesId: row.series_id,
     version: row.version,
     createdAt: row.created_at,
     updatedAt: row.updated_at,

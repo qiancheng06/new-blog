@@ -50,6 +50,7 @@ export function initializeDb(): void {
   migrateProjectionState()
   migrateProjectTodoSchema(_db)
   migrateDailyNotes()
+  migrateCalendarSchema()
   rebuildMemorySearchIndex()
 
   console.log("database initialized")
@@ -78,6 +79,12 @@ function migrateDailyNotes(): void {
   ensureColumn("daily_notes", "finalized_at", "TEXT")
   _db.exec("UPDATE daily_notes SET updated_at = created_at WHERE updated_at = '';")
   _db.exec("CREATE INDEX IF NOT EXISTS idx_daily_notes_date ON daily_notes(date DESC);")
+}
+
+function migrateCalendarSchema(): void {
+  ensureColumn("calendar_events", "series_id", "TEXT")
+  ensureColumn("calendar_events", "occurrence_date", "TEXT")
+  _db.exec("CREATE INDEX IF NOT EXISTS idx_calendar_events_series ON calendar_events(series_id, occurrence_date, deleted_at);")
 }
 
 function rebuildMemorySearchIndex(): void {
@@ -114,7 +121,7 @@ function rebuildMemorySearchIndex(): void {
 }
 
 function ensureColumn(
-  tableName: "profile" | "topics" | "daily_notes",
+  tableName: "profile" | "topics" | "daily_notes" | "calendar_events",
   columnName: string,
   definition: string,
 ): void {

@@ -28,6 +28,7 @@ export interface CalendarApiEvent {
   tagId: string
   completed: boolean
   schedule: CalendarApiSchedule
+  seriesId: string | null
   version: number
   createdAt: string
   updatedAt: string
@@ -40,6 +41,8 @@ export interface CalendarEventWrite {
   completed: boolean
   schedule: CalendarApiSchedule
 }
+
+export type CalendarDeleteScope = "single" | "future" | "series"
 
 export function getCalendarRange(from: string, to: string): Promise<{
   events: CalendarApiEvent[]
@@ -54,6 +57,11 @@ export async function createServerCalendarEvent(value: CalendarEventWrite): Prom
   return result.event
 }
 
+export async function createServerCalendarEvents(values: CalendarEventWrite[]): Promise<CalendarApiEvent[]> {
+  const result = await postPersonaJson<{ events: CalendarApiEvent[] }>("/api/calendar/events/bulk", { events: values })
+  return result.events
+}
+
 export async function updateServerCalendarEvent(
   id: string,
   version: number,
@@ -66,8 +74,12 @@ export async function updateServerCalendarEvent(
   return result.event
 }
 
-export function deleteServerCalendarEvent(id: string, version: number): Promise<{ deleted: true }> {
-  return deletePersonaJson(`/api/calendar/events/${encodeURIComponent(id)}`, { version })
+export function deleteServerCalendarEvent(
+  id: string,
+  version: number,
+  scope: CalendarDeleteScope = "single",
+): Promise<{ deleted: true; deletedIds: string[]; deletedCount: number }> {
+  return deletePersonaJson(`/api/calendar/events/${encodeURIComponent(id)}`, { version, scope })
 }
 
 export async function createServerCalendarTag(label: string, tone: CalendarTone): Promise<CalendarApiTag> {

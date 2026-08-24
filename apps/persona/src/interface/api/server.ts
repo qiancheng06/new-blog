@@ -42,6 +42,7 @@ import {
   CalendarNotFoundError,
   CalendarValidationError,
   createCalendarEvent,
+  createCalendarEvents,
   createCalendarTag,
   deleteCalendarEvent,
   deleteCalendarTag,
@@ -50,6 +51,7 @@ import {
   updateCalendarTag,
   type CalendarEventInput,
   type CalendarEventPatch,
+  type CalendarDeleteScope,
   type CalendarTone,
 } from "../../application/calendar.js"
 import { getRuntimeHealthSnapshot, summarizeRuntimeHealth } from "../../application/runtime-health.js"
@@ -508,6 +510,16 @@ async function handleCalendarEventCreate(req: IncomingMessage, res: ServerRespon
   }
 }
 
+async function handleCalendarEventBulkCreate(req: IncomingMessage, res: ServerResponse): Promise<void> {
+  const parsed = await readJsonObject<{ events?: CalendarEventInput[] }>(req, res)
+  if (!parsed) return
+  try {
+    json(res, 201, { events: createCalendarEvents(parsed.events as CalendarEventInput[]) })
+  } catch (err) {
+    handleCalendarError(err, res)
+  }
+}
+
 async function handleCalendarEventUpdate(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
   const parsed = await readJsonObject<Record<string, unknown>>(req, res)
   if (!parsed) return
@@ -519,10 +531,10 @@ async function handleCalendarEventUpdate(req: IncomingMessage, id: string, res: 
 }
 
 async function handleCalendarEventDelete(req: IncomingMessage, id: string, res: ServerResponse): Promise<void> {
-  const parsed = await readJsonObject<{ version?: number }>(req, res)
+  const parsed = await readJsonObject<{ version?: number; scope?: CalendarDeleteScope }>(req, res)
   if (!parsed) return
   try {
-    json(res, 200, deleteCalendarEvent(id, parsed.version as number))
+    json(res, 200, deleteCalendarEvent(id, parsed.version as number, parsed.scope ?? "single"))
   } catch (err) {
     handleCalendarError(err, res)
   }
@@ -990,6 +1002,9 @@ async function handler(req: IncomingMessage, res: ServerResponse, onShutdownRequ
     }
     if (url === "/api/calendar/events" && req.method === "POST") {
       return await handleCalendarEventCreate(req, res)
+    }
+    if (url === "/api/calendar/events/bulk" && req.method === "POST") {
+      return await handleCalendarEventBulkCreate(req, res)
     }
     const calendarEventMatch = /^\/api\/calendar\/events\/([^/]+)$/.exec(url)
     if (calendarEventMatch && req.method === "PATCH") {

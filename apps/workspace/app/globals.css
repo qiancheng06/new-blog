@@ -1043,20 +1043,29 @@ h1 {
   }
 
   .calendar-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(7, minmax(0, 1fr));
+    gap: 4px;
+    padding: 12px;
   }
 
   .calendar-weekday {
-    display: none;
+    display: block;
   }
 
   .calendar-cell {
-    min-height: 84px;
+    min-height: 52px;
+    padding: 6px;
+    border-radius: 6px;
   }
 
   .calendar-cell.muted {
-    display: none;
+    display: block;
   }
+
+  .calendar-cell > div { margin-top: 5px; display: flex; flex-wrap: wrap; gap: 2px; }
+  .calendar-cell p { width: 5px; height: 5px; margin: 0; border-radius: 50%; background: var(--green); font-size: 0; }
+  .calendar-cell p.done { opacity: .35; }
+  .calendar-cell small { display: none; }
 }
 
 @media (max-width: 520px) {

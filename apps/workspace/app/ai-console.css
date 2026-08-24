@@ -594,7 +594,7 @@
   .ai-console-context { display: none; }
   .ai-console-brand { border-right: 0; }
   .ai-console-frame { display: block; }
-  .ai-console-sidebar { position: sticky; top: 48px; z-index: 45; width: 100%; height: 48px; display: block; padding: 6px 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
+  .ai-console-sidebar { position: sticky; top: calc(53px + env(safe-area-inset-top)); z-index: 45; width: 100%; height: 48px; display: block; padding: 6px 8px; overflow-x: auto; border-right: 0; border-bottom: 1px solid var(--line); }
   .ai-console-sidebar-title,
   .ai-console-sidebar-meta,
   .ai-sidebar-settings-link { display: none; }
@@ -645,7 +645,7 @@
 
 @media (max-width: 768px) {
   .application-frame.ai-console-frame { display: block; }
-  .ai-console-topbar { padding-left: 10px; }
+  .ai-console-topbar { top: calc(53px + env(safe-area-inset-top)); padding-left: 10px; }
   .ai-console-section-nav { overflow-x: auto; scrollbar-width: none; }
   .ai-console-section-nav::-webkit-scrollbar { display: none; }
 }

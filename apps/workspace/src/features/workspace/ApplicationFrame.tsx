@@ -1,6 +1,7 @@
 "use client"
 
 import type { ReactNode } from "react"
+import { MobileWorkspaceNav } from "./MobileWorkspaceNav"
 import { WorkspaceSidebar } from "./WorkspaceSidebar"
 
 interface ApplicationFrameProps {
@@ -12,6 +13,7 @@ interface ApplicationFrameProps {
 export function ApplicationFrame({ children, className = "" }: ApplicationFrameProps) {
   return (
     <div className={`application-frame ${className}`.trim()}>
+      <MobileWorkspaceNav />
       <aside className="application-frame-sidebar" aria-label="工作区侧栏">
         <WorkspaceSidebar />
       </aside>

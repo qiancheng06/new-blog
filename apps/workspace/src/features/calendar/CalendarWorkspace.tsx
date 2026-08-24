@@ -20,6 +20,7 @@ import { PersonaApiError } from "@/shared/api/personaApi"
 import { getWorkspaceTodos, type WorkspaceTodo } from "@/shared/data/workspaceData"
 import {
   createServerCalendarEvent,
+  createServerCalendarEvents,
   createServerCalendarTag,
   deleteServerCalendarEvent,
   deleteServerCalendarTag,
@@ -28,6 +29,7 @@ import {
   updateServerCalendarTag,
   type CalendarApiEvent,
   type CalendarApiSchedule,
+  type CalendarDeleteScope,
   type CalendarTone,
 } from "./calendarApi"
 
@@ -52,16 +54,21 @@ interface CalendarEvent {
   source: "local" | "todo"
   completed?: boolean
   version: number
+  seriesId: string | null
 }
 
 interface EventDraft {
   title: string
   date: string
+  endDate: string
   startTime: string
   endTime: string
   allDay: boolean
   tagId: string
   notes: string
+  repeatMode: "none" | "weekly"
+  repeatWeekdays: number[]
+  repeatUntil: string
 }
 
 const WEEKDAYS = ["一", "二", "三", "四", "五", "六", "日"]
@@ -214,26 +221,36 @@ export function CalendarWorkspace() {
     event.preventDefault()
     const title = draft.title.trim()
     if (!title) return setFormError("请填写日程标题。")
-    if (!draft.allDay && draft.endTime <= draft.startTime) return setFormError("结束时间需要晚于开始时间。")
+    if (draft.endDate < draft.date) return setFormError("结束日期不能早于开始日期。")
+    if (!draft.allDay && draft.endDate === draft.date && draft.endTime <= draft.startTime) return setFormError("结束时间需要晚于开始时间。")
 
-    const value = {
+    if (draft.repeatMode === "weekly" && draft.repeatWeekdays.length === 0) return setFormError("请至少选择一个重复星期。")
+    if (draft.repeatMode === "weekly" && draft.repeatUntil < draft.date) return setFormError("重复截止日期不能早于开始日期。")
+    const dates = editingEvent ? [draft.date] : repeatDates(draft)
+    if (dates.length === 0) return setFormError("当前规则没有可创建的日期。")
+    if (dates.length > 104) return setFormError("单次最多批量创建 104 个日程，请缩短截止日期。")
+
+    const baseValue = {
       title,
       tagId: tags.some((tag) => tag.id === draft.tagId) ? draft.tagId : tags[0]?.id ?? DEFAULT_TAGS[0].id,
       notes: draft.notes.trim(),
       completed: editingEvent?.completed ?? false,
-      schedule: scheduleFromDraft(draft),
     }
+    const values = dates.map((date) => ({ ...baseValue, schedule: scheduleFromDraft(draft, date) }))
     setSaving(true)
     try {
       const saved = editingEvent?.source === "local"
-        ? await updateServerCalendarEvent(editingEvent.id, editingEvent.version, value)
-        : await createServerCalendarEvent(value)
-      const nextEvent = calendarEventFromApi(saved)
+        ? [await updateServerCalendarEvent(editingEvent.id, editingEvent.version, values[0])]
+        : draft.repeatMode === "weekly"
+          ? await createServerCalendarEvents(values)
+          : [await createServerCalendarEvent(values[0])]
+      const nextEvents = saved.map(calendarEventFromApi)
+      const nextIds = new Set(nextEvents.map((item) => item.id))
       setLocalEvents((current) => {
-        const without = current.filter((item) => item.id !== nextEvent.id)
-        return [...without, nextEvent].sort(compareEvents)
+        const without = current.filter((item) => !nextIds.has(item.id))
+        return [...without, ...nextEvents].sort(compareEvents)
       })
-      const savedDate = parseLocalDate(nextEvent.start)
+      const savedDate = parseLocalDate(nextEvents[0].start)
       setSelectedDate(savedDate)
       setCursor(savedDate)
       setCalendarError("")
@@ -251,12 +268,13 @@ export function CalendarWorkspace() {
     }
   }
 
-  async function deleteEvent() {
+  async function deleteEvent(scope: CalendarDeleteScope = "single") {
     if (!editingEvent || editingEvent.source !== "local") return
     setSaving(true)
     try {
-      await deleteServerCalendarEvent(editingEvent.id, editingEvent.version)
-      setLocalEvents((current) => current.filter((item) => item.id !== editingEvent.id))
+      const result = await deleteServerCalendarEvent(editingEvent.id, editingEvent.version, scope)
+      const deletedIds = new Set(result.deletedIds)
+      setLocalEvents((current) => current.filter((item) => !deletedIds.has(item.id)))
       closeDialog()
     } catch (error) {
       if (error instanceof PersonaApiError && error.status === 409) {
@@ -344,9 +362,7 @@ export function CalendarWorkspace() {
           <span className="module-kicker"><CalendarDays size={14} />日历</span>
           <h1>日程安排</h1>
         </div>
-        <button className="calendar-primary-action" type="button" disabled={!apiOnline} onClick={() => openCreate()}>
-          <Plus size={16} />新建日程
-        </button>
+        <button className="calendar-primary-action" type="button" disabled={!apiOnline} onClick={() => openCreate()}><Plus size={16} />新建日程</button>
       </header>
 
       <div className="calendar-toolbar">
@@ -631,10 +647,18 @@ function EventDialog({ event, draft, error, saving, tags, onDraftChange, onClose
   tags: CalendarTag[]
   onDraftChange: (draft: EventDraft) => void
   onClose: () => void
-  onDelete: () => void | Promise<void>
+  onDelete: (scope: CalendarDeleteScope) => void | Promise<void>
   onSubmit: (event: FormEvent<HTMLFormElement>) => void | Promise<void>
 }) {
   const readOnly = event?.source === "todo"
+  const [deleteScopeOpen, setDeleteScopeOpen] = useState(false)
+  const batchCount = !event && draft.repeatMode === "weekly" ? repeatDates(draft).length : 1
+  const toggleWeekday = (weekday: number) => {
+    const selected = draft.repeatWeekdays.includes(weekday)
+      ? draft.repeatWeekdays.filter((item) => item !== weekday)
+      : [...draft.repeatWeekdays, weekday].sort((left, right) => left - right)
+    onDraftChange({ ...draft, repeatWeekdays: selected })
+  }
   return (
     <div className="calendar-dialog-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) onClose() }}>
       <div className="calendar-dialog" role="dialog" aria-modal="true" aria-labelledby="calendar-dialog-title">
@@ -653,13 +677,36 @@ function EventDialog({ event, draft, error, saving, tags, onDraftChange, onClose
           <form onSubmit={onSubmit}>
             <label className="calendar-form-field"><span>标题</span><input autoFocus value={draft.title} maxLength={80} placeholder="日程名称" onChange={(inputEvent) => onDraftChange({ ...draft, title: inputEvent.target.value })} /></label>
             <div className="calendar-form-row">
-              <label className="calendar-form-field"><span>日期</span><input type="date" required value={draft.date} onChange={(inputEvent) => onDraftChange({ ...draft, date: inputEvent.target.value })} /></label>
-              <label className="calendar-all-day-toggle"><span>全天</span><button type="button" role="switch" aria-checked={draft.allDay} className={draft.allDay ? "on" : ""} onClick={() => onDraftChange({ ...draft, allDay: !draft.allDay })}><span /></button></label>
+              <label className="calendar-form-field"><span>开始日期</span><input type="date" required value={draft.date} onChange={(inputEvent) => onDraftChange(updateDraftStartDate(draft, inputEvent.target.value))} /></label>
+              <label className="calendar-form-field"><span>结束日期</span><input type="date" required min={draft.date} value={draft.endDate} onChange={(inputEvent) => onDraftChange({ ...draft, endDate: inputEvent.target.value })} /></label>
             </div>
+            <label className="calendar-all-day-toggle"><span>全天</span><button type="button" role="switch" aria-checked={draft.allDay} className={draft.allDay ? "on" : ""} onClick={() => onDraftChange({ ...draft, allDay: !draft.allDay })}><span /></button></label>
             {!draft.allDay ? <div className="calendar-form-row">
               <label className="calendar-form-field"><span>开始</span><input type="time" required value={draft.startTime} onChange={(inputEvent) => onDraftChange({ ...draft, startTime: inputEvent.target.value })} /></label>
               <label className="calendar-form-field"><span>结束</span><input type="time" required value={draft.endTime} onChange={(inputEvent) => onDraftChange({ ...draft, endTime: inputEvent.target.value })} /></label>
             </div> : null}
+            {!event ? (
+              <fieldset className="calendar-repeat-field">
+                <legend>重复</legend>
+                <div className="calendar-repeat-mode" role="group" aria-label="重复方式">
+                  <button type="button" className={draft.repeatMode === "none" ? "active" : ""} aria-pressed={draft.repeatMode === "none"} onClick={() => onDraftChange({ ...draft, repeatMode: "none" })}>不重复</button>
+                  <button type="button" className={draft.repeatMode === "weekly" ? "active" : ""} aria-pressed={draft.repeatMode === "weekly"} onClick={() => onDraftChange({ ...draft, repeatMode: "weekly" })}>每周</button>
+                </div>
+                {draft.repeatMode === "weekly" ? (
+                  <div className="calendar-repeat-options">
+                    <div className="calendar-weekday-picker" role="group" aria-label="重复星期">
+                      {WEEKDAYS.map((label, index) => {
+                        const weekday = index + 1
+                        const active = draft.repeatWeekdays.includes(weekday)
+                        return <button key={label} type="button" className={active ? "active" : ""} aria-pressed={active} aria-label={`星期${label}`} onClick={() => toggleWeekday(weekday)}>{label}</button>
+                      })}
+                    </div>
+                    <label className="calendar-form-field"><span>重复至</span><input type="date" required min={draft.date} value={draft.repeatUntil} onChange={(inputEvent) => onDraftChange({ ...draft, repeatUntil: inputEvent.target.value })} /></label>
+                    <p className={batchCount > 104 ? "error" : ""}>{batchCount > 104 ? "超过单次 104 项限制，请缩短日期" : `将批量创建 ${batchCount} 个日程`}</p>
+                  </div>
+                ) : null}
+              </fieldset>
+            ) : null}
             <fieldset className="calendar-category-field">
               <legend>标签</legend>
               <div>{tags.map((tag) => <button key={tag.id} type="button" className={draft.tagId === tag.id ? "active" : ""} onClick={() => onDraftChange({ ...draft, tagId: tag.id })}><span className={`calendar-color-dot ${tag.tone}`} />{tag.label}</button>)}</div>
@@ -667,29 +714,57 @@ function EventDialog({ event, draft, error, saving, tags, onDraftChange, onClose
             <label className="calendar-form-field"><span>备注</span><textarea rows={4} maxLength={500} value={draft.notes} placeholder="地点、准备事项或补充说明" onChange={(inputEvent) => onDraftChange({ ...draft, notes: inputEvent.target.value })} /></label>
             {error ? <p className="calendar-form-error" role="alert"><CircleAlert size={14} />{error}</p> : null}
             <footer>
-              {event?.source === "local" ? <button className="calendar-delete-action" type="button" title="删除日程" disabled={saving} onClick={onDelete}><Trash2 size={15} /><span>删除</span></button> : <span />}
-              <div><button className="calendar-secondary-action" type="button" disabled={saving} onClick={onClose}>取消</button><button className="calendar-primary-action" type="submit" disabled={saving}>{saving ? "保存中" : "保存日程"}</button></div>
+              {event?.source === "local" ? <button className="calendar-delete-action" type="button" title="删除日程" disabled={saving} onClick={() => event.seriesId ? setDeleteScopeOpen(true) : void onDelete("single")}><Trash2 size={15} /><span>删除</span></button> : <span />}
+              <div><button className="calendar-secondary-action" type="button" disabled={saving} onClick={onClose}>取消</button><button className="calendar-primary-action" type="submit" disabled={saving || batchCount > 104}>{saving ? "保存中" : !event && draft.repeatMode === "weekly" ? `批量添加 ${batchCount} 项` : "保存日程"}</button></div>
             </footer>
           </form>
         )}
+        {deleteScopeOpen && event?.seriesId ? (
+          <div className="calendar-delete-scope-backdrop" role="presentation" onMouseDown={(mouseEvent) => { if (mouseEvent.target === mouseEvent.currentTarget) setDeleteScopeOpen(false) }}>
+            <section className="calendar-delete-scope" role="dialog" aria-modal="true" aria-labelledby="calendar-delete-scope-title">
+              <header><strong id="calendar-delete-scope-title">删除重复日程</strong><button type="button" title="关闭" aria-label="关闭删除选项" onClick={() => setDeleteScopeOpen(false)}><X size={16} /></button></header>
+              <button type="button" disabled={saving} onClick={() => { setDeleteScopeOpen(false); void onDelete("single") }}>仅删除本次</button>
+              <button type="button" disabled={saving} onClick={() => { setDeleteScopeOpen(false); void onDelete("future") }}>删除本次及以后</button>
+              <button type="button" disabled={saving} onClick={() => { setDeleteScopeOpen(false); void onDelete("series") }}>删除整组日程</button>
+              <button className="cancel" type="button" onClick={() => setDeleteScopeOpen(false)}>取消</button>
+            </section>
+          </div>
+        ) : null}
       </div>
     </div>
   )
 }
 
 function createDraft(date: Date, hour = 9, tagId = DEFAULT_TAGS[0].id): EventDraft {
-  return { title: "", date: dateKey(date), startTime: `${String(hour).padStart(2, "0")}:00`, endTime: `${String(Math.min(hour + 1, 23)).padStart(2, "0")}:00`, allDay: false, tagId, notes: "" }
+  const startDate = dateKey(date)
+  return {
+    title: "",
+    date: startDate,
+    endDate: startDate,
+    startTime: `${String(hour).padStart(2, "0")}:00`,
+    endTime: `${String(Math.min(hour + 1, 23)).padStart(2, "0")}:00`,
+    allDay: false,
+    tagId,
+    notes: "",
+    repeatMode: "none",
+    repeatWeekdays: [isoWeekday(date)],
+    repeatUntil: dateKey(addDays(date, 28)),
+  }
 }
 
 function draftFromEvent(event: CalendarEvent, fallbackTagId: string): EventDraft {
   return {
     title: event.title,
     date: event.start.slice(0, 10),
+    endDate: event.end.slice(0, 10),
     startTime: event.start.slice(11, 16) || "09:00",
     endTime: event.end.slice(11, 16) || "10:00",
     allDay: event.allDay,
     tagId: event.source === "todo" ? fallbackTagId : event.tagId,
     notes: event.notes,
+    repeatMode: "none",
+    repeatWeekdays: [isoWeekday(parseLocalDate(event.start))],
+    repeatUntil: event.start.slice(0, 10),
   }
 }
 
@@ -705,6 +780,7 @@ function todosToEvents(todos: WorkspaceTodo[]): CalendarEvent[] {
     source: "todo",
     completed: todo.done,
     version: 0,
+    seriesId: null,
   }))
 }
 
@@ -722,6 +798,7 @@ function calendarEventFromApi(event: CalendarApiEvent): CalendarEvent {
       source: "local",
       completed: event.completed,
       version: event.version,
+      seriesId: event.seriesId,
     }
   }
   return {
@@ -735,26 +812,66 @@ function calendarEventFromApi(event: CalendarApiEvent): CalendarEvent {
     source: "local",
     completed: event.completed,
     version: event.version,
+    seriesId: event.seriesId,
   }
 }
 
-function scheduleFromDraft(draft: EventDraft): CalendarApiSchedule {
+function scheduleFromDraft(draft: EventDraft, occurrenceDate = draft.date): CalendarApiSchedule {
+  const durationDays = dayDistance(parseLocalDate(draft.date), parseLocalDate(draft.endDate))
+  const occurrenceEndDate = addDays(parseLocalDate(occurrenceDate), durationDays)
   if (draft.allDay) {
     return {
       kind: "allDay",
-      startDate: draft.date,
-      endDate: dateKey(addDays(parseLocalDate(draft.date), 1)),
+      startDate: occurrenceDate,
+      endDate: dateKey(addDays(occurrenceEndDate, 1)),
     }
   }
-  const [year, month, day] = draft.date.split("-").map(Number)
+  const [year, month, day] = occurrenceDate.split("-").map(Number)
+  const [endYear, endMonth, endDay] = dateKey(occurrenceEndDate).split("-").map(Number)
   const [startHour, startMinute] = draft.startTime.split(":").map(Number)
   const [endHour, endMinute] = draft.endTime.split(":").map(Number)
   return {
     kind: "timed",
     startsAt: new Date(year, month - 1, day, startHour, startMinute).toISOString(),
-    endsAt: new Date(year, month - 1, day, endHour, endMinute).toISOString(),
+    endsAt: new Date(endYear, endMonth - 1, endDay, endHour, endMinute).toISOString(),
     timeZone: Intl.DateTimeFormat().resolvedOptions().timeZone || "UTC",
   }
+}
+
+function repeatDates(draft: EventDraft): string[] {
+  if (draft.repeatMode === "none") return [draft.date]
+  if (draft.repeatWeekdays.length === 0 || draft.repeatUntil < draft.date) return []
+  const selected = new Set(draft.repeatWeekdays)
+  const until = parseLocalDate(draft.repeatUntil)
+  const dates: string[] = []
+  let current = parseLocalDate(draft.date)
+  while (current <= until && dates.length <= 104) {
+    if (selected.has(isoWeekday(current))) dates.push(dateKey(current))
+    current = addDays(current, 1)
+  }
+  return dates
+}
+
+function updateDraftStartDate(draft: EventDraft, nextDate: string): EventDraft {
+  const durationDays = dayDistance(parseLocalDate(draft.date), parseLocalDate(draft.endDate))
+  const next = parseLocalDate(nextDate)
+  return {
+    ...draft,
+    date: nextDate,
+    endDate: dateKey(addDays(next, Math.max(0, durationDays))),
+    repeatWeekdays: draft.repeatMode === "none" ? [isoWeekday(next)] : draft.repeatWeekdays,
+    repeatUntil: draft.repeatUntil < nextDate ? dateKey(addDays(next, 28)) : draft.repeatUntil,
+  }
+}
+
+function isoWeekday(date: Date): number {
+  return ((date.getDay() + 6) % 7) + 1
+}
+
+function dayDistance(from: Date, to: Date): number {
+  const fromUtc = Date.UTC(from.getFullYear(), from.getMonth(), from.getDate())
+  const toUtc = Date.UTC(to.getFullYear(), to.getMonth(), to.getDate())
+  return Math.round((toUtc - fromUtc) / 86_400_000)
 }
 
 function localDateTime(value: string): string {

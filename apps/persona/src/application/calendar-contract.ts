@@ -17,6 +17,7 @@ try {
   const customTag = await createTag(port)
   const timed = await createTimedEvent(port, customTag.id)
   const allDay = await createAllDayEvent(port)
+  await verifyBulkCreate(port)
   await verifyRange(port, timed.id, allDay.id)
   const updated = await updateTimedEvent(port, timed)
   await verifyVersionConflict(port, timed)
@@ -41,6 +42,7 @@ interface ApiEvent {
   id: string
   title: string
   tagId: string
+  seriesId: string | null
   version: number
   schedule: { kind: string; startDate?: string; endDate?: string; startsAt?: string; endsAt?: string; timeZone?: string }
 }
@@ -88,6 +90,65 @@ async function createAllDayEvent(portNumber: number): Promise<ApiEvent> {
   }, 201)
   assert(body.event.schedule.kind === "allDay", "all-day schedule kind mismatch")
   return body.event
+}
+
+async function verifyBulkCreate(portNumber: number): Promise<void> {
+  const values = [3, 10, 17].map((day) => ({
+    title: `${tag} weekly batch`,
+    notes: "weekly recurrence",
+    tagId: "focus",
+    completed: false,
+    schedule: {
+      kind: "timed",
+      startsAt: `2088-07-${String(day).padStart(2, "0")}T09:00:00+08:00`,
+      endsAt: `2088-07-${String(day).padStart(2, "0")}T10:00:00+08:00`,
+      timeZone: "Asia/Shanghai",
+    },
+  }))
+  const body = await sendJson<{ events: ApiEvent[] }>(
+    portNumber,
+    "POST",
+    "/api/calendar/events/bulk",
+    { events: values },
+    201,
+  )
+  assert(body.events.length === 3, "bulk calendar create must return every event")
+  assert(body.events.every((event) => event.version === 1), "bulk calendar events must start at version 1")
+  assert(Boolean(body.events[0].seriesId), "bulk calendar events must expose a series id")
+  assert(body.events.every((event) => event.seriesId === body.events[0].seriesId), "bulk calendar events must share one series id")
+
+  const deleted = await sendJson<{ deletedCount: number; deletedIds: string[] }>(
+    portNumber,
+    "DELETE",
+    `/api/calendar/events/${body.events[1].id}`,
+    { version: body.events[1].version, scope: "future" },
+  )
+  assert(deleted.deletedCount === 2, "future series deletion must remove the selected and later events")
+  assert(deleted.deletedIds.includes(body.events[1].id) && deleted.deletedIds.includes(body.events[2].id), "future series deletion returned unexpected ids")
+  const activeSeries = queryOne<{ count: number }>(
+    "SELECT COUNT(*) AS count FROM calendar_events WHERE series_id = ? AND deleted_at IS NULL",
+    [body.events[0].seriesId],
+  )
+  assert(activeSeries?.count === 1, "future series deletion must preserve earlier events")
+
+  const rejectedTitle = `${tag} rejected batch`
+  const response = await fetch(`http://127.0.0.1:${portNumber}/api/calendar/events/bulk`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      events: [
+        { ...values[0], title: rejectedTitle },
+        {
+          ...values[1],
+          title: rejectedTitle,
+          schedule: { ...values[1].schedule, endsAt: values[1].schedule.startsAt },
+        },
+      ],
+    }),
+  })
+  assert(response.status === 400, `invalid bulk calendar create expected 400, got ${response.status}`)
+  const rejected = queryOne<{ count: number }>("SELECT COUNT(*) AS count FROM calendar_events WHERE title = ?", [rejectedTitle])
+  assert(rejected?.count === 0, "invalid bulk calendar create must roll back every event")
 }
 
 async function verifyRange(portNumber: number, timedId: string, allDayId: string): Promise<void> {

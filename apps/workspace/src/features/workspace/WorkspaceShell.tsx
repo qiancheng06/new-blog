@@ -16,6 +16,7 @@ import {
   WORKSPACE_APPEARANCE_KEY,
   type WorkspaceAppearanceConfig,
 } from "./appearance"
+import { MobileWorkspaceNav } from "./MobileWorkspaceNav"
 import { TodayFocus } from "./TodayFocus"
 import { WorkspaceSidebar } from "./WorkspaceSidebar"
 
@@ -65,6 +66,7 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
 
   return (
     <main className="workspace-shell" id="top">
+      <MobileWorkspaceNav />
       <div className="workspace-app">
         <aside className="workspace-rail" aria-label="工作区侧栏">
           {sidebar}
@@ -73,8 +75,6 @@ export function WorkspaceShell({ children }: { children: ReactNode }) {
         <div className="workspace-main-column">
           <TodayFocus />
           {children}
-
-          <div className="mobile-sidebar-stack">{sidebar}</div>
 
           <footer className="workspace-footer">
             <span>Persona 工作台</span>

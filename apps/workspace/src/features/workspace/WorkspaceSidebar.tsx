@@ -3,6 +3,7 @@
 import {
   BookOpen,
   BrainCircuit,
+  CalendarDays,
   Check,
   ChevronDown,
   LayoutDashboard,
@@ -17,7 +18,7 @@ import { useState } from "react"
 import { suggestedSidebarFavorites, useSidebarFavorites } from "./sidebarFavorites"
 
 /**
- * 全站共用的工作区侧栏：四个核心模块保持稳定，细分功能在固定入口中呈现。
+ * 全站共用的工作区侧栏：核心模块保持稳定，细分功能在固定入口中呈现。
  */
 export function WorkspaceSidebar() {
   const pathname = usePathname()
@@ -26,6 +27,7 @@ export function WorkspaceSidebar() {
   const homeHref = pathname === "/" ? "#overview" : "/#overview"
   const moduleLinks = [
     { href: homeHref, label: "总览", icon: LayoutDashboard },
+    { href: "/calendar", label: "日程", icon: CalendarDays },
     { href: "/ai", label: "AI 中心", icon: BrainCircuit },
     { href: "/knowledge", label: "知识库", icon: BookOpen },
     { href: "/tools", label: "工具", icon: Wrench },

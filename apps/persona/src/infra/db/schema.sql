@@ -241,6 +241,8 @@ CREATE TABLE IF NOT EXISTS calendar_events (
   start_date TEXT,
   end_date TEXT,
   time_zone TEXT,
+  series_id TEXT,
+  occurrence_date TEXT,
   completed INTEGER NOT NULL DEFAULT 0 CHECK (completed IN (0, 1)),
   version INTEGER NOT NULL DEFAULT 1,
   created_at TEXT NOT NULL DEFAULT (datetime('now')),
@@ -257,7 +259,6 @@ CREATE INDEX IF NOT EXISTS idx_calendar_events_active_range
   ON calendar_events(deleted_at, all_day, start_date, start_at);
 CREATE INDEX IF NOT EXISTS idx_calendar_events_tag
   ON calendar_events(tag_id, deleted_at);
-
 CREATE TABLE IF NOT EXISTS background_jobs (
   id TEXT PRIMARY KEY,
   type TEXT NOT NULL CHECK (type IN ('memory_analysis')),
