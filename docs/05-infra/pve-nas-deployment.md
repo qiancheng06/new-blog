@@ -14,9 +14,10 @@ PVE 宿主机只负责虚拟化；应用运行在一台 Debian 虚拟机里的 D
         v
 Cloudflare Access（GitHub 登录）
         |
-Cloudflare Tunnel（只出站连接）
+现有 iKuai Cloudflare Tunnel
         |
         v
+PVE VM 固定内网 IP:8080
      Caddy :80
        |------------------ /persona-api/* -> persona-api :3001 -> SQLite
        |
@@ -27,14 +28,13 @@ PVE
     └── Docker Compose
         ├── workspace
         ├── persona-api
-        ├── caddy
-        └── cloudflared
+        └── caddy
 ```
 
-浏览器只访问一个来源，例如 `https://app.example.com`。浏览器请求
+浏览器只访问一个来源，例如 `https://persona.changwt.cc`。浏览器请求
 `/persona-api/*`，Caddy 在 Docker 私有网络内转发到 API，因此不会因为多个容器产生跨域问题。
 
-当前 Compose 使用一个自建 `persona-nas` 应用镜像启动 Workspace、Persona API 和备份任务；Caddy、cloudflared 使用官方镜像。后续可以拆成 Workspace/API 两个自建镜像，但不是首轮 PWA 上线的前置条件。
+当前推荐模式复用 iKuai 上已有的 Cloudflare Tunnel，PVE VM 不启动 `cloudflared`；Compose 使用一个自建 `persona-nas` 应用镜像启动 Workspace、Persona API 和备份任务，Caddy 使用官方镜像。若将来需要 VM 独立连接 Tunnel，仍可启用 `dedicated-tunnel` profile。后续可以拆成 Workspace/API 两个自建镜像，但不是首轮 PWA 上线的前置条件。
 
 ## 2. PVE 虚拟机
 
@@ -108,20 +108,21 @@ sudo chown -R 1000:1000 /srv/persona/data /srv/persona/backups
 在 Cloudflare Zero Trust 控制台：
 
 1. 创建一个 dashboard-managed Tunnel。
-2. 添加公共主机名 `app.example.com`。
-3. 服务地址填写 `http://gateway:80`。
-4. 创建 Self-hosted Access Application，主机名使用同一个 `app.example.com`。
+2. 添加公共主机名 `persona.changwt.cc`，或你选择的 Persona 子域名。
+3. 服务地址填写 `http://<PVE_VM_LAN_IP>:8080`，例如 `http://192.168.50.60:8080`。
+4. 创建 Self-hosted Access Application，主机名使用同一个 `persona.changwt.cc`。
 5. 添加 GitHub Identity Provider。
 6. Allow 规则只包含实际使用的 GitHub 账号。
-7. 复制 Tunnel Token 到 VM 私有 `.env`，不要提交 Git 或发送到聊天中。
+7. 复用 iKuai 连接器时，不需要把 Tunnel Token 放进 PVE VM；不要在 VM 内启动第二个 `cloudflared`。
 
 Access 应用和 Tunnel 主机名必须完全一致。不要给 `persona-api` 单独创建公网域名。
+当前已有 Tunnel 的连接器需要能够访问 PVE VM 的固定局域网 IP；PVE 防火墙只允许该连接器所在局域网访问 Caddy 端口。
 
 ### 5.2 公网安全边界
 
-- 只公开 `https://app.example.com`。
+- 只公开 `https://persona.changwt.cc`。
 - Persona API 端口 `3001` 不发布到宿主机。
-- `PERSONA_ALLOWED_ORIGINS` 只填写 `https://app.example.com`。
+- `PERSONA_ALLOWED_ORIGINS` 只填写 `https://persona.changwt.cc`。
 - 不使用 `*` CORS。
 - API Key、Telegram Token、Tunnel Token 只放 VM 的 `deploy/nas/.env`。
 
@@ -145,24 +146,26 @@ PERSONA_IMAGE=persona-nas:local
 PERSONA_DATA_DIR=/srv/persona/data
 PERSONA_BACKUP_DIR=/srv/persona/backups
 PERSONA_BACKUP_RETENTION_DAYS=30
+PERSONA_GATEWAY_BIND_IP=192.168.50.60
+PERSONA_GATEWAY_PORT=8080
 
-PERSONA_ALLOWED_ORIGINS=https://app.example.com
-CLOUDFLARE_TUNNEL_TOKEN=只填入VM本地文件
+PERSONA_ALLOWED_ORIGINS=https://persona.changwt.cc
+CLOUDFLARE_TUNNEL_TOKEN=复用iKuai Tunnel时留空
 
-# 首轮日历验收使用 mock，不依赖外部模型网络。
-LLM_PROVIDER=mock
+# NAS 使用真实服务端模型，不使用 mock。
+LLM_PROVIDER=deepseek
 LLM_MODEL=deepseek-chat
-OPENAI_API_KEY=
+OPENAI_API_KEY=sk-your_deepseek_key_here
 
 PERSONA_ANALYSIS_ENDPOINT=
 PERSONA_ANALYSIS_MODEL=
 PERSONA_ANALYSIS_API_KEY=
 PERSONA_TIME_ZONE=Asia/Shanghai
-PERSONA_DAILY_SUMMARY_ENABLED=false
+PERSONA_DAILY_SUMMARY_ENABLED=true
 PERSONA_OBSIDIAN_SNAPSHOT_ENABLED=false
 ```
 
-首轮日历验收使用 `mock`。确认手机链路稳定后，再注入真实模型配置。真实模型密钥只进入后端容器，不会写入前端或 PWA。
+NAS 使用真实服务端模型。真实模型密钥只进入后端容器，不会写入前端或 PWA。CI 和本地契约测试仍可显式使用 `mock`，但不代表生产运行模式。
 
 ## 7. 构建和启动
 
@@ -172,21 +175,25 @@ PERSONA_OBSIDIAN_SNAPSHOT_ENABLED=false
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   config
 
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   build
 
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   up -d
 
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   ps
 ```
 
@@ -195,13 +202,13 @@ docker compose \
 - `persona-api`：健康检查 `/health` 通过。
 - `workspace`：健康检查 `/calendar` 通过。
 - `gateway`：健康检查 `/healthz` 通过。
-- `cloudflared`：保持运行并连接 Tunnel。
+- 现有 Tunnel 模式下，`cloudflared` 不在 VM 内运行；iKuai 连接器访问 Caddy 的固定内网地址。
 
-Compose 不发布宿主端口，所有公网流量都经过 Cloudflare Tunnel 和 Caddy。
+现有 Tunnel 模式下，Compose 只把 Caddy 发布到 PVE VM 的固定局域网端口，例如 `192.168.50.60:8080`；Persona API 仍不发布。若改用 VM 内专用 Tunnel，则使用 `dedicated-tunnel` profile，并移除 existing-tunnel override。
 
 ## 8. 手机 PWA 验收
 
-1. 手机浏览器打开 `https://app.example.com/calendar`。
+1. 手机浏览器打开 `https://persona.changwt.cc/calendar`。
 2. 完成 Cloudflare GitHub 登录。
 3. 确认月、周、日视图可以切换。
 4. 确认点击日期只改变选中日期，不自动切换视图。
@@ -232,6 +239,7 @@ Persona 的 SQLite 位于：
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   --profile maintenance run --rm backup
 ```
 
@@ -244,6 +252,7 @@ PERSONA_BACKUP_LABEL=pre-upgrade \
 docker compose \
   --env-file deploy/nas/.env \
   -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
   --profile maintenance run --rm backup
 ```
 
@@ -260,12 +269,13 @@ git checkout master
 git pull --ff-only origin master
 
 # 先做 SQLite 备份，再构建和重启
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml \
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml \
   --profile maintenance run --rm backup
 
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml build
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml up -d
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml ps
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml build
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml up -d
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml ps
 ```
 
 不要在生产 VM 上直接跟随不稳定分支。稳定发布应使用已验证的 commit 或 tag。
@@ -343,7 +353,7 @@ master push
 ### `persona-api` 不健康
 
 ```bash
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml logs --tail=200 persona-api
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml logs --tail=200 persona-api
 ```
 
 重点检查 `PERSONA_DATA_DIR` 权限、端口 `3001` 是否启动、SQLite 是否位于本地 SSD，以及 `.env` 中的配置格式。
@@ -351,7 +361,7 @@ docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml logs --tail
 ### `workspace` 不健康
 
 ```bash
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml logs --tail=200 workspace
+docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/nas/compose.existing-tunnel.yaml logs --tail=200 workspace
 ```
 
 重点检查镜像构建是否完成、`/app/apps/workspace/.next` 是否存在，以及 Workspace 是否监听 `0.0.0.0:5173`。
@@ -360,7 +370,7 @@ docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml logs --tail
 
 依次检查：
 
-1. `PERSONA_ALLOWED_ORIGINS` 是否精确等于 `https://app.example.com`。
+1. `PERSONA_ALLOWED_ORIGINS` 是否精确等于 `https://persona.changwt.cc`。
 2. Caddy 是否将 `/persona-api/*` 转发到 `persona-api:3001`。
 3. Cloudflare Access 是否保护了同一个主机名。
 4. 浏览器请求是否仍错误指向 `127.0.0.1:3001`。

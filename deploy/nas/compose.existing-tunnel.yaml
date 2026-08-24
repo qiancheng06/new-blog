@@ -1,0 +1,8 @@
+services:
+  gateway:
+    ports:
+      - "${PERSONA_GATEWAY_BIND_IP:-0.0.0.0}:${PERSONA_GATEWAY_PORT:-8080}:80"
+
+  # The existing iKuai connector owns the Cloudflare Tunnel.
+  cloudflared:
+    profiles: ["dedicated-tunnel"]

@@ -1,15 +1,21 @@
 # N5 Pro Deployment
 
-This stack runs the Workspace and Persona API behind one Caddy origin. Only
-Cloudflare Tunnel reaches Caddy; Persona port `3001` is never published.
+This stack runs the Workspace and Persona API behind one Caddy origin. The
+recommended setup reuses the existing iKuai Cloudflare Tunnel: Cloudflare
+routes a hostname to the PVE VM fixed LAN address and the VM publishes only
+the Caddy port. Persona port `3001` is never published.
 
 ## 1. Prepare Cloudflare
 
-1. Create a dashboard-managed Tunnel in Cloudflare Zero Trust.
-2. Add public hostname `app.<your-domain>` with service `http://gateway:80`.
+1. Reuse the existing iKuai Tunnel and add a hostname such as `persona.<your-domain>`.
+2. Point it to `http://<PVE_VM_LAN_IP>:8080`.
 3. Create a Self-hosted Access application for the same hostname.
 4. Add GitHub as the identity provider and allow only the intended GitHub user.
-5. Copy the Tunnel token without placing it in Git or chat logs.
+5. Do not start the `cloudflared` service in this VM; the iKuai connector already owns the Tunnel.
+
+The alternative dedicated-connector mode remains available with the
+`dedicated-tunnel` Compose profile. Do not run both connectors for the same
+hostname unless both can reach the same origin.
 
 ## 2. Prepare N5 Pro
 
@@ -30,10 +36,18 @@ Do not use an SMB or NFS mount for the live SQLite directory.
 ## 3. Build and start
 
 ```bash
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml config
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml build
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml up -d
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml ps
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml config
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml build
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml up -d
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml ps
 ```
 
 The first start creates an empty `persona-os.db`. Open
@@ -44,16 +58,23 @@ The first start creates an empty `persona-os.db`. Open
 Schedule this command once per day in the NAS task scheduler:
 
 ```bash
-docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml --profile maintenance run --rm backup
+docker compose --env-file deploy/nas/.env \
+  -f deploy/nas/compose.yaml \
+  -f deploy/nas/compose.existing-tunnel.yaml \
+  --profile maintenance run --rm backup
 ```
 
 Before an image upgrade, set `PERSONA_BACKUP_LABEL=pre-upgrade` in the command
 environment and run the same backup service. Keep the `data` volume when rolling
 back an image.
 
-## 5. Enable AI and Obsidian later
+## 5. Model and Obsidian configuration
 
-Calendar acceptance starts with `LLM_PROVIDER=mock`, Daily Summary disabled, and
-Obsidian Snapshot disabled. After the mobile calendar passes, inject the trusted
-server model variables and mount a NAS-local Vault directory in `persona-api`.
+The NAS runtime uses the configured real model and does not use `mock`. Set
+`LLM_PROVIDER`, `LLM_MODEL` and `OPENAI_API_KEY` to the server model values.
+The current foreground provider is DeepSeek-compatible; dedicated
+OpenAI-compatible analysis jobs can use `PERSONA_ANALYSIS_ENDPOINT` and its
+corresponding model/key fields.
+
+Obsidian Snapshot can remain disabled until a NAS-local Vault is mounted.
 Browser custom API keys remain session-only and are not written to SQLite.

@@ -77,7 +77,8 @@ npm run dev:blog:lan
 
 ## N5 Pro Docker Compose（当前推荐）
 
-仓库提供 `deploy/nas/compose.yaml`，在 N5 Pro 的 x86_64 Docker 环境运行：
+仓库提供 `deploy/nas/compose.yaml` 和现有 iKuai Tunnel 专用的
+`deploy/nas/compose.existing-tunnel.yaml`，在 N5 Pro 的 x86_64 Docker 环境运行：
 
 ```text
 Cloudflare Access + Tunnel
@@ -87,12 +88,13 @@ Cloudflare Access + Tunnel
 ```
 
 - Workspace 构建使用 `NEXT_PUBLIC_PERSONA_API_BASE=/persona-api`，公网域名不写死在镜像中。
-- Compose 不发布任何宿主端口；cloudflared 只连接内部 Caddy 网关。
+- 推荐复用 iKuai 上已有 Tunnel，通过固定的 PVE VM 局域网 IP 和 Caddy 端口访问；此模式不在 VM 内启动 `cloudflared`。
+- 如果使用 VM 内独立 Tunnel，启用 `dedicated-tunnel` profile；不要让两个连接器共同承载同一个主机名。
 - `PERSONA_ALLOWED_ORIGINS` 必须是 Access 保护的精确 HTTPS Workspace 来源。
 - `PERSONA_DATA_DIR=/app/data` 把运行库固定到容器持久化挂载；本地未设置时仍使用仓库根 `data/`。
 - 首次启动从空 SQLite 开始，实时数据库放 NAS 本地 SSD，不能放 SMB/NFS 共享。
 - `backup` maintenance profile 使用 SQLite Backup API，适合 NAS 定时任务每日调用。
-- 初次日历验收使用 mock provider，并关闭 Daily Summary 与 Obsidian Snapshot 调度。
+- NAS 生产运行使用真实服务端模型，不使用 mock；CI 和契约测试仍可显式使用 mock。
 - Tunnel Token 与模型密钥只放 `deploy/nas/.env`，该文件已被 Git 忽略。
 
 具体准备、启动、备份和升级命令见

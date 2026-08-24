@@ -11,6 +11,7 @@ const requiredFiles = [
   "Dockerfile",
   ".dockerignore",
   "deploy/nas/compose.yaml",
+  "deploy/nas/compose.existing-tunnel.yaml",
   "deploy/nas/Caddyfile",
   "deploy/nas/.env.example",
   "deploy/nas/backup-sqlite.mjs",
@@ -26,6 +27,7 @@ const requiredFiles = [
 for (const file of requiredFiles) assert(existsSync(join(root, file)), `Missing deployment file: ${file}`)
 
 const compose = read("deploy/nas/compose.yaml")
+const existingTunnelCompose = read("deploy/nas/compose.existing-tunnel.yaml")
 for (const service of ["persona-api", "workspace", "gateway", "cloudflared", "backup"]) {
   assert(compose.includes(`  ${service}:`), `Compose service missing: ${service}`)
 }
@@ -34,6 +36,8 @@ assert(compose.includes("PERSONA_ALLOWED_ORIGINS"), "Compose must inject the exa
 assert(compose.includes("/app/data"), "Persona SQLite directory must be a mounted data path")
 assert(compose.includes("PERSONA_DATA_DIR: /app/data"), "Persona must use the mounted SQLite directory")
 assert(compose.includes("condition: service_healthy"), "Dependent services must wait for health checks")
+assert(existingTunnelCompose.includes("PERSONA_GATEWAY_PORT"), "Existing Tunnel mode must publish the configured gateway port")
+assert(existingTunnelCompose.includes('profiles: ["dedicated-tunnel"]'), "Existing Tunnel mode must disable the VM cloudflared connector")
 
 const caddy = read("deploy/nas/Caddyfile")
 assert(caddy.includes("handle_path /persona-api/*"), "Gateway must strip the Persona API prefix")

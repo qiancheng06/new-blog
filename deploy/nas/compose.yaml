@@ -21,7 +21,7 @@ services:
       API_HOST: 0.0.0.0
       API_PORT: 3001
       PERSONA_DATA_DIR: /app/data
-      LLM_PROVIDER: ${LLM_PROVIDER:-mock}
+      LLM_PROVIDER: ${LLM_PROVIDER:-deepseek}
       LLM_MODEL: ${LLM_MODEL:-deepseek-chat}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       PERSONA_ANALYSIS_ENDPOINT: ${PERSONA_ANALYSIS_ENDPOINT:-}
@@ -29,7 +29,7 @@ services:
       PERSONA_ANALYSIS_API_KEY: ${PERSONA_ANALYSIS_API_KEY:-}
       PERSONA_ALLOWED_ORIGINS: ${PERSONA_ALLOWED_ORIGINS}
       PERSONA_TIME_ZONE: ${PERSONA_TIME_ZONE:-Asia/Shanghai}
-      PERSONA_DAILY_SUMMARY_ENABLED: ${PERSONA_DAILY_SUMMARY_ENABLED:-false}
+      PERSONA_DAILY_SUMMARY_ENABLED: ${PERSONA_DAILY_SUMMARY_ENABLED:-true}
       PERSONA_DAILY_SUMMARY_TIME: ${PERSONA_DAILY_SUMMARY_TIME:-00:05}
       PERSONA_OBSIDIAN_SNAPSHOT_ENABLED: ${PERSONA_OBSIDIAN_SNAPSHOT_ENABLED:-false}
       PERSONA_OBSIDIAN_SNAPSHOT_TIME: ${PERSONA_OBSIDIAN_SNAPSHOT_TIME:-00:15}
@@ -95,6 +95,7 @@ services:
 
   cloudflared:
     image: ${CLOUDFLARED_IMAGE:-cloudflare/cloudflared:latest}
+    profiles: ["dedicated-tunnel"]
     command: ["tunnel", "--no-autoupdate", "run", "--token", "${CLOUDFLARE_TUNNEL_TOKEN}"]
     restart: unless-stopped
     depends_on:
