@@ -109,7 +109,7 @@ sudo chown -R 1000:1000 /srv/persona/data /srv/persona/backups
 
 1. 创建一个 dashboard-managed Tunnel。
 2. 添加公共主机名 `persona.changwt.cc`，或你选择的 Persona 子域名。
-3. 服务地址填写 `http://<PVE_VM_LAN_IP>:8080`，例如 `http://192.168.50.60:8080`。
+3. 服务地址填写 `http://<PVE_VM_LAN_IP>:8080`，本机填写 `http://192.168.50.61:8080`。
 4. 创建 Self-hosted Access Application，主机名使用同一个 `persona.changwt.cc`。
 5. 添加 GitHub Identity Provider。
 6. Allow 规则只包含实际使用的 GitHub 账号。
@@ -146,7 +146,7 @@ PERSONA_IMAGE=persona-nas:local
 PERSONA_DATA_DIR=/srv/persona/data
 PERSONA_BACKUP_DIR=/srv/persona/backups
 PERSONA_BACKUP_RETENTION_DAYS=30
-PERSONA_GATEWAY_BIND_IP=192.168.50.60
+PERSONA_GATEWAY_BIND_IP=192.168.50.61
 PERSONA_GATEWAY_PORT=8080
 
 PERSONA_ALLOWED_ORIGINS=https://persona.changwt.cc
@@ -204,7 +204,7 @@ docker compose \
 - `gateway`：健康检查 `/healthz` 通过。
 - 现有 Tunnel 模式下，`cloudflared` 不在 VM 内运行；iKuai 连接器访问 Caddy 的固定内网地址。
 
-现有 Tunnel 模式下，Compose 只把 Caddy 发布到 PVE VM 的固定局域网端口，例如 `192.168.50.60:8080`；Persona API 仍不发布。若改用 VM 内专用 Tunnel，则使用 `dedicated-tunnel` profile，并移除 existing-tunnel override。
+现有 Tunnel 模式下，Compose 只把 Caddy 发布到 PVE VM 的固定局域网端口，例如本机的 `192.168.50.61:8080`；Persona API 仍不发布。若改用 VM 内专用 Tunnel，则使用 `dedicated-tunnel` profile，并移除 existing-tunnel override。
 
 ## 8. 手机 PWA 验收
 
