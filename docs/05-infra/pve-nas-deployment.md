@@ -312,7 +312,7 @@ docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/n
 1. 校验 Compose 配置。
 2. 使用 Buildx 构建 `linux/amd64`。
 3. 使用 GitHub Actions cache 加速 Docker 构建。
-4. Pull Request 和开发分支只验证镜像构建；`master` 自动发布 `latest`，`v*` 版本标签发布版本镜像和 commit SHA 镜像到 GHCR。
+4. Pull Request 只验证镜像构建；`master` 自动发布 `latest`，`v*` 版本标签发布版本镜像和 commit SHA 镜像到 GHCR。普通开发分支 push 不触发工作流。
 
 ### 当前已知阻塞
 

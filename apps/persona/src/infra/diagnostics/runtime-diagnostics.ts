@@ -1,4 +1,4 @@
-import { basename, join, relative, resolve } from "path"
+import { join, relative, resolve } from "path"
 import { existsSync, statSync } from "fs"
 import { loadRuntimeConfig, validateRuntimeConfig } from "../config/index.js"
 
@@ -203,10 +203,15 @@ function vaultStatus(vaultPath: string): Check["status"] {
 }
 
 function describeVault(vaultPath: string): string {
+  const leaf = pathLeaf(vaultPath)
   if (!vaultPath) return "OBSIDIAN_VAULT_PATH is empty"
-  if (!existsSync(vaultPath)) return `configured path not found (leaf: ${basename(vaultPath) || "[unknown]"})`
-  if (isInsideProject(vaultPath)) return `exists but appears inside repository (leaf: ${basename(vaultPath)})`
-  return `exists outside repository (leaf: ${basename(vaultPath)})`
+  if (!existsSync(vaultPath)) return `configured path not found (leaf: ${leaf})`
+  if (isInsideProject(vaultPath)) return `exists but appears inside repository (leaf: ${leaf})`
+  return `exists outside repository (leaf: ${leaf})`
+}
+
+function pathLeaf(value: string): string {
+  return value.split(/[\\/]/).filter(Boolean).at(-1) || "[unknown]"
 }
 
 function isInsideProject(targetPath: string): boolean {
