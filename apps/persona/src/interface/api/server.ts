@@ -147,6 +147,7 @@ import {
   parseConversationHistorySource,
   parseConversationHistoryStatus,
 } from "../../application/conversations.js"
+import { createMobilePairingCode, handleMobileApi, listMobileDevices, renameMobileDevice, revokeMobileDevice, MobileDeviceNotFoundError, MobileDeviceValidationError } from "./mobile.js"
 
 const CORS_HEADERS = {
   "Access-Control-Allow-Methods": "GET, POST, PATCH, DELETE, OPTIONS",
@@ -965,6 +966,24 @@ async function handler(req: IncomingMessage, res: ServerResponse, onShutdownRequ
   const url = requestUrl.pathname
 
   try {
+    if (url === "/api/mobile/pairing-code" && req.method === "POST") {
+      // This endpoint is intended to sit behind the existing Cloudflare Access
+      // protected web settings surface. It never returns a reusable credential.
+      return json(res, 201, createMobilePairingCode())
+    }
+    if (url === "/api/mobile/devices" && req.method === "GET") {
+      return json(res, 200, { devices: listMobileDevices() })
+    }
+    const mobileDeviceMatch = /^\/api\/mobile\/devices\/([^/]+)$/.exec(url)
+    if (mobileDeviceMatch && req.method === "PATCH") {
+      const parsed = await readJsonObject<{ name?: string }>(req, res)
+      if (!parsed) return
+      return json(res, 200, { device: renameMobileDevice(decodeURIComponent(mobileDeviceMatch[1]), parsed.name ?? "") })
+    }
+    if (mobileDeviceMatch && req.method === "DELETE") {
+      return json(res, 200, revokeMobileDevice(decodeURIComponent(mobileDeviceMatch[1])))
+    }
+    if (await handleMobileApi(req, res, url, requestUrl)) return
     if (url === "/api/chat" && req.method === "POST") {
       return await handleChat(req, res)
     }
@@ -1150,6 +1169,8 @@ async function handler(req: IncomingMessage, res: ServerResponse, onShutdownRequ
     json(res, 404, { error: "not found" })
   } catch (err) {
     console.error("[api error]", err instanceof Error ? err.message : err)
+    if (err instanceof MobileDeviceValidationError) return json(res, 400, { error: err.message })
+    if (err instanceof MobileDeviceNotFoundError) return json(res, 404, { error: err.message })
     json(res, 500, { error: "internal error" })
   }
 }

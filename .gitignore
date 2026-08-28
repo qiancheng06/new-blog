@@ -9,8 +9,13 @@ apps/workspace/public/data/blog/
 .obsidian/
 apps/workspace/projects/
 *.local
+apps/android/local.properties
+apps/android/app/schemas/
 .DS_Store
 Thumbs.db
+
+# Agent tooling local state
+.workbuddy/
 
 # Persona OS backend
 dist/

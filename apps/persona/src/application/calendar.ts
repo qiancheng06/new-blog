@@ -18,6 +18,11 @@ export type CalendarSchedule =
   | { kind: "allDay"; startDate: string; endDate: string }
   | { kind: "timed"; startsAt: string; endsAt: string; timeZone: string }
 
+export type CalendarReminder =
+  | { kind: "none" }
+  | { kind: "before"; minutes: 0 | 5 | 15 | 30 | 60 | 1440 }
+  | { kind: "allDayAt"; time: string }
+
 export interface CalendarEventDto {
   id: string
   title: string
@@ -25,6 +30,7 @@ export interface CalendarEventDto {
   tagId: string
   completed: boolean
   schedule: CalendarSchedule
+  reminder: CalendarReminder
   seriesId: string | null
   version: number
   createdAt: string
@@ -56,6 +62,7 @@ interface CalendarEventRow {
   series_id: string | null
   occurrence_date: string | null
   completed: number
+  reminder: string
   version: number
   created_at: string
   updated_at: string
@@ -68,6 +75,7 @@ export interface CalendarEventInput {
   tagId: string
   completed?: boolean
   schedule: CalendarSchedule
+  reminder?: CalendarReminder
 }
 
 export interface CalendarEventPatch {
@@ -77,6 +85,7 @@ export interface CalendarEventPatch {
   tagId?: string
   completed?: boolean
   schedule?: CalendarSchedule
+  reminder?: CalendarReminder
 }
 
 type ValidatedCalendarEventInput = Required<Omit<CalendarEventInput, "schedule">> & { schedule: CalendarSchedule }
@@ -135,8 +144,8 @@ function insertCalendarEvent(value: ValidatedCalendarEventInput, seriesId: strin
   run(
     `INSERT INTO calendar_events
        (id, title, notes, tag_id, all_day, start_at, end_at, start_date, end_date, time_zone,
-        series_id, occurrence_date, completed)
-     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
+        series_id, occurrence_date, completed, reminder)
+     VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`,
     [
       id,
       value.title,
@@ -151,6 +160,7 @@ function insertCalendarEvent(value: ValidatedCalendarEventInput, seriesId: strin
       seriesId,
       occurrenceDate,
       value.completed ? 1 : 0,
+      JSON.stringify(value.reminder),
     ],
   )
   return toEventDto(queryOne<CalendarEventRow>("SELECT * FROM calendar_events WHERE id = ?", [id])!)
@@ -166,6 +176,7 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
     tagId: patch.tagId ?? current.tagId,
     completed: patch.completed ?? current.completed,
     schedule: patch.schedule ?? current.schedule,
+    reminder: patch.reminder ?? current.reminder,
   })
   ensureActiveTag(value.tagId)
   const schedule = scheduleColumns(value.schedule)
@@ -173,6 +184,7 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
     `UPDATE calendar_events
      SET title = ?, notes = ?, tag_id = ?, all_day = ?, start_at = ?, end_at = ?,
          start_date = ?, end_date = ?, time_zone = ?, occurrence_date = ?, completed = ?,
+         reminder = ?,
          version = version + 1, updated_at = datetime('now')
      WHERE id = ? AND version = ? AND deleted_at IS NULL`,
     [
@@ -187,6 +199,7 @@ export function updateCalendarEvent(id: string, patch: CalendarEventPatch): Cale
       schedule.timeZone,
       occurrenceDateForSchedule(value.schedule),
       value.completed ? 1 : 0,
+      JSON.stringify(value.reminder),
       id,
       version,
     ],
@@ -341,7 +354,18 @@ function validateEventInput(input: CalendarEventInput): ValidatedCalendarEventIn
   if (input.completed !== undefined && typeof input.completed !== "boolean") {
     throw new CalendarValidationError("completed must be a boolean")
   }
-  return { title, notes, tagId, completed: input.completed ?? false, schedule: validateSchedule(input.schedule) }
+  const schedule = validateSchedule(input.schedule)
+  const reminder = validateReminder(input.reminder, schedule)
+  return { title, notes, tagId, completed: input.completed ?? false, schedule, reminder }
+}
+
+function validateReminder(input: CalendarReminder | undefined, schedule: CalendarSchedule): CalendarReminder {
+  const reminder = input ?? { kind: "none" as const }
+  if (!reminder || typeof reminder !== "object") throw new CalendarValidationError("reminder must be an object")
+  if (reminder.kind === "none") return reminder
+  if (reminder.kind === "before" && schedule.kind === "timed" && [0, 5, 15, 30, 60, 1440].includes(reminder.minutes)) return reminder
+  if (reminder.kind === "allDayAt" && schedule.kind === "allDay" && /^([01]\d|2[0-3]):[0-5]\d$/.test(reminder.time)) return reminder
+  throw new CalendarValidationError("reminder is incompatible with the event schedule")
 }
 
 function validateSchedule(schedule: CalendarSchedule): CalendarSchedule {
@@ -477,6 +501,11 @@ function toEventDto(row: CalendarEventRow): CalendarEventDto {
   const schedule: CalendarSchedule = row.all_day === 1
     ? { kind: "allDay", startDate: row.start_date!, endDate: row.end_date! }
     : { kind: "timed", startsAt: row.start_at!, endsAt: row.end_at!, timeZone: row.time_zone! }
+  let reminder: CalendarReminder = { kind: "none" }
+  try {
+    const parsed = JSON.parse(row.reminder) as CalendarReminder
+    if (parsed && typeof parsed === "object") reminder = parsed
+  } catch { /* legacy rows default to no reminder */ }
   return {
     id: row.id,
     title: row.title,
@@ -484,6 +513,7 @@ function toEventDto(row: CalendarEventRow): CalendarEventDto {
     tagId: row.tag_id,
     completed: row.completed === 1,
     schedule,
+    reminder,
     seriesId: row.series_id,
     version: row.version,
     createdAt: row.created_at,

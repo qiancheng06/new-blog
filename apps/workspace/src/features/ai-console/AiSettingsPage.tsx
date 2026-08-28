@@ -12,6 +12,7 @@ import {
   type WorkspaceTheme,
 } from "@/features/workspace/appearance"
 import { useAiConsole } from "./AiConsoleShell"
+import { MobileDevicesPanel } from "./MobileDevicesPanel"
 
 const themes: Array<{ value: WorkspaceTheme; label: string; icon: typeof Sun }> = [
   { value: "light", label: "明亮", icon: Sun },
@@ -165,6 +166,8 @@ export function AiSettingsPage() {
         <textarea rows={7} maxLength={1000} value={settings.instructions} placeholder="例如：回答简洁，优先给出下一步行动。" onChange={(event) => setSettings({ ...settings, instructions: event.target.value })} />
         <small>{settings.instructions.length}/1000</small>
       </section>
+
+      <MobileDevicesPanel />
     </div>
   )
 }

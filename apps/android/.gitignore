@@ -1,0 +1,24 @@
+# Gradle build output and caches
+# (gradle/ wrapper directory itself is required and must stay tracked)
+.gradle/
+build/
+captures/
+.externalNativeBuild/
+.cxx/
+.kotlin/
+
+# Android Studio / IntelliJ — per-developer, never shared
+.idea/
+*.iml
+*.ipr
+*.iws
+
+# Local SDK path
+local.properties
+
+# Signing material — must never be committed
+*.jks
+*.keystore
+
+# OS noise
+.DS_Store

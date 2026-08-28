@@ -21,6 +21,11 @@ export type CalendarApiSchedule =
   | { kind: "allDay"; startDate: string; endDate: string }
   | { kind: "timed"; startsAt: string; endsAt: string; timeZone: string }
 
+export type CalendarApiReminder =
+  | { kind: "none" }
+  | { kind: "before"; minutes: 0 | 5 | 15 | 30 | 60 | 1440 }
+  | { kind: "allDayAt"; time: string }
+
 export interface CalendarApiEvent {
   id: string
   title: string
@@ -28,6 +33,7 @@ export interface CalendarApiEvent {
   tagId: string
   completed: boolean
   schedule: CalendarApiSchedule
+  reminder: CalendarApiReminder
   seriesId: string | null
   version: number
   createdAt: string
@@ -40,6 +46,7 @@ export interface CalendarEventWrite {
   tagId: string
   completed: boolean
   schedule: CalendarApiSchedule
+  reminder?: CalendarApiReminder
 }
 
 export type CalendarDeleteScope = "single" | "future" | "series"

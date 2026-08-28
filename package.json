@@ -48,6 +48,7 @@
     "contract:daily-summary-scheduler": "tsx apps/persona/src/application/daily-summary-scheduler-contract.ts",
     "contract:obsidian-archive": "tsx apps/persona/src/application/obsidian-archive-contract.ts",
     "contract:calendar": "tsx apps/persona/src/application/calendar-contract.ts",
+    "contract:mobile": "tsx apps/persona/src/interface/api/mobile-contract.ts",
     "contract:background-jobs": "tsx apps/persona/src/application/background-jobs-contract.ts",
     "contract:obsidian-snapshot-scheduler": "tsx apps/persona/src/application/obsidian-snapshot-scheduler-contract.ts",
     "cleanup:real-mode": "tsx apps/persona/src/domain/memory/cleanup-real-mode-tests.ts",

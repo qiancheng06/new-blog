@@ -42,6 +42,10 @@ export function withImmediateTransaction<T>(work: () => T): T {
   return _db.transaction(work).immediate()
 }
 
+export function closeDb(): void {
+  if (_db.open) _db.close()
+}
+
 export function initializeDb(): void {
   const sql = readFileSync(schemaPath, "utf-8")
 
@@ -84,6 +88,7 @@ function migrateDailyNotes(): void {
 function migrateCalendarSchema(): void {
   ensureColumn("calendar_events", "series_id", "TEXT")
   ensureColumn("calendar_events", "occurrence_date", "TEXT")
+  ensureColumn("calendar_events", "reminder", "TEXT NOT NULL DEFAULT '{\"kind\":\"none\"}'")
   _db.exec("CREATE INDEX IF NOT EXISTS idx_calendar_events_series ON calendar_events(series_id, occurrence_date, deleted_at);")
 }
 
