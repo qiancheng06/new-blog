@@ -128,4 +128,5 @@ jobs:
         shell: bash
         env:
           PERSONA_IMAGE_REPOSITORY: ghcr.io/${{ github.repository_owner }}/persona-nas
+          PERSONA_RUNTIME_ENV_FILE: /opt/persona/deploy/nas/.env
         run: bash deploy/vm/deploy-release.sh "${GITHUB_REF_NAME}"
