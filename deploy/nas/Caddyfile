@@ -5,8 +5,9 @@
 :80 {
   encode zstd gzip
 
-  @health path /healthz
-  respond @health 200
+  handle /healthz {
+    respond 200
+  }
 
   handle_path /persona-api/* {
     reverse_proxy persona-api:3001
