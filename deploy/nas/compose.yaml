@@ -123,7 +123,6 @@ services:
       - type: bind
         source: ${PERSONA_DATA_DIR:-./runtime/data}
         target: /app/data
-        read_only: true
       - type: bind
         source: ${PERSONA_BACKUP_DIR:-./backups}
         target: /app/backups
