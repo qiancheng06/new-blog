@@ -12,7 +12,6 @@ import {
   type WorkspaceTheme,
 } from "@/features/workspace/appearance"
 import { useAiConsole } from "./AiConsoleShell"
-import { MobileDevicesPanel } from "./MobileDevicesPanel"
 
 const themes: Array<{ value: WorkspaceTheme; label: string; icon: typeof Sun }> = [
   { value: "light", label: "明亮", icon: Sun },
@@ -167,7 +166,6 @@ export function AiSettingsPage() {
         <small>{settings.instructions.length}/1000</small>
       </section>
 
-      <MobileDevicesPanel />
     </div>
   )
 }

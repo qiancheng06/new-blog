@@ -11,6 +11,7 @@
     "dev": "next dev apps/workspace -H 127.0.0.1 -p 5173",
     "dev:lan": "next dev apps/workspace -H 0.0.0.0 -p 5173",
     "dev:blog": "next dev apps/blog -H 127.0.0.1 -p 5175",
+    "dev:workspace-demo": "next dev apps/workspace-demo -H 127.0.0.1 -p 5176",
     "dev:blog:lan": "next dev apps/blog -H 0.0.0.0 -p 5175",
     "dev:content": "node apps/workspace/scripts/sync-projects.js && vitepress dev apps/workspace --host 127.0.0.1 --port 5174",
     "dev:mock": "tsx apps/workspace/scripts/dev-demo.ts",

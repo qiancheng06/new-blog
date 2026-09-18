@@ -36,7 +36,6 @@ fi
 compose=(
   docker compose
   --project-name "$compose_project"
-  --project-directory "$repository_root"
   --env-file "$runtime_env_file"
   -f "$compose_file"
   -f "$compose_tunnel_file"

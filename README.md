@@ -6,6 +6,7 @@ The project is currently a light monorepo:
 
 - `apps/workspace/`: primary Workspace frontend.
 - `apps/blog/`: standalone public blog frontend.
+- `apps/android/`: standalone Android client using Persona Mobile API v1.
 - `apps/persona/src/`: Persona OS backend and application runtime.
 - `docs/`: architecture-domain workspaces for AI collaboration.
 - `data/`: local runtime data, including SQLite.
@@ -58,6 +59,7 @@ the public internet without an authentication layer.
 | `http://127.0.0.1:5175/` | `npm.cmd run dev:blog` | Standalone public Next.js blog, synced from `vault/blog/*.md` |
 | `http://127.0.0.1:5174/` | `npm.cmd run dev:content` | VitePress/Obsidian content site |
 | `http://127.0.0.1:3001/` | `npm.cmd run dev:backend` or `npm.cmd run dev:backend:mock` | Persona Application API |
+| `apps/android/` | Android Studio or `apps/android/gradlew.bat` | Standalone Android client; no web server entrypoint |
 | `apps/workspace/legacy/*.html` | none | Legacy reference assets only |
 
 Do not open `apps/workspace/index.html` as the app entrypoint. The current
@@ -112,6 +114,7 @@ apps/
   blog/
     app/                 standalone public blog app (:5175)
     src/                 blog data adapter and site chrome
+  android/               standalone Kotlin/Compose Android client
   persona/
     src/                 Persona OS backend source
 docs/
@@ -132,7 +135,7 @@ AI agents and new collaborators should start here:
 
 1. [docs/00-overview/README.md](docs/00-overview/README.md)
 2. [docs/00-overview/current-architecture.md](docs/00-overview/current-architecture.md)
-3. [docs/00-overview/deployment-and-client-architecture.md](docs/00-overview/deployment-and-client-architecture.md)
+3. [docs/05-infra/deployment-and-clients.md](docs/05-infra/deployment-and-clients.md)
 4. [docs/00-overview/glossary.md](docs/00-overview/glossary.md)
 5. [docs/06-governance/architecture-invariants.md](docs/06-governance/architecture-invariants.md)
 6. [docs/01-workspace/frontend-modernization.md](docs/01-workspace/frontend-modernization.md)

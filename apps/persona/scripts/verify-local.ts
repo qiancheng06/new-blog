@@ -164,7 +164,7 @@ function runRootStructureCheck(): void {
     "apps/workspace/app/manifest.ts",
     "apps/workspace/public/sw.js",
     "docs/00-overview/current-architecture.md",
-    "docs/00-overview/deployment-and-client-architecture.md",
+    "docs/05-infra/deployment-and-clients.md",
     "docs/06-governance/architecture-invariants.md",
   ]
 
