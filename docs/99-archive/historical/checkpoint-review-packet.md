@@ -14,7 +14,7 @@ validated.
 
 ## Source Documents Reviewed
 
-- `docs/00-overview/next-agent-task-queue.md`
+- `docs/99-archive/historical/next-agent-task-queue.md`
 - `docs/00-overview/current-architecture.md`
 - `docs/06-governance/architecture-invariants.md`
 - `docs/07-product/acceptance-criteria.md`

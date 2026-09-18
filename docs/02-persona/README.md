@@ -1,5 +1,7 @@
 # Persona
 
+**负责人：Persona Runtime Agent**
+
 Persona 是认知表达域，负责系统如何理解、分析和回应用户。
 
 ## 真实模式质量门禁
@@ -42,6 +44,12 @@ Persona 是认知表达域，负责系统如何理解、分析和回应用户。
 - 不直接展示 UI
 - 不绕过 Companion 暴露 Critic 输出
 - 不把 Memory context 原文、内部标签、置信度或检索过程直接暴露给用户
+
+## 与其他 Agent 的边界
+
+- Application/API Agent 负责请求入口、会话编排、重试和任务生命周期；本域只负责模型输入输出与表达策略。
+- Memory Domain Agent 负责 `memory_patch` 的落库、治理和来源；本域不能直接调用 Memory store。
+- Infra Agent 负责 LLM 厂商适配；本域不在 Prompt 层硬编码厂商请求细节。
 
 ## 常读文档
 

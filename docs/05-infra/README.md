@@ -219,8 +219,9 @@ Markdown。存在同名文件但没有恰好一个有效托管块时，视为冲
 ## 常读文档
 
 - [deployment.md](deployment.md)
+- [release-management.md](release-management.md)
 - [../00-overview/current-architecture.md](../00-overview/current-architecture.md)
-- [../00-overview/deployment-and-client-architecture.md](../00-overview/deployment-and-client-architecture.md)
+- [deployment-and-clients.md](deployment-and-clients.md)
 - [../06-governance/debug-playbook.md](../06-governance/debug-playbook.md)
 
 ## 相关代码位置

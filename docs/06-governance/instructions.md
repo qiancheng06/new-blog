@@ -170,7 +170,7 @@ Legacy 详情页点"重置"清除 localStorage，恢复到内嵌数据（仅迁�
 
 **当前方案**: Cloudflare Tunnel + Access（免费，无需公网 IP）
 
-详细步骤见根目录 [`deploy.md`](../deploy.md)。
+详细步骤见根目录 [`deploy.md`](../../deploy.md)。
 
 ```bash
 # 本地构建

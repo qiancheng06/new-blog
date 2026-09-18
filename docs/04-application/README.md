@@ -1,5 +1,7 @@
 # Application
 
+**负责人：Application/API Agent**
+
 Application 是 Workspace 与 Persona OS 之间的编排层。
 
 ## 本域职责
@@ -20,8 +22,17 @@ Application 是 Workspace 与 Persona OS 之间的编排层。
 - 不把领域规则写成基础设施逻辑
 - 不把可观测面板展示状态当成新的写入通道
 
+## 与其他 Agent 的边界
+
+- Persona Runtime Agent 负责 Companion、Prompt 和分析输出，本域负责调用与恢复，不重写其表达规则。
+- Memory Domain Agent 负责 Event 之后的记忆投影、治理和检索语义，本域负责事务编排和 API 出口。
+- Infra Agent 负责数据库、LLM、Telegram 和文件适配，本域不直接持有基础设施实现。
+
 ## 常读文档
 
+- [api-contract.md](api-contract.md)
+- [mobile-api-v1.md](mobile-api-v1.md)
+- [android-client-ui-design-spec.md](android-client-ui-design-spec.md) — Android 客户端 UI 设计规范
 - [../00-overview/current-architecture.md](../00-overview/current-architecture.md)
 - [../03-memory/event-schema.md](../03-memory/event-schema.md)
 - [../03-memory/data-model.md](../03-memory/data-model.md)

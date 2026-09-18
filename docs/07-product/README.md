@@ -21,6 +21,8 @@ Product 是愿景、范围和验收标准域。
 - [project-brief.md](project-brief.md)
 - [vision.md](vision.md)
 - [scope.md](scope.md)
+- [stage-summary.md](stage-summary.md)
+- [plan-android-client-delivery.md](plan-android-client-delivery.md)
 - [long-term-plan.md](long-term-plan.md)
 - [acceptance-criteria.md](acceptance-criteria.md)
 

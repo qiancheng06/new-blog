@@ -9,7 +9,7 @@
 项目应保持一个中心业务后端，所有客户端都通过受保护的 HTTPS API 访问 Persona，不允许移动端、Windows App 或公网浏览器直接访问 SQLite、Obsidian Vault 或 LLM 厂商。
 
 ```text
-桌面 Web / 移动 Web(PWA) / Windows App / Telegram
+桌面 Web / 移动 Web(PWA) / Android App / Windows App / Telegram
                          |
                  HTTPS + 登录鉴权
                          |
@@ -38,6 +38,7 @@ flowchart TB
   subgraph clients["客户端"]
     desktopWeb["桌面浏览器<br/>Workspace Web"]
     mobileWeb["手机浏览器 / PWA<br/>响应式 Workspace"]
+    androidApp["Android App<br/>原生 Kotlin/Compose"]
     windowsApp["Windows App<br/>Tauri 壳 + Web UI"]
     telegram["Telegram Bot"]
     obsidianApp["Obsidian<br/>本地知识库"]
@@ -68,6 +69,7 @@ flowchart TB
 
   desktopWeb --> dns
   mobileWeb --> dns
+  androidApp --> dns
   windowsApp --> dns
   dns --> access --> gateway
   gateway -->|"app.example.com"| workspace
@@ -100,6 +102,7 @@ flowchart TB
 | `http://127.0.0.1:5175/` | 独立 Blog Next.js | 公开博客首页、文章和标签 |
 | `http://127.0.0.1:5174/` | VitePress | 私人 Obsidian 内容站 |
 | `http://127.0.0.1:3001/` | Persona API | 对话、记忆、每日总结、状态 |
+| `apps/android/` | Android 原生客户端 | Kotlin/Jetpack Compose，通过 Mobile API v1 访问 Persona |
 
 开发命令：
 
@@ -109,6 +112,7 @@ npm run dev               # 只启动 Workspace :5173
 npm run dev:blog          # 只启动 Blog :5175
 npm run dev:backend       # Persona API :3001
 npm run dev:content       # VitePress :5174
+# Android：用 Android Studio 打开 apps/android，或执行 apps/android/gradlew.bat assembleDebug
 ```
 
 ### 当前可行的单机部署
@@ -200,6 +204,16 @@ flowchart LR
 - PWA Manifest、独立窗口、安装图标和最小 Service Worker 已实现；推送与后台同步仍不在当前范围。
 
 如果将来需要原生移动 App，可以用 React Native/Expo 或 Flutter 复用同一套 API 合同，但不新增一套 Persona 业务逻辑。
+
+### Android 原生客户端
+
+当前仓库已经包含一个独立的 Kotlin/Jetpack Compose Android 项目：`apps/android/`。它与响应式 Workspace 是两种不同的客户端，不共享 Web 页面、CSS 或 React 组件。
+
+- Android 通过 `/api/mobile/v1/*` 访问 Persona，使用独立的设备配对码、短期 Access Token 和轮换 Refresh Token。
+- Android 负责原生界面、Token 安全存储、本地缓存、网络重试、日历提醒和系统分享入口。
+- Chat、Capture、Calendar 等业务规则仍由 Persona Application API 负责；Android 不直接访问 SQLite、Obsidian Vault 或 LLM Provider。
+- Mobile API 字段和版本由 Application Agent 维护，Android Client Agent 只能消费已发布的 v1 合同；协议变化必须先更新 `docs/04-application/mobile-api-v1.md` 和对应 contract。
+- Android 客户端的构建与测试使用 `apps/android/gradlew.bat` 或 Android Studio，不纳入 Next.js 的 `npm run build`。
 
 ### Windows App
 

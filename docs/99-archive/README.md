@@ -13,3 +13,8 @@
 - `legacy/`：旧架构和旧实现方案
 - `historical/`：历史路线、任务、评估和用户指南
 - `adr/`：架构决策记录
+
+## 关键历史记录
+
+- [historical/next-agent-task-queue.md](historical/next-agent-task-queue.md)：架构收敛阶段的旧任务队列。
+- [historical/checkpoint-review-packet.md](historical/checkpoint-review-packet.md)：P8 阶段检查记录。

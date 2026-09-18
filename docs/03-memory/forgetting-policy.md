@@ -7,7 +7,8 @@
 - 当前实现使用 SQLite 作为运行时存储。
 - Event 是不可变事实源，不做物理删除或改写。
 - Topic/Profile/Timeline 可以渐进更新，但必须保留来源事件引用。
-- 当前没有自动遗忘引擎、长期压缩任务或 Obsidian 自动归档闭环。
+- Profile/Topic 已支持受治理的 suppress、archive 和 restore；这些操作改变投影状态，不物理删除来源 Event。
+- 当前没有基于模型判断的自动遗忘引擎或长期压缩任务。
 
 ## Later
 
@@ -24,10 +25,7 @@
 - 不可以把 Obsidian 描述为当前唯一运行时主库；当前运行时主库是 SQLite。
 ## Current Inspection Boundary
 
-Current inspection APIs are read-only. They can expose stats and recent
-Topic/Profile/Timeline rows, but they cannot delete, archive, or rewrite memory.
-
-Safe archive/delete behavior is a later governed design. Prefer corrective
-events, inactive markers, or deactivation flags before considering physical
-deletion. Event rows remain immutable facts and must not be physically deleted
-by Memory flows.
+Inspection APIs remain read-only. Governed state endpoints can suppress,
+archive, or restore Profile/Topic projections with a required reason and audit
+Event; they cannot physically delete or rewrite source Events. See
+`forget-archive-design.md` for the implemented boundary.

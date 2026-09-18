@@ -1,5 +1,8 @@
 # Persona Mobile API v1
 
+> 当前状态：服务端合同保留，但 Android 五段式 Demo 已暂时移除配对入口和远端
+> 会话，不调用这些接口。此状态不表示 API 可以匿名访问。
+
 移动端接口使用独立 Bearer Token，不读取浏览器 Cookie。网页设置页面（由现有 Cloudflare Access 保护）调用 `POST /api/mobile/pairing-code` 生成一次性、五分钟有效的配对码。
 
 ## 认证

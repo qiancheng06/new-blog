@@ -4,9 +4,12 @@
 
 | 任务类型 | 加载 `docs/` | 加载代码 / 入口 | 禁止加载 |
 |----------|-------------|-------------|----------|
-| 修改工作台 Dashboard / 日历 | `01-workspace/` | `apps/workspace/app/`, `apps/workspace/src/features/`, `apps/workspace/src/shared/` | 02-persona, 03-memory |
-| 修改公开博客 | `01-workspace/` | `apps/blog/` | 02-persona, 03-memory |
-| 修改同步管道 | `01-workspace/`, `05-infra/` | `apps/workspace/scripts/sync-projects.js`, `apps/workspace/scripts/watch.js` | 02-persona, 03-memory |
+| 修改工作台 Dashboard / 日历 / AI 界面 | `01-workspace/` | `apps/workspace/app/`, `apps/workspace/src/features/`, `apps/workspace/src/shared/` | `apps/workspace/scripts/`, `.vitepress/`, 02-persona, 03-memory |
+| 修改公开博客界面 | `01-workspace/` | `apps/blog/app/`, `apps/blog/src/` | `apps/workspace/app/`, `apps/workspace/src/`, `apps/workspace/scripts/`, `.vitepress/`, 02-persona, 03-memory |
+| 修改同步管道 / 生成读模型 | `01-workspace/`, `05-infra/` | `apps/workspace/scripts/`, `apps/workspace/public/data/` | `apps/workspace/app/`, `apps/workspace/src/`, `apps/blog/`, 02-persona, 03-memory |
+| 修改 VitePress 私人内容站 | `01-workspace/` | `apps/workspace/.vitepress/` | `apps/workspace/app/`, `apps/workspace/src/`, `apps/blog/`, 02-persona, 03-memory |
+| 修改 Android 客户端 | `04-application/`, `05-infra/deployment-and-clients.md` | `apps/android/` | `apps/workspace/`, `apps/blog/`, `apps/persona/src/`, SQLite schema, Obsidian Vault |
+| 修改 CI / 版本 / 发布 / 远端部署 | `05-infra/`, `06-governance/` | `.github/workflows/`, `Dockerfile`, `deploy/`, `package.json` 版本字段, `docs/05-infra/release-management.md` | `apps/workspace/`, `apps/blog/`, `apps/android/`, `apps/persona/src/` 业务实现, SQLite schema, Obsidian Vault |
 | 修改 Companion / Prompt | `02-persona/` | `apps/persona/src/ai-runtime/`, `apps/persona/src/domain/persona/` | 01-workspace |
 | 修改记忆模型 | `03-memory/`, `05-infra/` | `apps/persona/src/domain/event/`, `apps/persona/src/domain/memory/`, `apps/persona/src/infra/db/` | 01-workspace |
 | 修改 Telegram Bot | `04-application/`, `05-infra/` | `apps/persona/src/interface/telegram/`, `apps/persona/src/domain/event/` | 01-workspace |
@@ -38,4 +41,6 @@
 - 改代码前先查 domain-map 确认文件属于哪个域
 - 跨域修改需同时加载两个域的 docs/
 - 多 AI 并行时只处理自己任务范围内的文件；遇到工作区已有改动，先视为他人工作，不回滚、不顺手重构
+- Workspace UI Agent 与 Content Sync Agent 的允许路径以 `agent-work-allocation.md` 为准；读模型字段变化必须通过 `apps/workspace/src/shared/` 协调
+- Workspace UI Agent、Blog UI Agent、Content Sync Agent 与 Android Client Agent 是四个独立客户端/内容工作区；跨边界需求必须通过文档化 API 或读模型协调
 - `99-archive/` 只作为历史参考，不作为当前实现依据

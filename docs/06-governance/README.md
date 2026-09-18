@@ -23,7 +23,7 @@ Governance 是协作、约束和质量守门域。
 - [instructions.md](instructions.md)
 - [coding-standards.md](coding-standards.md)
 - [debug-playbook.md](debug-playbook.md)
-- [principles.md](principles.md)
+- [documentation-standards.md](documentation-standards.md)
 
 ## 相关代码位置
 

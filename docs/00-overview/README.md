@@ -2,6 +2,8 @@
 
 本目录是所有 AI 和协作者进入项目时的第一入口。先用这里建立共同事实，再进入具体架构域。
 
+上一级总目录：[docs/README.md](../README.md)
+
 ## 本域职责
 
 - 说明项目当前真实架构和合并状态
@@ -18,15 +20,34 @@
 ## 常读文档
 
 - [current-architecture.md](current-architecture.md) — 当前真实架构（权威）
-- [stage-summary.md](stage-summary.md) — 阶段总结与下一步方向
-- [deployment-and-client-architecture.md](deployment-and-client-architecture.md)
+- [../07-product/stage-summary.md](../07-product/stage-summary.md) — 阶段总结与下一步方向
+- [../05-infra/deployment-and-clients.md](../05-infra/deployment-and-clients.md)
+- [../05-infra/release-management.md](../05-infra/release-management.md)
 - [domain-map.md](domain-map.md)
 - [glossary.md](glossary.md)
-- [AI_LOADING_GUIDE.md](AI_LOADING_GUIDE.md)
+- [ai-loading-guide.md](ai-loading-guide.md)
 - [agent-work-allocation.md](agent-work-allocation.md)
-- [next-agent-task-queue.md](next-agent-task-queue.md)
-- [../06-governance/checkpoint-review-packet.md](../06-governance/checkpoint-review-packet.md)
+- [android-client-ui-demo-context.md](android-client-ui-demo-context.md) — Android 客户端 UI Demo 上下文与后续约束
 - [../06-governance/architecture-invariants.md](../06-governance/architecture-invariants.md)
+
+## 快速导航
+
+### 当前事实
+
+- [current-architecture.md](current-architecture.md)
+- [domain-map.md](domain-map.md)
+- [glossary.md](glossary.md)
+- [../07-product/stage-summary.md](../07-product/stage-summary.md)
+
+### AI 协作
+
+- [ai-loading-guide.md](ai-loading-guide.md)
+- [agent-work-allocation.md](agent-work-allocation.md)
+
+### 客户端与发布
+
+- [../05-infra/deployment-and-clients.md](../05-infra/deployment-and-clients.md)
+- [../05-infra/release-management.md](../05-infra/release-management.md)
 
 ## 相关代码位置
 
@@ -38,6 +59,7 @@
 - `apps/persona/src/infra/`
 - `apps/workspace/app/`、`apps/workspace/src/`（Next.js 工作台）
 - `apps/blog/`（独立公开博客）
+- `apps/android/`（独立 Kotlin/Jetpack Compose Android 客户端）
 - `apps/workspace/scripts/`（同步脚本）
 - `apps/workspace/.vitepress/`（私人内容站）
 - `apps/workspace/legacy/`（仅迁移参考，不是当前入口）

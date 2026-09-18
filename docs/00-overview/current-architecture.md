@@ -15,6 +15,7 @@ flowchart LR
   subgraph presentation["界面层"]
     next["Next.js Workspace :5173<br/>总览 / AI / 日历 / 知识库 / 工具"]
     blogNext["Next.js Blog :5175<br/>公开博客"]
+    android["Android Client<br/>Kotlin / Jetpack Compose"]
     vitepress["VitePress Content :5174<br/>私人 Markdown 内容站"]
     tgAdapter["Telegram Adapter"]
   end
@@ -39,9 +40,11 @@ flowchart LR
 
   user --> next
   user --> blogNext
+  user --> android
   user --> vitepress
   user --> browser
   next -->|"浏览器直接调用 JSON API"| api
+  android -->|"Mobile API v1"| api
   next --> runtime
   runtime -->|"受控启动与关闭"| api
   telegram --> tgAdapter --> app
@@ -60,6 +63,9 @@ flowchart LR
 
 - `:5173`：Next.js 主工作台，只承载工作区、AI 和工具模块。
 - `:5175`：独立 Next.js 公开博客。
+- `apps/android/`：独立 Android 客户端，通过 Mobile API v1 访问 Persona，不是 Workspace 的移动皮肤。
+- 当前 Android 五段式 UI Demo 暂时不进入 Mobile API 配对与远端同步流程；服务端
+  Mobile API v1 认证合同仍保留，不能按匿名接口使用。
 - `:3001`：Persona OS API、AI 编排、记忆与 SQLite 持久化。
 - `:5174`：VitePress 私人内容站，按需启动。
 
@@ -69,6 +75,7 @@ flowchart LR
 | --- | --- | --- |
 | Workspace 前端 | `apps/workspace/app/`、`apps/workspace/src/` | 工作台页面路由、统一侧栏、AI 控制台、日历、知识库和工具 |
 | Blog 前端 | `apps/blog/app/`、`apps/blog/src/` | 独立公开博客列表、文章和标签页，运行于 `:5175` |
+| Android 客户端 | `apps/android/` | Kotlin/Jetpack Compose 原生客户端，通过 `/api/mobile/v1/*` 访问 Persona |
 | Workspace 同步 | `apps/workspace/scripts/` | 从 Obsidian 和项目 Markdown 生成前端只读数据 |
 | VitePress 内容站 | `apps/workspace/.vitepress/` | 直接浏览私人 Markdown 内容和本地全文搜索 |
 | Persona 接口层 | `apps/persona/src/interface/` | HTTP API、CORS、本机运行时关闭接口、Telegram 适配 |
@@ -226,7 +233,7 @@ SQLite 当前统一承载 Event、Conversation/Analysis Job、Project、Todo、W
 | `http://127.0.0.1:5175/[slug]` | 博客正文 |
 | `http://127.0.0.1:5175/tags` | 标签聚合 |
 
-所有允许的工作台页面共享 `ApplicationFrame` 与常驻左侧栏。侧栏核心入口为总览、AI、知识库、工具，底部只保留统一设置；工作台标识始终可返回首页。
+所有允许的工作台页面共享 `ApplicationFrame` 与常驻左侧栏。博客不复用 Workspace 外壳；Android 也不复用 Web UI，而是通过 Mobile API v1 实现自己的原生界面。
 
 ## 8. Persona API 表面
 

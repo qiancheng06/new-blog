@@ -1,10 +1,12 @@
-# Profile And Topic Forget/Archive Plan
+# Profile And Topic Forget/Archive Design
 
-Status: P13 design plan; P14 backend implementation exists for projection state
-migrations and Profile/Topic state APIs.
+Status: implemented design. P14 added projection-state migrations and
+Profile/Topic state APIs; this document preserves the governing rationale and
+contract boundaries.
 
-This document defines the next governed step after Profile correction. It is a
-plan, not an implemented schema migration.
+This document defines the governed behavior after Profile correction. The
+projection-state migration and APIs are implemented; future changes must keep
+the Event audit and non-deletion rules below.
 
 ## Goals
 

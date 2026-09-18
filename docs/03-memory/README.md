@@ -1,5 +1,7 @@
 # Memory
 
+**负责人：Memory Domain Agent**
+
 Memory 是系统自动沉淀的记忆域，负责 Event、Topic、Profile、Timeline 和 Daily Note。
 
 ## 本域职责
@@ -16,11 +18,18 @@ Memory 是系统自动沉淀的记忆域，负责 Event、Topic、Profile、Time
 - 不实现 UI
 - 不直接处理外部输入，输入必须先成为 Event
 
+## 与其他 Agent 的边界
+
+- Application/API Agent 负责把外部输入转换为 Event，并编排 Memory 读写流程。
+- Persona Runtime Agent 负责生成分析结果和 Prompt，不决定结果是否进入长期记忆。
+- Infra Agent 负责 SQLite 连接、迁移和备份；本域负责记忆字段语义、不变量和治理规则。
+
 ## 常读文档
 
 - [event-schema.md](event-schema.md)
 - [data-model.md](data-model.md)
 - [forgetting-policy.md](forgetting-policy.md)
+- [forget-archive-design.md](forget-archive-design.md)
 - [../06-governance/architecture-invariants.md](../06-governance/architecture-invariants.md)
 
 ## 相关代码位置
