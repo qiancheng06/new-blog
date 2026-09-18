@@ -26,3 +26,6 @@ deploy/nas/runtime/
 deploy/nas/backups/
 /data/
 *.log
+
+# Build artifacts
+*.apk
