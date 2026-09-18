@@ -31,7 +31,7 @@ PVE
         └── caddy
 ```
 
-浏览器只访问一个来源，例如 `https://persona.changwt.cc`。浏览器请求
+浏览器只访问一个来源，例如 `https://workbench.knotcloud.site`。浏览器请求
 `/persona-api/*`，Caddy 在 Docker 私有网络内转发到 API，因此不会因为多个容器产生跨域问题。
 
 当前推荐模式复用 iKuai 上已有的 Cloudflare Tunnel，PVE VM 不启动 `cloudflared`；Compose 使用一个自建 `persona-nas` 应用镜像启动 Workspace、Persona API 和备份任务，Caddy 使用官方镜像。若将来需要 VM 独立连接 Tunnel，仍可启用 `dedicated-tunnel` profile。后续可以拆成 Workspace/API 两个自建镜像，但不是首轮 PWA 上线的前置条件。
@@ -108,9 +108,9 @@ sudo chown -R 1000:1000 /srv/persona/data /srv/persona/backups
 在 Cloudflare Zero Trust 控制台：
 
 1. 创建一个 dashboard-managed Tunnel。
-2. 添加公共主机名 `persona.changwt.cc`，或你选择的 Persona 子域名。
+2. 添加公共主机名 `workbench.knotcloud.site`，或你选择的 Persona 子域名。
 3. 服务地址填写 `http://<PVE_VM_LAN_IP>:8080`，本机填写 `http://192.168.50.61:8080`。
-4. 创建 Self-hosted Access Application，主机名使用同一个 `persona.changwt.cc`。
+4. 创建 Self-hosted Access Application，主机名使用同一个 `workbench.knotcloud.site`。
 5. 添加 GitHub Identity Provider。
 6. Allow 规则只包含实际使用的 GitHub 账号。
 7. 复用 iKuai 连接器时，不需要把 Tunnel Token 放进 PVE VM；不要在 VM 内启动第二个 `cloudflared`。
@@ -120,9 +120,9 @@ Access 应用和 Tunnel 主机名必须完全一致。不要给 `persona-api` �
 
 ### 5.2 公网安全边界
 
-- 只公开 `https://persona.changwt.cc`。
+- 只公开 `https://workbench.knotcloud.site`。
 - Persona API 端口 `3001` 不发布到宿主机。
-- `PERSONA_ALLOWED_ORIGINS` 只填写 `https://persona.changwt.cc`。
+- `PERSONA_ALLOWED_ORIGINS` 只填写 `https://workbench.knotcloud.site`。
 - 不使用 `*` CORS。
 - API Key、Telegram Token、Tunnel Token 只放 VM 的 `deploy/nas/.env`。
 
@@ -149,7 +149,7 @@ PERSONA_BACKUP_RETENTION_DAYS=30
 PERSONA_GATEWAY_BIND_IP=192.168.50.61
 PERSONA_GATEWAY_PORT=8080
 
-PERSONA_ALLOWED_ORIGINS=https://persona.changwt.cc
+PERSONA_ALLOWED_ORIGINS=https://workbench.knotcloud.site
 CLOUDFLARE_TUNNEL_TOKEN=复用iKuai Tunnel时留空
 
 # NAS 使用真实服务端模型，不使用 mock。
@@ -208,7 +208,7 @@ docker compose \
 
 ## 8. 手机 PWA 验收
 
-1. 手机浏览器打开 `https://persona.changwt.cc/calendar`。
+1. 手机浏览器打开 `https://workbench.knotcloud.site/calendar`。
 2. 完成 Cloudflare GitHub 登录。
 3. 确认月、周、日视图可以切换。
 4. 确认点击日期只改变选中日期，不自动切换视图。
@@ -370,7 +370,7 @@ docker compose --env-file deploy/nas/.env -f deploy/nas/compose.yaml -f deploy/n
 
 依次检查：
 
-1. `PERSONA_ALLOWED_ORIGINS` 是否精确等于 `https://persona.changwt.cc`。
+1. `PERSONA_ALLOWED_ORIGINS` 是否精确等于 `https://workbench.knotcloud.site`。
 2. Caddy 是否将 `/persona-api/*` 转发到 `persona-api:3001`。
 3. Cloudflare Access 是否保护了同一个主机名。
 4. 浏览器请求是否仍错误指向 `127.0.0.1:3001`。
